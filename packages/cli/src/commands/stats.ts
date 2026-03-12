@@ -320,13 +320,28 @@ async function runTestCoverage(projectDir: string): Promise<TestCoverage> {
     const result = await runForge(projectDir, ['coverage', '--report', 'lcov']);
 
     if (result.exitCode !== 0) {
-      return {
-        status: 'failed',
-        failure_reason: `forge coverage exited with code ${result.exitCode}: ${result.stderr.slice(0, 200)}`,
-        overall_line_pct: null,
-        overall_branch_pct: null,
-        per_contract: [],
-      };
+      const stderrLower = result.stderr.toLowerCase();
+      if (stderrLower.includes('ir-minimum') || stderrLower.includes('stack too deep')) {
+        console.warn('Retrying coverage with --ir-minimum due to stack depth issues...');
+        const retry = await runForge(projectDir, ['coverage', '--report', 'lcov', '--ir-minimum']);
+        if (retry.exitCode !== 0) {
+          return {
+            status: 'failed',
+            failure_reason: `forge coverage exited with code ${retry.exitCode} (after --ir-minimum retry): ${retry.stderr.slice(0, 200)}`,
+            overall_line_pct: null,
+            overall_branch_pct: null,
+            per_contract: [],
+          };
+        }
+      } else {
+        return {
+          status: 'failed',
+          failure_reason: `forge coverage exited with code ${result.exitCode}: ${result.stderr.slice(0, 200)}`,
+          overall_line_pct: null,
+          overall_branch_pct: null,
+          per_contract: [],
+        };
+      }
     }
 
     // Read lcov.info
