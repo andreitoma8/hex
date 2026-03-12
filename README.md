@@ -75,12 +75,17 @@ Or run everything at once through the `init-audit` skill, which executes all com
 ### 4. Start the dashboard
 
 ```bash
-# From the SolAudit repo
-cd solaudit-dashboard
-SOLAUDIT_PROJECT_DIR=/path/to/protocol npm run dev
+solaudit dashboard
 ```
 
-Open `http://localhost:3000`. You'll see the home page with project info and stats. As you progress through the audit, every page fills in automatically.
+This starts the dashboard and opens `http://localhost:3000` in your browser. You'll see the home page with project info and stats. As you progress through the audit, every page fills in automatically.
+
+You can customize the port or skip auto-opening the browser:
+
+```bash
+solaudit dashboard --port 8080    # custom port
+solaudit dashboard --no-open      # don't open browser
+```
 
 ---
 
@@ -383,6 +388,8 @@ All commands are run from within the project directory (or with `--project /path
 | `solaudit context --target Vault` | Context for a specific contract and its dependencies |
 | `solaudit context --estimate` | Show token count without generating context |
 | `solaudit render-findings` | Regenerate `findings.md` from `findings.json` |
+| `solaudit dashboard` | Start local dashboard and open in browser |
+| `solaudit dashboard --port 8080` | Start dashboard on a custom port |
 | `solaudit update-skills` | Re-copy skill files from package (after upgrading) |
 | `solaudit update-skills --dry-run` | Preview skill changes without overwriting |
 

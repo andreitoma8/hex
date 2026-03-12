@@ -55,7 +55,14 @@ After all commands complete, summarize:
 - Number of state variables
 - Any warnings or limitations (missing tools, failed coverage, etc.)
 
-Then ask: "Ready to generate the overview and diagrams? (These require AI analysis)"
+### 6. Start the Dashboard
+Offer to start the dashboard so the auditor can visualize the analysis:
+```bash
+npx solaudit dashboard
+```
+This opens the dashboard in the browser at `http://localhost:3000`, showing all generated data with live refresh.
+
+Then ask: "Ready to generate the overview and diagrams? (These require AI analysis) You can also start the dashboard now with `solaudit dashboard` to visualize your analysis data."
 
 ## Output
 The following files should now exist in the output directory:

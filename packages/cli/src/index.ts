@@ -11,6 +11,7 @@ import { annotationsCommand } from './commands/annotations.js';
 import { contextCommand } from './commands/context.js';
 import { renderFindingsCommand } from './commands/render-findings.js';
 import { updateSkillsCommand } from './commands/update-skills.js';
+import { dashboardCommand } from './commands/dashboard.js';
 
 const program = new Command();
 
@@ -29,5 +30,6 @@ program.addCommand(annotationsCommand);
 program.addCommand(contextCommand);
 program.addCommand(renderFindingsCommand);
 program.addCommand(updateSkillsCommand);
+program.addCommand(dashboardCommand);
 
 program.parse();

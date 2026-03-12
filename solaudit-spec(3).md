@@ -69,7 +69,7 @@ SolAudit is a toolkit for Solidity smart contract auditors conducting private au
 | **CLI Tools** | Deterministic analysis (parsing, stats, extraction) | Full project (scope files for analysis, all files for dependency resolution) | JSON/Excalidraw outputs to `<config_dir>/` |
 | **Claude Code Skills** | AI reasoning, orchestration, calling CLI tools | Full project (source, tests, config, dependencies) + tool outputs | Markdown, JSON, PoC test files |
 | **VS Code** | Manual code review with annotations | Source files | `@audit` comments inline in source |
-| **Dashboard** | Visualization, read-only browsing | All files in `<config_dir>/` | Nothing |
+| **Dashboard** | Visualization, read-only browsing, started via `solaudit dashboard` | All files in `<config_dir>/` | Nothing |
 
 ### 2.2 Tech Stack
 
@@ -77,7 +77,7 @@ SolAudit is a toolkit for Solidity smart contract auditors conducting private au
 |-------|------------|
 | CLI Tools | TypeScript (compiled to Node.js) as orchestration/normalization layer. Wraps `solc`, `slither`, `forge` for analysis — does NOT reimplement their semantics. |
 | Claude Code Skills | Markdown skill files with structured prompts |
-| Dashboard | Next.js (TypeScript), running locally via `npm run dev` |
+| Dashboard | Next.js (TypeScript), started via `solaudit dashboard` |
 | Diagrams | Excalidraw JSON format (rendered in dashboard and openable in Excalidraw) |
 | Package manager | npm monorepo (tools + dashboard in one repo) |
 | Required external tools | `solc` (Solidity compiler), `slither` (static analysis), `forge` (Foundry test runner) — must be installed separately |
@@ -1556,10 +1556,15 @@ A Next.js application running on `localhost:3000`. It reads all data from the co
 
 ### 6.2 Configuration
 
-The dashboard needs to know where to find the audit project. Options:
+Start the dashboard from any audit project directory:
+
+```bash
+solaudit dashboard
+```
+
+This resolves the dashboard package, sets `SOLAUDIT_PROJECT_DIR` to the current project, starts `next dev`, and opens the browser. Alternative configuration methods:
 
 - **Environment variable:** `SOLAUDIT_PROJECT_DIR=/path/to/project`
-- **CLI flag:** `npm run dev -- --project /path/to/project`
 - **Config file:** `~/.solaudit/dashboard.json` with last-used project path
 
 The dashboard watches the output directory for file changes and auto-refreshes (use `fs.watch` or `chokidar`).
