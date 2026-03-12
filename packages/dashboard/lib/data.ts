@@ -1,0 +1,62 @@
+import fs from 'node:fs';
+import path from 'node:path';
+
+function getProjectDir(): string {
+  return process.env.SOLAUDIT_PROJECT_DIR ?? process.cwd();
+}
+
+function getOutputDir(): string {
+  const projectDir = getProjectDir();
+  // Try to read config to get output dir
+  try {
+    const configPath = path.join(projectDir, '.solaudit', 'config.json');
+    if (fs.existsSync(configPath)) {
+      return path.join(projectDir, '.solaudit');
+    }
+  } catch { /* ignore */ }
+  return path.join(projectDir, '.solaudit');
+}
+
+/**
+ * Read and parse a JSON file from the output directory.
+ */
+export function readJsonFile<T>(filename: string): T | null {
+  try {
+    const filePath = path.join(getOutputDir(), filename);
+    const content = fs.readFileSync(filePath, 'utf-8');
+    return JSON.parse(content) as T;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Read a markdown file from the output directory.
+ */
+export function readMarkdownFile(filename: string): string | null {
+  try {
+    const filePath = path.join(getOutputDir(), filename);
+    return fs.readFileSync(filePath, 'utf-8');
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Check if a file exists in the output directory.
+ */
+export function fileExists(filename: string): boolean {
+  try {
+    const filePath = path.join(getOutputDir(), filename);
+    return fs.existsSync(filePath);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Get the output directory path.
+ */
+export function getOutputDirPath(): string {
+  return getOutputDir();
+}
