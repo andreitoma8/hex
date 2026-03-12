@@ -182,40 +182,49 @@ export default function AccessPage() {
         <ReadOnlyFunctions functions={readOnlyFunctions} anyoneFnKeys={[...anyoneFnKeys]} />
       )}
 
-      {/* ── Attack Surface: "anyone" role ── */}
-      {anyoneRole && anyoneRole.functions.length > 0 && (
-        <div className="mb-10">
-          <h3 className="mb-3 text-lg font-semibold text-red-400">
-            Attack Surface &mdash; Callable by Anyone
-          </h3>
-          <div className="rounded-lg border border-red-800/50 bg-red-950/20 p-5">
-            <p className="mb-3 text-sm text-red-300/80">
-              {anyoneRole.functions.length} function
-              {anyoneRole.functions.length !== 1 ? 's' : ''} can be called without
-              restriction. These form the primary attack surface.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {anyoneRole.functions.map((fn) => (
-                <span
-                  key={`${fn.contract}::${fn.function}`}
-                  className="inline-flex items-center rounded border border-red-700/50 bg-red-900/30 px-2.5 py-1 text-sm font-mono text-red-300"
-                >
-                  {fn.contract}.{fn.function}
-                </span>
-              ))}
-            </div>
-            {anyoneRole.warnings.length > 0 && (
-              <div className="mt-3 space-y-1">
-                {anyoneRole.warnings.map((w, i) => (
-                  <p key={i} className="text-xs text-yellow-400">
-                    Warning: {w}
-                  </p>
+      {/* ── Attack Surface: "anyone" role (state-changing only) ── */}
+      {anyoneRole && (() => {
+        // Build a set of write-function keys so we exclude view/pure from the attack surface
+        const writeFnKeys = new Set(
+          writeFunctions.map((fn) => `${fn.contract}::${fn.function}`),
+        );
+        const attackSurfaceFns = anyoneRole.functions.filter(
+          (fn) => writeFnKeys.has(`${fn.contract}::${fn.function}`),
+        );
+        return attackSurfaceFns.length > 0 ? (
+          <div className="mb-10">
+            <h3 className="mb-3 text-lg font-semibold text-red-400">
+              Attack Surface &mdash; Callable by Anyone
+            </h3>
+            <div className="rounded-lg border border-red-800/50 bg-red-950/20 p-5">
+              <p className="mb-3 text-sm text-red-300/80">
+                {attackSurfaceFns.length} state-changing function
+                {attackSurfaceFns.length !== 1 ? 's' : ''} can be called without
+                restriction. These form the primary attack surface.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {attackSurfaceFns.map((fn) => (
+                  <span
+                    key={`${fn.contract}::${fn.function}`}
+                    className="inline-flex items-center rounded border border-red-700/50 bg-red-900/30 px-2.5 py-1 text-sm font-mono text-red-300"
+                  >
+                    {fn.contract}.{fn.function}
+                  </span>
                 ))}
               </div>
-            )}
+              {anyoneRole.warnings.length > 0 && (
+                <div className="mt-3 space-y-1">
+                  {anyoneRole.warnings.map((w, i) => (
+                    <p key={i} className="text-xs text-yellow-400">
+                      Warning: {w}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        ) : null;
+      })()}
 
       {/* ── Tier 2: Role cards ── */}
       {otherRoles.length > 0 && (

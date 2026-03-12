@@ -36,20 +36,18 @@ Check the output of init. If compilation verification failed, investigate:
 - Verify the Solidity version matches the project config
 
 ### 4. Run Analysis Pipeline
-Execute commands in sequence:
+Run the full analysis in a single command:
 ```bash
-npx solaudit stats
-npx solaudit deps
-npx solaudit access
-npx solaudit state
-npx solaudit calls
+npx solaudit analyze
 ```
 
-If any command fails:
-- **stats/deps**: These should always succeed (no external tool dependency). Investigate the error.
+This runs stats → deps → access → state → calls in sequence, continuing on failure and reporting a summary at the end.
+
+Notes on individual commands:
+- **stats/deps**: These should always succeed (no external tool dependency).
 - **access**: Will work without Slither but with limited Tier 2 data. Note the limitation.
 - **state**: Will work without Slither/solc but with limited read/write and no storage layout data.
-- **calls**: Requires Slither. If Slither is not installed, skip and note for the auditor.
+- **calls**: Requires Slither. If Slither is not installed, it will be skipped automatically.
 
 ### 5. Report Results
 After all commands complete, summarize:

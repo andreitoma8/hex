@@ -384,6 +384,7 @@ All commands are run from within the project directory (or with `--project /path
 | Command | What it does |
 |---------|-------------|
 | `solaudit init` | Initialize audit config — scope, commit, chain, docs URL |
+| `solaudit analyze` | Run all analysis commands in sequence (stats → deps → access → state → calls) |
 | `solaudit stats` | Generate codebase statistics and test coverage |
 | `solaudit deps` | Build contract dependency graph |
 | `solaudit access` | Extract access control mapping (roles → functions) |

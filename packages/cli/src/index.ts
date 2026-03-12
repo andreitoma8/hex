@@ -13,6 +13,7 @@ import { renderFindingsCommand } from './commands/render-findings.js';
 import { updateSkillsCommand } from './commands/update-skills.js';
 import { claudeCommand } from './commands/claude.js';
 import { dashboardCommand } from './commands/dashboard.js';
+import { analyzeCommand } from './commands/analyze.js';
 
 const program = new Command();
 
@@ -33,5 +34,6 @@ program.addCommand(renderFindingsCommand);
 program.addCommand(updateSkillsCommand);
 program.addCommand(claudeCommand);
 program.addCommand(dashboardCommand);
+program.addCommand(analyzeCommand);
 
 program.parse();
