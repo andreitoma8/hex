@@ -29,9 +29,10 @@ function TypeBadge({ type }: { type: string }) {
 }
 
 export default function AnnotationsPage() {
-  const annotations = readJsonFile<Annotation[]>('annotations.json');
+  const raw = readJsonFile<{ extracted_at: string; annotations: Annotation[] }>('annotations.json');
+  const annotations = raw?.annotations;
 
-  if (!annotations) {
+  if (!raw) {
     return (
       <div>
         <h2 className="mb-6 text-2xl font-bold text-gray-100">Annotations</h2>

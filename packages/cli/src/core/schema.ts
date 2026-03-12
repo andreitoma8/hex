@@ -139,6 +139,7 @@ export const AccessFunctionSchema = z.object({
   contract: z.string(),
   function: z.string(),
   visibility: z.enum(['external', 'public', 'internal', 'private']),
+  state_mutability: z.enum(['pure', 'view', 'nonpayable', 'payable']).nullable(),
   modifiers: z.array(z.string()),
   evidence: EvidenceSchema,
 });

@@ -1,6 +1,7 @@
 import { readJsonFile } from '@/lib/data';
 import { NotYetGenerated } from '@/components/NotYetGenerated';
 import { ConfidenceBadge } from '@/components/ConfidenceBadge';
+import { ReadOnlyFunctions } from './ReadOnlyFunctions';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -15,6 +16,7 @@ interface AccessFunction {
   contract: string;
   function: string;
   visibility: string;
+  state_mutability: string | null;
   modifiers: string[];
   evidence: Evidence;
 }
@@ -77,6 +79,13 @@ export default function AccessPage() {
 
   const { functions, roles } = data;
 
+  const writeFunctions = functions.filter(
+    (fn) => fn.state_mutability !== 'view' && fn.state_mutability !== 'pure',
+  );
+  const readOnlyFunctions = functions.filter(
+    (fn) => fn.state_mutability === 'view' || fn.state_mutability === 'pure',
+  );
+
   // Separate "anyone" role from others
   const anyoneRole = roles.find(
     (r) => r.role.toLowerCase() === 'anyone' || r.role.toLowerCase() === 'public',
@@ -95,14 +104,15 @@ export default function AccessPage() {
       <h2 className="mb-6 text-2xl font-bold text-gray-100">Access Control</h2>
 
       <p className="mb-6 text-sm text-gray-400">
-        {functions.length} function{functions.length !== 1 ? 's' : ''} analyzed across{' '}
-        {roles.length} role{roles.length !== 1 ? 's' : ''}
+        {functions.length} function{functions.length !== 1 ? 's' : ''} analyzed
+        ({writeFunctions.length} state-changing, {readOnlyFunctions.length} read-only)
+        {' '}across {roles.length} role{roles.length !== 1 ? 's' : ''}
       </p>
 
-      {/* ── Tier 1: Functions table ── */}
+      {/* ── Tier 1: State-changing functions table ── */}
       <div className="mb-10">
         <h3 className="mb-3 text-lg font-semibold text-gray-200">
-          Functions
+          State-Changing Functions
         </h3>
         <div className="overflow-x-auto rounded-lg border border-gray-700">
           <table className="w-full text-left text-sm">
@@ -116,7 +126,7 @@ export default function AccessPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-700/50">
-              {functions.map((fn) => {
+              {writeFunctions.map((fn) => {
                 const key = `${fn.contract}::${fn.function}`;
                 const isAnyone = anyoneFnKeys.has(key);
                 return (
@@ -166,6 +176,11 @@ export default function AccessPage() {
           </table>
         </div>
       </div>
+
+      {/* ── Read-only functions (collapsible) ── */}
+      {readOnlyFunctions.length > 0 && (
+        <ReadOnlyFunctions functions={readOnlyFunctions} anyoneFnKeys={[...anyoneFnKeys]} />
+      )}
 
       {/* ── Attack Surface: "anyone" role ── */}
       {anyoneRole && anyoneRole.functions.length > 0 && (

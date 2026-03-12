@@ -44,6 +44,7 @@ export function extractFunctionFacts(
         contract: contract.name,
         function: func.name,
         visibility: func.visibility === 'default' ? 'public' : func.visibility,
+        state_mutability: (func.stateMutability as 'pure' | 'view' | 'nonpayable' | 'payable') ?? null,
         modifiers: func.modifiers,
         evidence: {
           file,
