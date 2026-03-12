@@ -5,7 +5,7 @@ import { glob } from 'glob';
 import { logger } from '../core/logger.js';
 import { createConfig } from '../core/config.js';
 import { normalizePath, makeRelative, getOutputDir, splitLines } from '../core/paths.js';
-import { runForge } from '../core/external-tools.js';
+import { runForge, detectTools } from '../core/external-tools.js';
 import { parseSolidity, extractSolidityVersion } from '../parsers/solidity-parser.js';
 
 export const initCommand = new Command('init')
@@ -39,6 +39,27 @@ export const initCommand = new Command('init')
       if (isFoundry) logger.info('Detected Foundry project');
       else if (isHardhat) logger.info('Detected Hardhat project');
       else logger.warn('No Foundry or Hardhat config detected');
+
+      // Check tool availability
+      spin.text = 'Checking external tools...';
+      const tools = await detectTools();
+      for (const tool of tools) {
+        if (tool.available) {
+          logger.info(`${tool.name}: ${tool.version}`);
+        } else {
+          switch (tool.name) {
+            case 'forge':
+              logger.warn('forge not found — compilation verification and test coverage will be unavailable');
+              break;
+            case 'slither':
+              logger.warn('slither not found — access control, state variable, and external call analysis will be limited');
+              break;
+            case 'solc':
+              logger.warn('solc not found — storage layout extraction will be unavailable');
+              break;
+          }
+        }
+      }
 
       // Resolve scope globs
       if (!opts.scope) {

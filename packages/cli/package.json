@@ -9,8 +9,9 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
+    "copy-skills": "node -e \"const fs=require('fs');const p=require('path');fs.cpSync(p.join('src','skills'),p.join('dist','skills'),{recursive:true})\"",
+    "build": "tsc && npm run copy-skills",
+    "dev": "npm run copy-skills && tsc --watch",
     "test": "vitest run",
     "test:watch": "vitest"
   },

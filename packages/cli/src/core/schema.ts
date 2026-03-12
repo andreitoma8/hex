@@ -75,6 +75,13 @@ export const PerContractStatsSchema = z.object({
   errors: z.number().int(),
   assembly_lines: z.number().int(),
   inherits: z.array(z.string()),
+  nsloc_with_deps: z.number().int().optional(),
+  total_functions: z.number().int().optional(),
+  total_external_functions: z.number().int().optional(),
+  total_public_functions: z.number().int().optional(),
+  total_modifiers: z.number().int().optional(),
+  total_events: z.number().int().optional(),
+  total_errors: z.number().int().optional(),
 });
 
 export const DependencyEntrySchema = z.object({
@@ -96,6 +103,7 @@ export const StatsSchema = z.object({
     comment_lines: z.number().int(),
     blank_lines: z.number().int(),
     assembly_lines: z.number().int(),
+    nsloc_with_deps: z.number().int().optional(),
   }),
   solidity_version: z.string(),
   erc_eip_usage: z.array(z.string()),

@@ -5,7 +5,7 @@ import { logger } from '../core/logger.js';
 import { loadConfig } from '../core/config.js';
 import { getOutputDir, normalizePath } from '../core/paths.js';
 import { writeJsonOutput } from '../core/output.js';
-import { parseSolidity } from '../parsers/solidity-parser.js';
+import { parseSolidity, type ParsedContract, type ParsedFunction } from '../parsers/solidity-parser.js';
 import { countNsloc, getCommentRanges, getAssemblyRanges } from '../analysis/nsloc.js';
 import { detectErcs } from '../analysis/erc-detection.js';
 import { parseLcov, coveragePct } from '../parsers/lcov.js';
@@ -108,6 +108,44 @@ export const statsCommand = new Command('stats')
         }
       }
 
+      // Second pass: resolve inherited members via forge flatten
+      spin.text = 'Resolving inherited members...';
+      let totalNslocWithDeps = 0;
+      let hasAnyFlattenedData = false;
+
+      for (const scopeFile of config.project.scope) {
+        const filePath = path.resolve(config.project.project_dir, scopeFile);
+        if (!fs.existsSync(filePath)) continue;
+
+        const flattenedSource = await flattenFile(config.project.project_dir, filePath);
+        if (!flattenedSource) continue;
+
+        // Count nSLOC on flattened source
+        const flatParsed = parseSolidity(flattenedSource, scopeFile);
+        const flatCommentRanges = getCommentRanges(flatParsed.comments);
+        const flatAssemblyRanges = getAssemblyRanges(flattenedSource);
+        const flatLineCounts = countNsloc(flattenedSource, flatCommentRanges, flatAssemblyRanges);
+
+        // Assign nsloc_with_deps to each contract in this file
+        const fileContracts = perContract.filter((c) => c.file === normalizePath(scopeFile));
+        for (const entry of fileContracts) {
+          entry.nsloc_with_deps = flatLineCounts.nsloc;
+          totalNslocWithDeps += flatLineCounts.nsloc;
+          hasAnyFlattenedData = true;
+
+          // Resolve inherited members
+          const resolved = resolveInheritedMembers(entry.contract, flatParsed.contracts);
+          if (resolved) {
+            entry.total_functions = resolved.functions.length;
+            entry.total_external_functions = resolved.functions.filter((f) => f.visibility === 'external').length;
+            entry.total_public_functions = resolved.functions.filter((f) => f.visibility === 'public').length;
+            entry.total_modifiers = resolved.modifiers.length;
+            entry.total_events = resolved.events.length;
+            entry.total_errors = resolved.errors.length;
+          }
+        }
+      }
+
       // Resolve dependency versions
       const dependencies = resolveDependencyVersions(
         dependencyMap,
@@ -134,6 +172,7 @@ export const statsCommand = new Command('stats')
           comment_lines: totalComments,
           blank_lines: totalBlanks,
           assembly_lines: totalAssembly,
+          ...(hasAnyFlattenedData ? { nsloc_with_deps: totalNslocWithDeps } : {}),
         },
         solidity_version: config.project.solidity_version,
         erc_eip_usage: [...allErcs].sort(),
@@ -201,6 +240,79 @@ function resolveDependencyVersions(
   }
 
   return deps.sort((a, b) => a.package.localeCompare(b.package));
+}
+
+async function flattenFile(projectDir: string, filePath: string): Promise<string | null> {
+  try {
+    const result = await runForge(projectDir, ['flatten', filePath]);
+    if (result.exitCode === 0 && result.stdout.trim().length > 0) {
+      return result.stdout;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+interface ResolvedMembers {
+  functions: ParsedFunction[];
+  modifiers: string[];
+  events: string[];
+  errors: string[];
+}
+
+function resolveInheritedMembers(
+  targetName: string,
+  allContracts: ParsedContract[],
+): ResolvedMembers | null {
+  const contractMap = new Map<string, ParsedContract>();
+  for (const c of allContracts) {
+    contractMap.set(c.name, c);
+  }
+
+  const target = contractMap.get(targetName);
+  if (!target) return null;
+
+  const visited = new Set<string>();
+  const allFunctions: ParsedFunction[] = [];
+  const allModifiers: string[] = [];
+  const allEvents: string[] = [];
+  const allErrors: string[] = [];
+
+  function walk(name: string): void {
+    if (visited.has(name)) return;
+    visited.add(name);
+    const contract = contractMap.get(name);
+    if (!contract) return;
+    // Walk parents first so child overrides come later
+    for (const base of contract.baseContracts) {
+      walk(base);
+    }
+    allFunctions.push(...contract.functions);
+    allModifiers.push(...contract.modifiers.map((m) => m.name));
+    allEvents.push(...contract.events);
+    allErrors.push(...contract.errors);
+  }
+
+  walk(targetName);
+
+  // Deduplicate functions: later entries (child) override earlier (parent) by name
+  const funcMap = new Map<string, ParsedFunction>();
+  for (const f of allFunctions) {
+    funcMap.set(f.name, f);
+  }
+
+  // Deduplicate modifiers, events, errors by name
+  const uniqueModifiers = [...new Set(allModifiers)];
+  const uniqueEvents = [...new Set(allEvents)];
+  const uniqueErrors = [...new Set(allErrors)];
+
+  return {
+    functions: [...funcMap.values()],
+    modifiers: uniqueModifiers,
+    events: uniqueEvents,
+    errors: uniqueErrors,
+  };
 }
 
 async function runTestCoverage(projectDir: string): Promise<TestCoverage> {
