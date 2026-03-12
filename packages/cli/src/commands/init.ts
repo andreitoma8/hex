@@ -7,6 +7,7 @@ import { createConfig } from '../core/config.js';
 import { normalizePath, makeRelative, getOutputDir, splitLines } from '../core/paths.js';
 import { runForge, detectTools } from '../core/external-tools.js';
 import { parseSolidity, extractSolidityVersion } from '../parsers/solidity-parser.js';
+import { copySkillsToClaudeFormat, getClaudeSkillsDir } from '../core/skills.js';
 
 export const initCommand = new Command('init')
   .description('Initialize a new audit project')
@@ -163,30 +164,11 @@ export const initCommand = new Command('init')
 
       const outputDir = getOutputDir(projectDir, config.settings.output_dir);
 
-      // Copy skill files
+      // Copy skill files to .claude/skills/<name>/SKILL.md
       spin.text = 'Copying skill files...';
-      const skillsDir = path.join(outputDir, 'skills');
-      if (!fs.existsSync(skillsDir)) {
-        fs.mkdirSync(skillsDir, { recursive: true });
-      }
-
-      // Copy from bundled skills
-      const bundledSkillsDir = path.resolve(
-        new URL('.', import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1'),
-        '..', 'skills',
-      );
-      if (fs.existsSync(bundledSkillsDir)) {
-        const skillFiles = fs.readdirSync(bundledSkillsDir);
-        for (const file of skillFiles) {
-          if (file.endsWith('.md')) {
-            fs.copyFileSync(
-              path.join(bundledSkillsDir, file),
-              path.join(skillsDir, file),
-            );
-          }
-        }
-        logger.info(`Copied ${skillFiles.filter((f) => f.endsWith('.md')).length} skill files`);
-      }
+      const claudeSkillsDir = getClaudeSkillsDir(projectDir);
+      const skillsCopied = copySkillsToClaudeFormat({ targetDir: claudeSkillsDir });
+      logger.info(`Copied ${skillsCopied} skill files to .claude/skills/`);
 
       // Create subdirectories
       for (const subdir of ['validations', 'ai-results']) {
@@ -216,8 +198,8 @@ export const initCommand = new Command('init')
 This project is being audited with SolAudit.
 
 ## Skills
-Audit skills are available in \`${config.settings.output_dir}/skills/\`.
-To use them, read the relevant skill file and follow its instructions.
+Audit skills are in \`.claude/skills/\` and auto-discovered by Claude Code as slash commands.
+Type \`/\` to see available skills (e.g., \`/init-audit\`, \`/generate-overview\`).
 
 ## Output Directory
 All audit outputs are in \`${config.settings.output_dir}/\`.

@@ -1,3 +1,7 @@
+---
+description: "Verify code matches documentation, NatSpec, interfaces, and ERCs"
+---
+
 # Skill: Check Spec Conformance
 
 **Recommended model:** Opus

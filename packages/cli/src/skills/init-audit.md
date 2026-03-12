@@ -1,3 +1,7 @@
+---
+description: "Initialize a Solidity audit project and run the full analysis pipeline"
+---
+
 # Skill: Initialize Audit
 
 **Recommended model:** Sonnet
@@ -72,4 +76,4 @@ The following files should now exist in the output directory:
 - `access-control.json` — access control mapping
 - `state-vars.json` — state variable inventory
 - `external-calls.json` — external call surface (if Slither available)
-- `skills/` — copied skill files
+- `.claude/skills/` — Claude Code skill files

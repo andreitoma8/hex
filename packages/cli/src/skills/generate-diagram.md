@@ -1,3 +1,7 @@
+---
+description: "Create an Excalidraw system architecture diagram"
+---
+
 # Skill: Generate System Diagram
 
 **Recommended model:** Sonnet

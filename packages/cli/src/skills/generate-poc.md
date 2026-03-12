@@ -1,3 +1,7 @@
+---
+description: "Validate an issue and generate a proof-of-concept test"
+---
+
 # Skill: Generate Proof of Concept
 
 **Recommended model:** Opus

@@ -10,7 +10,7 @@ There are three components that work together off a shared project directory:
 
 **CLI tools** (`solaudit`) run deterministic analysis — stats, access control mapping, state variable inventory, external call surface, annotation extraction. They wrap battle-tested tools like Slither, solc, and Forge rather than reinventing static analysis. Their output is structured JSON with confidence metadata so you always know how much to trust a given data point.
 
-**Claude Code skills** handle anything that requires reasoning — generating protocol overviews, identifying invariants, checking if code matches its spec, writing PoCs, drafting findings. You invoke them through Claude Code in your terminal. Skills are markdown files that ship with the `solaudit` package and get copied into your project's `.solaudit/skills/` directory during init. They're editable per-project if you need to customize them. Skills that need deep code comprehension (PoCs, invariants, spec conformance) recommend Opus; simpler tasks (overviews, finding write-ups) work well with Sonnet.
+**Claude Code skills** handle anything that requires reasoning — generating protocol overviews, identifying invariants, checking if code matches its spec, writing PoCs, drafting findings. You invoke them through Claude Code in your terminal as native slash commands (e.g., `/init-audit`, `/generate-overview`). Skills are markdown files that ship with the `solaudit` package and get copied into your project's `.claude/skills/` directory. They're editable per-project if you need to customize them. Skills that need deep code comprehension (PoCs, invariants, spec conformance) recommend Opus; simpler tasks (overviews, finding write-ups) work well with Sonnet.
 
 **Every AI skill reads all prior analysis outputs.** When you ask Claude to identify invariants, it doesn't just read the raw source code — it also reads the stats, dependency graph, access control map, state variable inventory, external call surface, and any other analysis you've already generated. Each skill layer builds on top of all previous layers, which means the AI has structured, high-confidence facts to work with rather than re-deriving everything from scratch.
 
@@ -41,7 +41,15 @@ cd protocol
 npm install -g solaudit
 ```
 
-### 2. Initialize the audit
+### 2. Set up Claude Code skills
+
+```bash
+solaudit claude
+```
+
+This copies all audit skills to `.claude/skills/` so Claude Code discovers them as native slash commands. This works before `solaudit init` — no config required.
+
+### 3. Initialize the audit
 
 ```bash
 solaudit init --scope "src/core/**/*.sol,src/Vault.sol" --commit abc123 --chain ethereum --docs "https://docs.protocol.xyz"
@@ -49,7 +57,6 @@ solaudit init --scope "src/core/**/*.sol,src/Vault.sol" --commit abc123 --chain 
 
 This creates a `.solaudit/` directory (configurable) inside the project with:
 - `config.json` with your audit scope
-- `skills/` directory containing all Claude Code skill files
 
 The scope defines which files you are responsible for auditing. All other project files remain available for context, compilation, and test execution.
 
@@ -57,7 +64,7 @@ You can also run this interactively through Claude Code:
 
 ```bash
 claude
-> Use the init-audit skill to set up this project for auditing
+> /init-audit
 ```
 
 ### 3. Run analysis
@@ -101,7 +108,7 @@ The goal of this phase is to build a mental model of the protocol before you rea
 
 ```bash
 claude
-> Use the generate-overview skill
+> /generate-overview
 ```
 
 Claude reads the full codebase, any documentation you linked, and all the structured analysis already generated (stats, access control, state variables, external calls, dependencies). It then writes a 2-3 paragraph overview of what the protocol does, how it works, and what the key contracts are. The overview is saved to `.solaudit/overview.md` and displayed on the dashboard home page.
@@ -123,7 +130,7 @@ Test coverage is optional — if the project has broken tests or missing depende
 
 ```bash
 claude
-> Use the generate-diagram skill
+> /generate-diagram
 ```
 
 Produces an Excalidraw diagram showing contracts, inheritance, external calls, and role connections. Viewable in the dashboard at `/diagram` or openable directly in the Excalidraw desktop app.
@@ -134,7 +141,7 @@ Produces an Excalidraw diagram showing contracts, inheritance, external calls, a
 
 ```bash
 claude
-> Use the generate-flows skill
+> /generate-flows
 ```
 
 Generates flow charts for every significant path through the protocol, grouped by user type (anyone, owner, keeper, etc.), value flows (deposits, withdrawals, fee collection), and admin operations. Entry points trace through internal calls, state changes, and external calls to their exit points.
@@ -145,7 +152,7 @@ Generates flow charts for every significant path through the protocol, grouped b
 
 ```bash
 claude
-> Use the identify-invariants skill
+> /identify-invariants
 ```
 
 Claude reads the full codebase, documentation, and all prior analysis outputs (especially the state variable inventory, which tells it exactly which variables are bounded, mutable, or unused, and the access control map, which tells it role constraints). It performs a three-pass analysis:
@@ -162,7 +169,7 @@ Each invariant gets a confidence rating. Output is saved to `.solaudit/invariant
 
 ```bash
 claude
-> Use the check-spec-conformance skill
+> /check-spec-conformance
 ```
 
 This checks whether the code actually does what it claims to do. Claude reads the full codebase, all prior analysis outputs, and the already-identified invariants, then cross-references four specification sources:
@@ -258,14 +265,14 @@ Point Claude at an `@audit-issue` annotation:
 
 ```bash
 claude
-> Generate a PoC for the issue at src/Vault.sol line 156 about the rounding error
+> /generate-poc for the issue at src/Vault.sol line 156 about the rounding error
 ```
 
 Or reference it by annotation ID:
 
 ```bash
 claude
-> Use the generate-poc skill for annotation A001
+> /generate-poc for annotation A001
 ```
 
 Claude will:
@@ -286,7 +293,7 @@ After a PoC passes:
 
 ```bash
 claude
-> Use the write-finding skill for annotation A001
+> /write-finding for annotation A001
 ```
 
 Claude reads the annotation, the validation memo, the PoC, and the relevant code, then writes a structured finding entry to `.solaudit/findings.json` with:
@@ -332,7 +339,7 @@ cp zellic-report.json .solaudit/ai-results/zellic.json
 
 ```bash
 claude
-> Use the compare-findings skill
+> /compare-findings
 ```
 
 Claude semantically compares each AI finding against your own findings. It matches on affected contract, function, root cause, and attack vector — not string matching. The output is:
@@ -351,7 +358,7 @@ For each novel finding the AI agents surfaced:
 
 ```bash
 claude
-> Use the validate-ai-finding skill for AI-N001
+> /validate-ai-finding for AI-N001
 ```
 
 Claude independently traces the described attack path in the code and determines if it's valid. If valid, it generates a PoC and writes a finding. If invalid, it explains why. If uncertain, it flags specific questions for you to investigate.
@@ -390,8 +397,9 @@ All commands are run from within the project directory (or with `--project /path
 | `solaudit render-findings` | Regenerate `findings.md` from `findings.json` |
 | `solaudit dashboard` | Start local dashboard and open in browser |
 | `solaudit dashboard --port 8080` | Start dashboard on a custom port |
+| `solaudit claude` | Copy skills to `.claude/skills/` for Claude Code discovery |
 | `solaudit update-skills` | Re-copy skill files from package (after upgrading) |
-| `solaudit update-skills --dry-run` | Preview skill changes without overwriting |
+| `solaudit update-skills --force` | Overwrite existing skill files |
 
 ---
 
@@ -414,40 +422,34 @@ Skills are invoked through Claude Code. Each skill has a recommended model — s
 
 ### Where Skills Live
 
-Skills are markdown files stored in `.solaudit/skills/` inside your project directory. They're copied there automatically when you run `solaudit init`.
+Skills use Claude Code's native skill format, stored in `.claude/skills/<name>/SKILL.md`. They're copied there when you run `solaudit claude` or `solaudit init`.
 
 ```
-.solaudit/skills/
-├── init-audit.md
-├── generate-overview.md
-├── generate-diagram.md
-├── generate-flows.md
-├── identify-invariants.md
-├── check-spec-conformance.md
-├── generate-poc.md
-├── write-finding.md
-├── compare-findings.md
-└── validate-ai-finding.md
+.claude/skills/
+├── init-audit/SKILL.md
+├── generate-overview/SKILL.md
+├── generate-diagram/SKILL.md
+├── generate-flows/SKILL.md
+├── identify-invariants/SKILL.md
+├── check-spec-conformance/SKILL.md
+├── generate-poc/SKILL.md
+├── write-finding/SKILL.md
+├── compare-findings/SKILL.md
+└── validate-ai-finding/SKILL.md
 ```
 
-**How Claude Code finds them:** Your project's `CLAUDE.md` (or equivalent configuration) should include a line pointing Claude Code to the skills directory:
+**How Claude Code finds them:** Claude Code auto-discovers skills in `.claude/skills/`. They appear as native slash commands — type `/` in Claude Code to see them.
 
-```
-Skills for this audit are in .solaudit/skills/. Read the relevant skill file before executing any audit task.
-```
-
-Alternatively, reference skills explicitly when invoking them: `> Read .solaudit/skills/generate-poc.md and follow it for annotation A001`.
-
-**Customizing skills for a project:** You can edit any skill file in place. For example, you might add project-specific hints to the invariant identification skill, or adjust the PoC conventions to match an unusual test setup. If you rename a customized skill (e.g., `generate-poc-custom.md`), it won't be overwritten when you update.
+**Customizing skills for a project:** You can edit any `SKILL.md` file in place. For example, you might add project-specific hints to the invariant identification skill, or adjust the PoC conventions to match an unusual test setup.
 
 **Updating skills after upgrading SolAudit:**
 
 ```bash
 solaudit update-skills           # re-copy all default skills from the new package version
-solaudit update-skills --dry-run # preview what would change
+solaudit update-skills --force   # overwrite existing skill files
 ```
 
-This overwrites default-named skill files but preserves any custom-named files you've created.
+This copies default skill files but skips existing ones unless `--force` is used.
 
 ### What Skills See
 
@@ -506,17 +508,6 @@ All SolAudit outputs live in a single directory inside the project (default: `.s
 ```
 .solaudit/
 ├── config.json              # Audit scope, settings
-├── skills/                  # Claude Code skill files
-│   ├── init-audit.md
-│   ├── generate-overview.md
-│   ├── generate-diagram.md
-│   ├── generate-flows.md
-│   ├── identify-invariants.md
-│   ├── check-spec-conformance.md
-│   ├── generate-poc.md
-│   ├── write-finding.md
-│   ├── compare-findings.md
-│   └── validate-ai-finding.md
 ├── overview.md              # AI-generated protocol overview
 ├── stats.json               # Codebase statistics and test coverage
 ├── deps.json                # Contract dependency graph

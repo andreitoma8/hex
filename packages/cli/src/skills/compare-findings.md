@@ -1,3 +1,7 @@
+---
+description: "Semantically compare your findings against AI agent results"
+---
+
 # Skill: Compare Findings
 
 **Recommended model:** Sonnet

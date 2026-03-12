@@ -1,3 +1,7 @@
+---
+description: "Three-pass invariant identification from docs, code, and comparison"
+---
+
 # Skill: Identify Invariants
 
 **Recommended model:** Opus

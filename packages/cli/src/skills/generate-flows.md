@@ -1,3 +1,7 @@
+---
+description: "Generate Excalidraw flow charts by user type and value paths"
+---
+
 # Skill: Generate Flow Charts
 
 **Recommended model:** Opus

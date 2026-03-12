@@ -1,3 +1,7 @@
+---
+description: "Write a structured finding with severity, description, and recommendation"
+---
+
 # Skill: Write Finding
 
 **Recommended model:** Sonnet

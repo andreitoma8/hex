@@ -1,3 +1,7 @@
+---
+description: "Generate a protocol overview from codebase and analysis data"
+---
+
 # Skill: Generate Protocol Overview
 
 **Recommended model:** Sonnet

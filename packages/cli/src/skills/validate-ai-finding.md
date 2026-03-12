@@ -1,3 +1,7 @@
+---
+description: "Independently verify a novel finding from an AI audit agent"
+---
+
 # Skill: Validate AI Finding
 
 **Recommended model:** Opus
