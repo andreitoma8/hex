@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 
 interface ConformanceCheck {
   id: string;
@@ -70,10 +70,10 @@ export function ConformanceTable({ checks }: ConformanceTableProps) {
         <thead className="border-b border-gray-700 bg-gray-800 text-xs uppercase text-gray-400">
           <tr>
             <th className="w-8 px-2 py-3" />
-            <th className="px-4 py-3">ID</th>
+            <th className="w-24 px-4 py-3">ID</th>
             <th className="px-4 py-3">Requirement</th>
-            <th className="px-4 py-3">Status</th>
-            <th className="px-4 py-3">Source</th>
+            <th className="w-32 px-4 py-3">Status</th>
+            <th className="w-24 px-4 py-3">Source</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-700">
@@ -85,52 +85,51 @@ export function ConformanceTable({ checks }: ConformanceTableProps) {
               STATUS_ROW_BORDER[check.status] ?? STATUS_ROW_BORDER.UNDOCUMENTED;
 
             return (
-              <tr key={check.id} className="contents">
-                <td colSpan={5} className="p-0">
-                  {/* Main row */}
-                  <button
-                    type="button"
-                    onClick={() => toggleRow(check.id)}
-                    className={`flex w-full items-center border-l-4 ${borderColor} bg-gray-800/50 text-left hover:bg-gray-700/50 transition-colors`}
-                  >
-                    <span className="flex w-8 shrink-0 items-center justify-center px-2 py-3 text-gray-500">
-                      <svg
-                        className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={2}
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="m9 5 7 7-7 7"
-                        />
-                      </svg>
+              <Fragment key={check.id}>
+                {/* Main row */}
+                <tr
+                  onClick={() => toggleRow(check.id)}
+                  className={`border-l-4 ${borderColor} cursor-pointer bg-gray-800/50 hover:bg-gray-700/50 transition-colors`}
+                >
+                  <td className="w-8 px-2 py-3 text-gray-500">
+                    <svg
+                      className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="m9 5 7 7-7 7"
+                      />
+                    </svg>
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-gray-300">
+                    {check.id}
+                  </td>
+                  <td className="px-4 py-3 text-gray-300">
+                    {check.requirement}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${badgeStyle}`}
+                    >
+                      {check.status}
                     </span>
-                    <span className="whitespace-nowrap px-4 py-3 font-mono text-xs text-gray-300">
-                      {check.id}
-                    </span>
-                    <span className="flex-1 px-4 py-3 text-gray-300">
-                      {check.requirement}
-                    </span>
-                    <span className="px-4 py-3">
-                      <span
-                        className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${badgeStyle}`}
-                      >
-                        {check.status}
-                      </span>
-                    </span>
-                    <span className="px-4 py-3 text-xs text-gray-400">
-                      {check.source
-                        ? (SOURCE_LABELS[check.source] ?? check.source)
-                        : (check.spec_section ?? '-')}
-                    </span>
-                  </button>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-gray-400">
+                    {check.source
+                      ? (SOURCE_LABELS[check.source] ?? check.source)
+                      : (check.spec_section ?? '-')}
+                  </td>
+                </tr>
 
-                  {/* Expanded details */}
-                  {isExpanded && (
-                    <div className={`border-l-4 ${borderColor} bg-gray-900/50 px-8 py-4`}>
+                {/* Expanded details */}
+                {isExpanded && (
+                  <tr className={`border-l-4 ${borderColor}`}>
+                    <td colSpan={5} className="bg-gray-900/50 px-8 py-4">
                       <div className="text-sm text-gray-300">
                         <h4 className="mb-2 text-xs font-semibold uppercase text-gray-500">
                           Details
@@ -172,10 +171,10 @@ export function ConformanceTable({ checks }: ConformanceTableProps) {
                           </div>
                         )}
                       </div>
-                    </div>
-                  )}
-                </td>
-              </tr>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
             );
           })}
         </tbody>

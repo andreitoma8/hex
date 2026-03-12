@@ -103,4 +103,4 @@ Write to `<output_dir>/spec-conformance.json`:
 }
 ```
 
-Also render to `<output_dir>/spec-conformance.md` for human reading, grouped by status (DEVIATES first, then PARTIAL, UNVERIFIABLE, UNDOCUMENTED, CONFORMS).
+The dashboard renders this JSON with structured tables, expandable details, and status filtering — no separate markdown file is needed.
