@@ -39,14 +39,16 @@ export const dashboardCommand = new Command('dashboard')
     logger.info(`Starting dashboard on http://localhost:${port}`);
     logger.info(`Project: ${projectDir}`);
 
-    // Spawn next dev
-    const child = spawn('npx', ['next', 'dev', '--port', port], {
+    // Spawn next dev via npm run dev to use the dashboard's own next version
+    // Pass port via PORT env var for reliable cross-platform behavior
+    const child = spawn('npm', ['run', 'dev'], {
       cwd: dashboardDir,
       stdio: 'inherit',
       shell: true,
       env: {
         ...process.env,
         SOLAUDIT_PROJECT_DIR: projectDir,
+        PORT: port,
       },
     });
 
