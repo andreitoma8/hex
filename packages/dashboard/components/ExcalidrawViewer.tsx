@@ -59,11 +59,11 @@ export function ExcalidrawViewer({ filename }: ExcalidrawViewerProps) {
   const files = (data as any)?.files ?? undefined;
 
   return (
-    <div className="h-[700px] rounded-lg border border-gray-700 bg-white">
+    <div className="h-[700px] rounded-lg border border-gray-700 bg-gray-800">
       <ExcalidrawComponent
         initialData={{
           elements,
-          appState: { ...appState, viewModeEnabled: true, theme: 'light' },
+          appState: { ...appState, viewModeEnabled: true, theme: 'dark' },
           files,
         }}
         viewModeEnabled={true}
