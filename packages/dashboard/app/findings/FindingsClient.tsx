@@ -30,6 +30,8 @@ interface Finding {
 
 type Severity = 'Critical' | 'High' | 'Medium' | 'Low' | 'Info';
 
+const SEVERITY_ORDER: Record<string, number> = { Critical: 0, High: 1, Medium: 2, Low: 3, Info: 4 };
+
 // ─── Columns ────────────────────────────────────────────────────────
 
 const columns: FilterableColumn<Finding>[] = [
@@ -52,6 +54,12 @@ const columns: FilterableColumn<Finding>[] = [
     header: 'Severity',
     accessorKey: 'severity',
     enableColumnFilter: true,
+    filterOrder: ['Critical', 'High', 'Medium', 'Low', 'Info'],
+    sortingFn: (rowA: { getValue: (id: string) => unknown }, rowB: { getValue: (id: string) => unknown }, columnId: string) => {
+      const a = SEVERITY_ORDER[String(rowA.getValue(columnId))] ?? 5;
+      const b = SEVERITY_ORDER[String(rowB.getValue(columnId))] ?? 5;
+      return a - b;
+    },
     cell: (row) => <SeverityBadge severity={(row.severity ?? 'Info') as Severity} />,
   },
   {

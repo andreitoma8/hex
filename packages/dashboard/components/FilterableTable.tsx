@@ -21,6 +21,11 @@ export interface FilterableColumn<T> {
   enableColumnFilter?: boolean;
   cell?: (row: T) => React.ReactNode;
   className?: string;
+  /** Custom sorting function — maps to TanStack's column sortingFn */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sortingFn?: (rowA: any, rowB: any, columnId: string) => number;
+  /** Controls filter dropdown order instead of alphabetical sort */
+  filterOrder?: string[];
 }
 
 // ─── Props ───────────────────────────────────────────────────────────
@@ -62,6 +67,7 @@ export function FilterableTable<T extends object>({
         accessorKey: col.accessorKey,
         header: col.header,
         enableColumnFilter: col.enableColumnFilter ?? false,
+        ...(col.sortingFn ? { sortingFn: col.sortingFn } : {}),
         cell: col.cell
           ? ({ row }) => col.cell!(row.original)
           : ({ getValue }) => <span className="text-gray-300">{String(getValue() ?? '')}</span>,
@@ -90,7 +96,18 @@ export function FilterableTable<T extends object>({
         const val = (row as Record<string, unknown>)[col.accessorKey];
         if (val != null) values.add(String(val));
       }
-      opts[col.id] = [...values].sort();
+      const arr = [...values];
+      if (col.filterOrder) {
+        const order = col.filterOrder;
+        arr.sort((a, b) => {
+          const ai = order.indexOf(a);
+          const bi = order.indexOf(b);
+          return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+        });
+      } else {
+        arr.sort();
+      }
+      opts[col.id] = arr;
     }
     return opts;
   }, [columns, data]);
