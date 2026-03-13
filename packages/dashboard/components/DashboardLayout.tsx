@@ -11,7 +11,6 @@ const NAV_ITEMS = [
   { href: '/calls', label: 'External Calls' },
   { href: '/invariants', label: 'Invariants' },
   { href: '/conformance', label: 'Spec Conformance' },
-  { href: '/annotations', label: 'Annotations' },
   { href: '/report', label: 'Report' },
   { href: '/all-findings', label: 'All Findings' },
   { href: '/diagram', label: 'Diagram' },

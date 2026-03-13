@@ -6,7 +6,6 @@ import {
   AccessControlSchema,
   StateVarsSchema,
   ExternalCallsSchema,
-  AnnotationsSchema,
   FindingsSchema,
   TrackingSchema,
   ComparisonSchema,
@@ -23,7 +22,6 @@ import {
   RoleSchema,
   StateVariableSchema,
   ExternalCallSchema,
-  AnnotationSchema,
   FindingSchema,
   TrackingEntrySchema,
   SpecItemSchema,
@@ -35,7 +33,6 @@ export type Deps = z.infer<typeof DepsSchema>;
 export type AccessControl = z.infer<typeof AccessControlSchema>;
 export type StateVars = z.infer<typeof StateVarsSchema>;
 export type ExternalCalls = z.infer<typeof ExternalCallsSchema>;
-export type Annotations = z.infer<typeof AnnotationsSchema>;
 export type Findings = z.infer<typeof FindingsSchema>;
 export type Tracking = z.infer<typeof TrackingSchema>;
 export type Comparison = z.infer<typeof ComparisonSchema>;
@@ -53,7 +50,6 @@ export type RoleFunctionRef = z.infer<typeof RoleFunctionRefSchema>;
 export type Role = z.infer<typeof RoleSchema>;
 export type StateVariable = z.infer<typeof StateVariableSchema>;
 export type ExternalCall = z.infer<typeof ExternalCallSchema>;
-export type Annotation = z.infer<typeof AnnotationSchema>;
 export type Finding = z.infer<typeof FindingSchema>;
 export type TrackingEntry = z.infer<typeof TrackingEntrySchema>;
 export type SpecItem = z.infer<typeof SpecItemSchema>;

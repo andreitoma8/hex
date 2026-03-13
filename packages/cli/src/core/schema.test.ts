@@ -3,7 +3,6 @@ import {
   ConfigSchema,
   StatsSchema,
   AccessControlSchema,
-  AnnotationsSchema,
   FindingsSchema,
   EvidenceSchema,
 } from './schema.js';
@@ -99,7 +98,7 @@ describe('FindingsSchema', () => {
           },
           poc: { status: 'passing', file: 'test/poc/F001.t.sol', validation_memo: null },
           recommendation: 'Fix it',
-          references: { annotation_id: null, annotation_location: null, external_links: [] },
+          references: { external_links: [] },
           created_at: '2025-03-09T15:30:00Z',
         },
       ],
@@ -110,23 +109,3 @@ describe('FindingsSchema', () => {
   });
 });
 
-describe('AnnotationsSchema', () => {
-  it('validates annotations', () => {
-    const data = {
-      extracted_at: '2025-03-09T14:30:00Z',
-      annotations: [
-        {
-          id: 'A001',
-          type: 'issue',
-          status: 'unverified',
-          file: 'src/Vault.sol',
-          line: 156,
-          text: 'Test annotation',
-        },
-      ],
-    };
-
-    const result = AnnotationsSchema.safeParse(data);
-    expect(result.success).toBe(true);
-  });
-});

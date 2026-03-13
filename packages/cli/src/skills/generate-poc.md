@@ -9,7 +9,7 @@ description: "Validate an issue and generate a proof-of-concept test"
 ## Context Assembly
 
 Read:
-- The annotation or issue description provided by the auditor
+- The issue description provided by the auditor
 - Run: `npx solaudit context --target <relevant_contract>` for focused context
 - `<output_dir>/state-vars.json` — for relevant state variable info
 - `<output_dir>/access-control.json` — for access restrictions
@@ -88,26 +88,26 @@ Requirements:
 - Inherit from / reuse existing test base contracts or fixtures
 - Add descriptive comments for each step
 - End with clear assertions that demonstrate the impact
-- Name the file: `test/poc/<finding_id>_<short_name>.t.sol` (Foundry) or `.test.ts` (Hardhat)
+- Name the file: `test/solaudit-pocs/<finding_id>_<short_name>.t.sol` (Foundry) or `test/solaudit-pocs/<finding_id>_<short_name>.test.ts` (Hardhat)
+- Create the `test/solaudit-pocs/` directory if it doesn't exist
 
 ## Step 3: Run and Verify
 
 Run the test:
 - Foundry: `forge test --match-test test_poc_description -vvv`
-- Hardhat: `npx hardhat test test/poc/<file> --grep "poc_description"`
+- Hardhat: `npx hardhat test test/solaudit-pocs/<file> --grep "poc_description"`
 
 If it fails, debug and fix. Iterate until the PoC passes.
 
 ## Output
 
-**Always produce a validation memo** at `<output_dir>/validations/<annotation_id>_memo.md`:
+**Always produce a validation memo** at `<output_dir>/validations/<finding_id_or_short_name>_memo.md`:
 
 ```markdown
-# Validation Memo: <ID> — <Title>
+# Validation Memo: <Title>
 
 **Verdict:** Valid / Invalid / Uncertain
 **Date:** <YYYY-MM-DD>
-**Annotation:** <ID> (<file>:<line>)
 
 ## Reasoning
 [Step-by-step reasoning from Step 1]

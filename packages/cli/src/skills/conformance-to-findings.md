@@ -47,7 +47,6 @@ For each unprocessed item, apply the **write-finding Step 0 validation gate** lo
 Use the `write-finding` template to create the finding:
 
 - Use `severity_hint` from the conformance item as a starting point, but adjust based on your own Likelihood × Impact analysis
-- Set `references.annotation_id` to the conformance item `id` (e.g., `"SC-003"`)
 - Set `category` appropriately based on the deviation type
 - In `root_cause.locations`, use the `code_location` from the conformance item
 

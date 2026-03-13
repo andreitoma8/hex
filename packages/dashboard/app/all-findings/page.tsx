@@ -14,8 +14,6 @@ interface Finding {
   poc?: { status: string; file: string | null; validation_memo?: string | null };
   recommendation?: string;
   references?: {
-    annotation_id: string | null;
-    annotation_location: string | null;
     external_links: string[];
   };
   [key: string]: unknown;

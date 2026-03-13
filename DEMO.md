@@ -59,14 +59,9 @@ Cross-references code against docs, NatSpec, interfaces, and ERCs.
 
 ### Phase 3 — Findings
 
-First, add a test annotation in any `.sol` file:
-```solidity
-// @audit-issue Possible rounding error in share calculation.
+Point Claude at a potential issue in the code:
 ```
-
-Then:
-```
-/generate-poc for the rounding error issue in <file>
+/generate-poc for the possible rounding error in share calculation in <file>
 ```
 Validates the issue and writes a runnable test.
 

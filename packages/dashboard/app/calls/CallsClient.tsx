@@ -30,7 +30,6 @@ interface CallRow {
   fn: string;
   call: string;
   return_checked: boolean;
-  reentrancy_guard: boolean;
   call_type: string;
   trust: string;
 }
@@ -68,7 +67,6 @@ function flattenCalls(calls: ExternalCall[]): CallRow[] {
     fn: c.function,
     call: `${c.target}.${c.method}()`,
     return_checked: toBool(c.return_checked.value),
-    reentrancy_guard: toBool(c.inside_reentrancy_guard.value),
     call_type: c.call_type,
     trust: String(c.trust_level.value),
   }));
@@ -107,16 +105,6 @@ const columns: FilterableColumn<CallRow>[] = [
     ),
   },
   {
-    id: 'reentrancy_guard',
-    header: 'Reentrancy Guard',
-    accessorKey: 'reentrancy_guard',
-    cell: (row) => (
-      <span className={row.reentrancy_guard ? 'text-green-400' : 'text-red-400'}>
-        {row.reentrancy_guard ? 'Yes' : 'No'}
-      </span>
-    ),
-  },
-  {
     id: 'call_type',
     header: 'Call Type',
     accessorKey: 'call_type',
@@ -148,7 +136,6 @@ export function CallsClient({ calls }: { calls: ExternalCall[] }) {
   }
 
   const uncheckedReturns = rows.filter((r) => !r.return_checked).length;
-  const unguardedCalls = rows.filter((r) => !r.reentrancy_guard).length;
 
   return (
     <div>
@@ -175,12 +162,6 @@ export function CallsClient({ calls }: { calls: ExternalCall[] }) {
           <div className="rounded-lg border border-red-800/50 bg-red-950/20 p-4">
             <div className="text-2xl font-bold text-red-400">{uncheckedReturns}</div>
             <div className="mt-1 text-sm text-red-300/70">Unchecked returns</div>
-          </div>
-        )}
-        {unguardedCalls > 0 && (
-          <div className="rounded-lg border border-yellow-800/50 bg-yellow-950/20 p-4">
-            <div className="text-2xl font-bold text-yellow-400">{unguardedCalls}</div>
-            <div className="mt-1 text-sm text-yellow-300/70">No reentrancy guard</div>
           </div>
         )}
       </div>

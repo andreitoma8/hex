@@ -224,24 +224,6 @@ export const ExternalCallsSchema = z.object({
   calls: z.array(ExternalCallSchema),
 });
 
-// ─── Annotations ────────────────────────────────────────────────────
-
-export const AnnotationSchema = z.object({
-  id: z.string(),
-  type: z.enum(['issue', 'issue-verified', 'question', 'note']),
-  status: z.enum(['unverified', 'verified', 'open', 'resolved']),
-  file: z.string(),
-  line: z.number().int(),
-  text: z.string(),
-  context_snippet: z.string().optional(),
-  finding_ref: z.string().optional(),
-});
-
-export const AnnotationsSchema = z.object({
-  extracted_at: z.string(),
-  annotations: z.array(AnnotationSchema),
-});
-
 // ─── Findings ───────────────────────────────────────────────────────
 
 export const FindingLocationSchema = z.object({
@@ -265,8 +247,6 @@ export const FindingSchema = z.object({
   }),
   recommendation: z.string(),
   references: z.object({
-    annotation_id: z.string().nullable(),
-    annotation_location: z.string().nullable(),
     external_links: z.array(z.string()),
   }),
   created_at: z.string(),

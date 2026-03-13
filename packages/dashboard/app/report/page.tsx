@@ -14,8 +14,6 @@ interface Finding {
   poc?: { status: string; file: string | null; validation_memo?: string | null };
   recommendation?: string;
   references?: {
-    annotation_id: string | null;
-    annotation_location: string | null;
     external_links: string[];
   };
   [key: string]: unknown;
@@ -64,7 +62,7 @@ export default function ReportPage() {
   // Filter to only verified findings if tracking exists
   const trackingData = readJsonFile<TrackingData>('tracking.json');
   let findings = allFindings;
-  if (trackingData) {
+  if (trackingData?.findings) {
     const verifiedIds = new Set(
       trackingData.findings
         .filter((t) => t.status === 'verified')

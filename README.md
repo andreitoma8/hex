@@ -8,7 +8,7 @@ SolAudit does not replace your expertise. It automates the mechanical parts of a
 
 There are three components that work together off a shared project directory:
 
-**CLI tools** (`solaudit`) run deterministic analysis — stats, access control mapping, state variable inventory, external call surface, annotation extraction. They wrap battle-tested tools like Slither, solc, and Forge rather than reinventing static analysis. Their output is structured JSON with confidence metadata so you always know how much to trust a given data point.
+**CLI tools** (`solaudit`) run deterministic analysis — stats, access control mapping, state variable inventory, external call surface. They wrap battle-tested tools like Slither, solc, and Forge rather than reinventing static analysis. Their output is structured JSON with confidence metadata so you always know how much to trust a given data point.
 
 **Claude Code skills** handle anything that requires reasoning — generating protocol overviews, identifying invariants, checking if code matches its spec, writing PoCs, drafting findings. You invoke them through Claude Code in your terminal as native slash commands (e.g., `/init-audit`, `/generate-overview`). Skills are markdown files that ship with the `solaudit` package and get copied into your project's `.claude/skills/` directory. They're editable per-project if you need to customize them. Skills that need deep code comprehension (PoCs, invariants, spec conformance) recommend Opus; simpler tasks (overviews, finding write-ups) work well with Sonnet.
 
@@ -197,61 +197,16 @@ All three pages support filtering by confidence level so you can quickly see whi
 
 ### Phase 2 — Review
 
-This is where you do the actual auditing. SolAudit gets out of your way here — you read code in VS Code, think about what can break, and leave annotations.
+This is where you do the actual auditing. SolAudit gets out of your way here — you read code in VS Code, think about what can break, and leave `@audit-issue` comments on anything suspicious.
 
-**Annotation tags**
-
-As you review, add comments in the source code using these tags:
+When you find a potential issue, add a comment in the source code:
 
 ```solidity
 // @audit-issue Possible reentrancy — external call before state update.
 IERC20(token).transfer(recipient, amount);
-
-// @audit-question What happens if the oracle returns zero?
-uint256 price = oracle.getPrice(asset);
-
-// @audit-note Personal note — check if this matches the Uniswap V3 approach.
-uint256 sqrtPrice = calculateSqrtPrice(tickLower, tickUpper);
 ```
 
-There are four tag types:
-
-| Tag | Meaning | AI reads it? |
-|-----|---------|-------------|
-| `@audit-issue` | Potential vulnerability, needs verification | Yes — used to trigger PoC generation |
-| `@audit-issue-verified` | Confirmed issue, written to findings | Yes — links to finding ID |
-| `@audit-question` | Something to investigate further | Yes — can be addressed by AI |
-| `@audit-note` | Personal note for yourself | No — ignored by AI skills |
-
-**Formatting rules for annotations:**
-
-- Always place the comment on a **separate line above** the affected code
-- Write **full sentences** starting with a capital letter and ending with a period
-- Never add comments inline at the end of a line
-
-```solidity
-// CORRECT:
-// @audit-issue This variable is never bounded, allowing overflow.
-uint256 totalDeposits;
-
-// WRONG — inline:
-uint256 totalDeposits; // @audit-issue unbounded
-
-// WRONG — abbreviated:
-// @audit-issue unbounded var
-uint256 totalDeposits;
-```
-
-**Syncing annotations to the dashboard**
-
-When you want to see your annotations in the dashboard, run:
-
-```bash
-solaudit annotations        # extract all @audit tags to .solaudit/annotations.json
-solaudit annotations --diff # show only new/changed since last run
-```
-
-View them at `/annotations` on the dashboard, filterable by type and status.
+Then point Claude at it to validate and generate a PoC (see Phase 3).
 
 ---
 
@@ -261,18 +216,11 @@ Once you've identified issues during review, SolAudit helps you validate them an
 
 **Step 3.1 — Generate a Proof of Concept**
 
-Point Claude at an `@audit-issue` annotation:
+Point Claude at the issue:
 
 ```bash
 claude
 > /generate-poc for the issue at src/Vault.sol line 156 about the rounding error
-```
-
-Or reference it by annotation ID:
-
-```bash
-claude
-> /generate-poc for annotation A001
 ```
 
 Claude will:
@@ -293,10 +241,10 @@ After a PoC passes:
 
 ```bash
 claude
-> /write-finding for annotation A001
+> /write-finding for the rounding error issue in src/Vault.sol
 ```
 
-Claude reads the annotation, the validation memo, the PoC, and the relevant code, then writes a structured finding entry to `.solaudit/findings.json` with:
+Claude reads the issue description, the validation memo, the PoC, and the relevant code, then writes a structured finding entry to `.solaudit/findings.json` with:
 
 - Severity (Critical/High/Medium/Low/Info, directly assessed)
 - Description (self-contained: covers what the issue is, why it exists, and what the impact is)
@@ -304,7 +252,7 @@ Claude reads the annotation, the validation memo, the PoC, and the relevant code
 - PoC reference
 - Concrete recommendation
 
-It also regenerates `.solaudit/findings.md` from the JSON for human reading, and updates the annotation in your source code from `@audit-issue` to `@audit-issue-verified`.
+It also regenerates `.solaudit/findings.md` from the JSON for human reading.
 
 Findings data is stored in two files: `findings.json` is the canonical source of truth (used for deduplication, severity stats, and future report generation), and `findings.md` is a rendered view you can read.
 
@@ -391,8 +339,6 @@ All commands are run from within the project directory (or with `--project /path
 | `solaudit access` | Extract access control mapping (roles → functions, including inherited) |
 | `solaudit state` | Generate state variable inventory |
 | `solaudit calls` | Map external call surface (AST-based, Slither optional) |
-| `solaudit annotations` | Extract `@audit` tags from source into JSON |
-| `solaudit annotations --diff` | Show only new/changed annotations |
 | `solaudit context` | Assemble optimized AI context from codebase |
 | `solaudit context --target Vault` | Context for a specific contract and its dependencies |
 | `solaudit context --estimate` | Show token count without generating context |
@@ -486,7 +432,6 @@ The dashboard runs locally at `http://localhost:3000` and auto-refreshes when ou
 | Functions | `/functions` | Aggregated function view with state/call cross-references |
 | Invariants | `/invariants` | Identified invariants and doc/code discrepancies |
 | Spec Conformance | `/conformance` | Code vs spec check results, deviations first |
-| Annotations | `/annotations` | Your `@audit` tags, filterable by type and status |
 | Report | `/report` | Verified findings rendered as a markdown-style report |
 | All Findings | `/all-findings` | Merged table of all findings + tracking data with filters |
 
@@ -524,7 +469,6 @@ All SolAudit outputs live in a single directory inside the project (default: `.s
 ├── spec-conformance.md      # Rendered conformance report
 ├── diagram.excalidraw       # System architecture diagram
 ├── flows.excalidraw         # Flow charts
-├── annotations.json         # Extracted @audit tags
 ├── findings.json            # Canonical finding data (source of truth)
 ├── findings.md              # Rendered findings (generated from JSON)
 ├── validations/             # Issue validation memos

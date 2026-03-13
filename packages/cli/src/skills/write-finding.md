@@ -9,7 +9,7 @@ description: "Write a structured finding with severity, description, and recomme
 ## Context Assembly
 
 Read:
-- The annotation / issue description
+- The issue description provided by the auditor
 - The validation memo from `<output_dir>/validations/` (if exists)
 - The PoC file (if exists)
 - The relevant source code
@@ -21,7 +21,7 @@ Before writing a finding, verify the issue has been validated.
 
 ### 1. Look up the issue in `<output_dir>/tracking.json`
 
-Match the issue by annotation ID, title, or description. Then act based on status:
+Match the issue by title or description. Then act based on status:
 
 ### 2. Act based on status
 
@@ -34,7 +34,7 @@ Validate by reasoning before proceeding — trace the attack path in the code st
 4. **Are there existing protections?** Check for reentrancy guards, access control that blocks the attack path, input validation that blocks required preconditions, economic constraints that make the attack unprofitable.
 
 Then:
-- **If valid:** Write a validation memo to `<output_dir>/validations/<annotation_id>_memo.md` (use the memo format from the `generate-poc` skill). Add or update the tracking entry with `status: "verified"`, `poc_status: "not_started"`. Proceed to write the finding.
+- **If valid:** Write a validation memo to `<output_dir>/validations/<finding_id_or_short_name>_memo.md` (use the memo format from the `generate-poc` skill). Add or update the tracking entry with `status: "verified"`, `poc_status: "not_started"`. Proceed to write the finding.
 - **If invalid:** Write a validation memo explaining why. Add or update the tracking entry with `status: "rejected"`. **Stop — do not write the finding.** Inform the auditor of the rejection reason.
 
 **`status: "rejected"`:**
@@ -61,6 +61,26 @@ Assess severity directly based on impact and exploitability:
 - **Low:** Minor issues with limited economic impact, requires unlikely conditions to exploit
 - **Info:** Gas inefficiency, cosmetic issues, best-practice deviations with no direct security impact
 
+### Likelihood × Impact Matrix
+
+Use this matrix as an equally important tool for determining severity. Cross-reference the direct definitions above with the matrix to ensure consistent severity mapping.
+
+| | Low Impact | Medium Impact | High Impact |
+|---|---|---|---|
+| **High Likelihood** | Medium | High | Critical |
+| **Medium Likelihood** | Low | Medium | High |
+| **Low Likelihood** | Info | Low | Medium |
+
+**Impact definitions:**
+- **High:** Direct loss of funds, permanent corruption of protocol state, or complete bypass of critical access control
+- **Medium:** Temporary DoS, griefing with economic cost, incorrect accounting that compounds, or partial access control bypass
+- **Low:** Minor economic inefficiency, cosmetic issues, or deviations from best practices with no direct security consequence
+
+**Likelihood definitions:**
+- **High:** Anyone can trigger with no special conditions, preconditions are common or always met, attack is profitable
+- **Medium:** Requires specific but realistic conditions, attacker needs moderate setup or timing, economically viable
+- **Low:** Requires unlikely conditions, complex multi-step attack, unprofitable, or depends on external factors rarely met
+
 ## Template
 
 Write the finding following this exact structure:
@@ -84,8 +104,6 @@ Write the finding following this exact structure:
   },
   "recommendation": "<concrete, implementable fix>",
   "references": {
-    "annotation_id": "<ID or null>",
-    "annotation_location": "<file:line or null>",
     "external_links": []
   },
   "created_at": "<ISO timestamp>"
@@ -118,5 +136,4 @@ All inserted audit comments must be full sentences starting with a capital lette
 
 1. Append the finding to the `findings` array inside `<output_dir>/findings.json`. The file structure is `{ "findings": [...] }`. If the file doesn't exist, create it with this wrapper.
 2. Regenerate markdown: `npx solaudit render-findings`
-3. Update the source annotation to `@audit-issue-verified` with finding ID
-4. Update `<output_dir>/tracking.json` with the new finding entry
+3. Update `<output_dir>/tracking.json` with the new finding entry
