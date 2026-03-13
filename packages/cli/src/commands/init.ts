@@ -167,8 +167,8 @@ export const initCommand = new Command('init')
       // Copy skill files to .claude/skills/<name>/SKILL.md
       spin.text = 'Copying skill files...';
       const claudeSkillsDir = getClaudeSkillsDir(projectDir);
-      const skillsCopied = copySkillsToClaudeFormat({ targetDir: claudeSkillsDir });
-      logger.info(`Copied ${skillsCopied} skill files to .claude/skills/`);
+      const skillsResult = copySkillsToClaudeFormat({ targetDir: claudeSkillsDir });
+      logger.info(`Copied ${skillsResult.updated + skillsResult.added} skill files to .claude/skills/`);
 
       // Create subdirectories
       for (const subdir of ['validations', 'ai-results']) {

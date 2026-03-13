@@ -7,7 +7,7 @@ import { copySkillsToClaudeFormat, getClaudeSkillsDir } from '../core/skills.js'
 export const claudeCommand = new Command('claude')
   .description('Copy skill files to .claude/skills/ for Claude Code discovery')
   .option('--project <dir>', 'Project directory (default: cwd)')
-  .option('--force', 'Overwrite existing skill files')
+  .option('--keep-custom', 'Skip existing skill files instead of overwriting')
   .action(async (opts) => {
     try {
       const projectDir = path.resolve(opts.project ?? process.cwd());
@@ -25,12 +25,13 @@ export const claudeCommand = new Command('claude')
         logger.warn(`Skills now live in .claude/skills/ — you can remove the legacy directory.`);
       }
 
-      const count = copySkillsToClaudeFormat({
+      const result = copySkillsToClaudeFormat({
         targetDir: claudeSkillsDir,
-        force: opts.force,
+        keepCustom: opts.keepCustom,
       });
 
-      logger.success(`Copied ${count} skills to .claude/skills/`);
+      const total = result.updated + result.added;
+      logger.success(`Copied ${total} skills to .claude/skills/`);
       logger.info('');
       logger.info('Skills are now available as native Claude Code slash commands.');
       logger.info('Open Claude Code and type / to see them (e.g., /init-audit).');

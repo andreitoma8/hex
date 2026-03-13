@@ -23,14 +23,14 @@ export function getClaudeSkillsDir(projectDir: string): string {
  * Copies bundled skill .md files to Claude Code's native skill format:
  *   <targetDir>/<name>/SKILL.md
  *
- * Idempotent — skips existing unless force=true.
- * Returns count of files written.
+ * By default, overwrites existing skills. Use keepCustom=true to skip existing.
+ * Returns { updated, added, skipped } counts.
  */
 export function copySkillsToClaudeFormat(opts: {
   targetDir: string;
-  force?: boolean;
-}): number {
-  const { targetDir, force = false } = opts;
+  keepCustom?: boolean;
+}): { updated: number; added: number; skipped: number } {
+  const { targetDir, keepCustom = false } = opts;
   const bundledDir = getBundledSkillsDir();
 
   if (!fs.existsSync(bundledDir)) {
@@ -38,14 +38,18 @@ export function copySkillsToClaudeFormat(opts: {
   }
 
   const skillFiles = fs.readdirSync(bundledDir).filter((f) => f.endsWith('.md'));
-  let written = 0;
+  let updated = 0;
+  let added = 0;
+  let skipped = 0;
 
   for (const file of skillFiles) {
     const name = file.replace(/\.md$/, '');
     const skillDir = path.join(targetDir, name);
     const destPath = path.join(skillDir, 'SKILL.md');
+    const exists = fs.existsSync(destPath);
 
-    if (fs.existsSync(destPath) && !force) {
+    if (exists && keepCustom) {
+      skipped++;
       continue;
     }
 
@@ -54,8 +58,12 @@ export function copySkillsToClaudeFormat(opts: {
     }
 
     fs.copyFileSync(path.join(bundledDir, file), destPath);
-    written++;
+    if (exists) {
+      updated++;
+    } else {
+      added++;
+    }
   }
 
-  return written;
+  return { updated, added, skipped };
 }
