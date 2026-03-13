@@ -246,8 +246,6 @@ export const AnnotationsSchema = z.object({
 
 export const FindingLocationSchema = z.object({
   file: z.string(),
-  line_start: z.number().int(),
-  line_end: z.number().int(),
   snippet: z.string().optional(),
 });
 
@@ -255,13 +253,9 @@ export const FindingSchema = z.object({
   id: z.string(),
   title: z.string(),
   severity: z.enum(['Critical', 'High', 'Medium', 'Low', 'Info']),
-  likelihood: z.enum(['High', 'Medium', 'Low']),
-  impact: z.enum(['High', 'Medium', 'Low']),
   category: z.string(),
   description: z.string(),
-  impact_detail: z.string(),
   root_cause: z.object({
-    summary: z.string(),
     locations: z.array(FindingLocationSchema),
   }),
   poc: z.object({

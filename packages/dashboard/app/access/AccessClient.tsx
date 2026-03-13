@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { FilterableTable, type FilterableColumn } from '@/components/FilterableTable';
 import { CodeReference } from '@/components/CodeReference';
 import { ConfidenceBadge } from '@/components/ConfidenceBadge';
@@ -149,6 +150,7 @@ export function AccessClient({
   anyoneRole,
   otherRoles,
 }: AccessClientProps) {
+  const [showUnprotectedOnly, setShowUnprotectedOnly] = useState(false);
   const anyoneSet = new Set(anyoneFnKeys);
   const writeColumns = makeWriteColumns(anyoneSet);
 
@@ -160,16 +162,33 @@ export function AccessClient({
     (fn) => writeFnKeys.has(`${fn.contract}::${fn.function}`),
   ) ?? [];
 
+  // Filter write functions when toggle is active
+  const displayedWriteFunctions = showUnprotectedOnly
+    ? writeFunctions.filter((fn) => anyoneSet.has(`${fn.contract}::${fn.function}`))
+    : writeFunctions;
+
   return (
     <>
       {/* State-changing functions table */}
       <div className="mb-10">
-        <h3 className="mb-3 text-lg font-semibold text-gray-200">
-          State-Changing Functions
-        </h3>
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-gray-200">
+            State-Changing Functions
+          </h3>
+          <button
+            onClick={() => setShowUnprotectedOnly(!showUnprotectedOnly)}
+            className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+              showUnprotectedOnly
+                ? 'border-red-500/50 bg-red-600/20 text-red-400'
+                : 'border-gray-600 bg-gray-800 text-gray-400 hover:border-gray-500 hover:text-gray-300'
+            }`}
+          >
+            {showUnprotectedOnly ? 'Showing unprotected only' : 'Show unprotected only'}
+          </button>
+        </div>
         <FilterableTable
           columns={writeColumns}
-          data={writeFunctions}
+          data={displayedWriteFunctions}
           defaultOpen={true}
           rowClassName={(row) => {
             const key = `${row.contract}::${row.function}`;

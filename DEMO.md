@@ -104,10 +104,11 @@ solaudit dashboard
 Opens `http://localhost:3000` with live visualization of all outputs.
 
 Key pages:
-- `/report` — Findings rendered as a markdown-style report (verified findings only)
+- `/report` — Findings rendered as a clean markdown report matching findings.md format (verified findings only)
 - `/all-findings` — Merged table of all findings + tracking data with filters and expandable details
-- `/access` — Access control mapping (now includes inherited functions when Slither is available)
-- `/calls` — External call surface (AST-based, works without Slither)
+- `/access` — Access control mapping with "Show unprotected only" toggle (interfaces filtered out, inherited functions included when Slither is available)
+- `/calls` — External call surface with filterable Trust column (simplified layout, no inline confidence badges)
+- `/functions` — Aggregated function view with state variable and external call cross-references
 
 ## Key Points
 

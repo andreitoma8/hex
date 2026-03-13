@@ -8,12 +8,8 @@ interface Finding {
   severity: string;
   category?: string;
   description?: string;
-  impact_detail?: string;
-  likelihood?: string;
-  impact?: string;
   root_cause?: {
-    summary: string;
-    locations: { file: string; line_start: number; line_end: number; snippet?: string }[];
+    locations: { file: string; snippet?: string }[];
   };
   poc?: { status: string; file: string | null; validation_memo?: string | null };
   recommendation?: string;

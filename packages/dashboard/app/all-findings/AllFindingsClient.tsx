@@ -2,7 +2,6 @@
 
 import { FilterableTable, type FilterableColumn } from '@/components/FilterableTable';
 import { SeverityBadge } from '@/components/SeverityBadge';
-import { CodeReference } from '@/components/CodeReference';
 import type { MergedFinding } from './page';
 
 type Severity = 'Critical' | 'High' | 'Medium' | 'Low' | 'Info';
@@ -109,40 +108,12 @@ function FindingDetail({ item }: { item: MergedFinding }) {
         </div>
       )}
 
-      {finding.impact_detail && (
+      {finding.root_cause?.locations && finding.root_cause.locations.length > 0 && (
         <div>
-          <h4 className="mb-1 text-xs font-semibold uppercase text-gray-400">Impact</h4>
-          <p className="text-gray-300">{finding.impact_detail}</p>
-        </div>
-      )}
-
-      {(finding.likelihood || finding.impact) && (
-        <div className="flex gap-4">
-          {finding.likelihood && (
-            <span className="text-xs text-gray-400">
-              Likelihood: <span className="text-gray-200">{finding.likelihood}</span>
-            </span>
-          )}
-          {finding.impact && (
-            <span className="text-xs text-gray-400">
-              Impact: <span className="text-gray-200">{finding.impact}</span>
-            </span>
-          )}
-        </div>
-      )}
-
-      {finding.root_cause && (
-        <div>
-          <h4 className="mb-1 text-xs font-semibold uppercase text-gray-400">Root Cause</h4>
-          <p className="mb-2 text-gray-300">{finding.root_cause.summary}</p>
+          <h4 className="mb-1 text-xs font-semibold uppercase text-gray-400">Code Locations</h4>
           {finding.root_cause.locations.map((loc, i) => (
             <div key={i} className="mb-2">
-              <CodeReference
-                file={loc.file}
-                lineStart={loc.line_start}
-                lineEnd={loc.line_end}
-                snippet={loc.snippet}
-              />
+              <span className="font-mono text-xs text-gray-400">{loc.file}</span>
               {loc.snippet && (
                 <pre className="mt-1 overflow-x-auto rounded bg-gray-950 p-3 text-xs text-gray-400">
                   {loc.snippet}

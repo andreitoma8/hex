@@ -1,8 +1,6 @@
 'use client';
 
 import { FilterableTable, type FilterableColumn } from '@/components/FilterableTable';
-import { ConfidenceBadge } from '@/components/ConfidenceBadge';
-import { CodeReference } from '@/components/CodeReference';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -15,23 +13,26 @@ interface ConfidenceValue {
   guard_type?: string;
 }
 
-interface Evidence {
-  file: string;
-  line_start: number;
-  line_end: number;
-  snippet?: string;
-}
-
 interface ExternalCall {
   contract: string;
   function: string;
-  evidence: Evidence;
   target: string;
   method: string;
   return_checked: ConfidenceValue;
   inside_reentrancy_guard: ConfidenceValue;
   call_type: string;
   trust_level: ConfidenceValue;
+}
+
+/** Flattened row for table display and filtering */
+interface CallRow {
+  contract: string;
+  fn: string;
+  call: string;
+  return_checked: boolean;
+  reentrancy_guard: boolean;
+  call_type: string;
+  trust: string;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────
@@ -57,27 +58,25 @@ function TrustBadge({ trust }: { trust: string }) {
   );
 }
 
-function BoolIndicator({ value }: { value: boolean | string }) {
-  const isTrue =
-    value === true || value === 'true' || value === 'yes';
-  return (
-    <span className={isTrue ? 'text-green-400' : 'text-red-400'}>
-      {isTrue ? 'Yes' : 'No'}
-    </span>
-  );
+function toBool(value: boolean | string): boolean {
+  return value === true || value === 'true' || value === 'yes';
 }
 
-function trustRowClass(trust: string): string {
-  const t = trust.toLowerCase();
-  if (t === 'external' || t === 'untrusted') return 'bg-red-950/30 hover:bg-red-900/30 transition-colors';
-  if (t === 'semi-trusted' || t === 'semi_trusted') return 'bg-yellow-950/20 hover:bg-yellow-900/20 transition-colors';
-  if (t === 'trusted') return 'bg-green-950/20 hover:bg-green-900/20 transition-colors';
-  return 'bg-gray-900 hover:bg-gray-800/70 transition-colors';
+function flattenCalls(calls: ExternalCall[]): CallRow[] {
+  return calls.map((c) => ({
+    contract: c.contract,
+    fn: c.function,
+    call: `${c.target}.${c.method}()`,
+    return_checked: toBool(c.return_checked.value),
+    reentrancy_guard: toBool(c.inside_reentrancy_guard.value),
+    call_type: c.call_type,
+    trust: String(c.trust_level.value),
+  }));
 }
 
 // ─── Columns ────────────────────────────────────────────────────────
 
-const columns: FilterableColumn<ExternalCall>[] = [
+const columns: FilterableColumn<CallRow>[] = [
   {
     id: 'contract',
     header: 'Contract',
@@ -88,49 +87,33 @@ const columns: FilterableColumn<ExternalCall>[] = [
   {
     id: 'function',
     header: 'Function',
-    accessorKey: 'function',
-    cell: (row) => <span className="font-mono text-sm text-gray-300">{row.function}</span>,
+    accessorKey: 'fn',
+    cell: (row) => <span className="font-mono text-sm text-gray-300">{row.fn}</span>,
   },
   {
-    id: 'target',
-    header: 'Target',
-    accessorKey: 'target',
-    cell: (row) => (
-      <span className="max-w-[180px] truncate font-mono text-sm text-gray-300">{row.target}</span>
-    ),
-  },
-  {
-    id: 'method',
-    header: 'Method',
-    accessorKey: 'method',
-    cell: (row) => <span className="font-mono text-sm text-gray-400">{row.method}</span>,
+    id: 'call',
+    header: 'Call',
+    accessorKey: 'call',
+    cell: (row) => <span className="font-mono text-sm text-gray-300">{row.call}</span>,
   },
   {
     id: 'return_checked',
     header: 'Return Checked',
     accessorKey: 'return_checked',
     cell: (row) => (
-      <div className="flex items-center justify-center gap-1.5">
-        <BoolIndicator value={row.return_checked.value} />
-        <ConfidenceBadge
-          level={row.return_checked.confidence}
-          derivedFrom={row.return_checked.derived_from}
-        />
-      </div>
+      <span className={row.return_checked ? 'text-green-400' : 'text-red-400'}>
+        {row.return_checked ? 'Yes' : 'No'}
+      </span>
     ),
   },
   {
     id: 'reentrancy_guard',
     header: 'Reentrancy Guard',
-    accessorKey: 'inside_reentrancy_guard',
+    accessorKey: 'reentrancy_guard',
     cell: (row) => (
-      <div className="flex items-center justify-center gap-1.5">
-        <BoolIndicator value={row.inside_reentrancy_guard.value} />
-        <ConfidenceBadge
-          level={row.inside_reentrancy_guard.confidence}
-          derivedFrom={row.inside_reentrancy_guard.derived_from}
-        />
-      </div>
+      <span className={row.reentrancy_guard ? 'text-green-400' : 'text-red-400'}>
+        {row.reentrancy_guard ? 'Yes' : 'No'}
+      </span>
     ),
   },
   {
@@ -145,61 +128,34 @@ const columns: FilterableColumn<ExternalCall>[] = [
     ),
   },
   {
-    id: 'trust_level',
-    header: 'Trust Level',
-    accessorKey: 'trust_level',
-    enableColumnFilter: false,
-    cell: (row) => (
-      <div className="flex items-center gap-1.5">
-        <TrustBadge trust={String(row.trust_level.value)} />
-        <ConfidenceBadge
-          level={row.trust_level.confidence}
-          derivedFrom={row.trust_level.derived_from}
-        />
-      </div>
-    ),
-  },
-  {
-    id: 'location',
-    header: 'Location',
-    accessorKey: 'evidence',
-    cell: (row) => (
-      <CodeReference
-        file={row.evidence.file}
-        lineStart={row.evidence.line_start}
-        lineEnd={row.evidence.line_end}
-        snippet={row.evidence.snippet}
-      />
-    ),
+    id: 'trust',
+    header: 'Trust',
+    accessorKey: 'trust',
+    enableColumnFilter: true,
+    cell: (row) => <TrustBadge trust={row.trust} />,
   },
 ];
 
 // ─── Component ──────────────────────────────────────────────────────
 
 export function CallsClient({ calls }: { calls: ExternalCall[] }) {
+  const rows = flattenCalls(calls);
+
   // Counts by trust level
   const trustCounts: Record<string, number> = {};
-  for (const c of calls) {
-    const t = String(c.trust_level.value);
-    trustCounts[t] = (trustCounts[t] ?? 0) + 1;
+  for (const r of rows) {
+    trustCounts[r.trust] = (trustCounts[r.trust] ?? 0) + 1;
   }
 
-  const uncheckedReturns = calls.filter(
-    (c) => c.return_checked.value === false || c.return_checked.value === 'false',
-  ).length;
-
-  const unguardedCalls = calls.filter(
-    (c) =>
-      c.inside_reentrancy_guard.value === false ||
-      c.inside_reentrancy_guard.value === 'false',
-  ).length;
+  const uncheckedReturns = rows.filter((r) => !r.return_checked).length;
+  const unguardedCalls = rows.filter((r) => !r.reentrancy_guard).length;
 
   return (
     <div>
       <h2 className="mb-6 text-2xl font-bold text-gray-100">External Calls</h2>
 
       <p className="mb-4 text-sm text-gray-400">
-        {calls.length} external call{calls.length !== 1 ? 's' : ''} found
+        {rows.length} external call{rows.length !== 1 ? 's' : ''} found
       </p>
 
       {/* Summary cards */}
@@ -232,9 +188,8 @@ export function CallsClient({ calls }: { calls: ExternalCall[] }) {
       {/* Main table */}
       <FilterableTable
         columns={columns}
-        data={calls}
+        data={rows}
         defaultOpen={true}
-        rowClassName={(row) => trustRowClass(String(row.trust_level.value))}
       />
     </div>
   );

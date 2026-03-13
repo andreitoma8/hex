@@ -53,23 +53,13 @@ Record whatever the current `poc_status` is in the finding's `poc` field. **Neve
 
 ## Severity Guide
 
-Rate severity using Likelihood × Impact:
+Assess severity directly based on impact and exploitability:
 
-| | Low Impact | Medium Impact | High Impact |
-|---|---|---|---|
-| **High Likelihood** | Medium | High | Critical |
-| **Medium Likelihood** | Low | Medium | High |
-| **Low Likelihood** | Info | Low | Medium |
-
-**Impact** = What's the worst that can happen?
-- High: Direct fund loss, permanent DoS, privilege escalation to drain funds
-- Medium: Temporary DoS, griefing with economic cost, incorrect accounting that compounds
-- Low: Cosmetic issues, gas inefficiency, minor griefing with negligible cost
-
-**Likelihood** = How easy is it to trigger?
-- High: Anyone can trigger with no special conditions, or it will happen naturally
-- Medium: Requires specific but realistic conditions (market conditions, timing, etc.)
-- Low: Requires unlikely conditions (large capital, admin collusion, specific block timing)
+- **Critical:** Direct fund loss or permanent protocol-breaking impact that anyone can trigger with no special conditions
+- **High:** Significant fund loss, privilege escalation, or severe DoS that requires specific but realistic conditions
+- **Medium:** Temporary DoS, griefing with economic cost, or incorrect accounting that compounds over time
+- **Low:** Minor issues with limited economic impact, requires unlikely conditions to exploit
+- **Info:** Gas inefficiency, cosmetic issues, best-practice deviations with no direct security impact
 
 ## Template
 
@@ -80,15 +70,11 @@ Write the finding following this exact structure:
   "id": "F<NNN>",
   "title": "<concise, descriptive title>",
   "severity": "Critical|High|Medium|Low|Info",
-  "likelihood": "High|Medium|Low",
-  "impact": "High|Medium|Low",
   "category": "<e.g., Math / Rounding, Access Control, Reentrancy, Oracle Manipulation>",
-  "description": "<clear description understandable by a developer who hasn't seen the code>",
-  "impact_detail": "<specific description of what happens if exploited>",
+  "description": "<clear, self-contained description covering what the vulnerability is, why it exists, and what the impact would be if exploited>",
   "root_cause": {
-    "summary": "<why this vulnerability exists>",
     "locations": [
-      { "file": "<path>", "line_start": 0, "line_end": 0, "snippet": "<relevant code>" }
+      { "file": "<path>", "snippet": "<relevant code>" }
     ]
   },
   "poc": {

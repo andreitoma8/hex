@@ -187,9 +187,9 @@ Each check is classified as CONFORMS, DEVIATES, PARTIAL, UNVERIFIABLE, or UNDOCU
 
 Already generated during init. View them on the dashboard:
 
-- `/access` — Who can call what. Functions grouped by role, with confidence indicators showing whether a role was detected from a known library (high confidence) or inferred from a modifier name (low confidence, needs verification). Includes inherited functions when Slither is available.
+- `/access` — Who can call what. Functions grouped by role, with confidence indicators showing whether a role was detected from a known library (high confidence) or inferred from a modifier name (low confidence, needs verification). Interface functions are filtered out. Includes inherited functions when Slither is available. A "Show unprotected only" toggle highlights state-changing functions callable by anyone.
 - `/state` — Every state variable with its type, mutability, which functions read and write it, and whether it's unused. Storage slots shown only when sourced from compiler artifacts.
-- `/calls` — Every external call with trust level, return value checking, and reentrancy guard status. Uses AST-based extraction (works without Slither), with optional Slither enrichment for unchecked returns and reentrancy guard detection.
+- `/calls` — Every external call with trust level, return value checking, and reentrancy guard status. Uses AST-based extraction (works without Slither), with optional Slither enrichment for unchecked returns and reentrancy guard detection. Trust column is filterable.
 
 All three pages support filtering by confidence level so you can quickly see which entries need manual verification.
 
@@ -298,9 +298,9 @@ claude
 
 Claude reads the annotation, the validation memo, the PoC, and the relevant code, then writes a structured finding entry to `.solaudit/findings.json` with:
 
-- Severity (rated using a Likelihood × Impact matrix)
-- Description (understandable by a developer who hasn't seen the code)
-- Root cause (pointing to specific lines)
+- Severity (Critical/High/Medium/Low/Info, directly assessed)
+- Description (self-contained: covers what the issue is, why it exists, and what the impact is)
+- Code locations with relevant snippets
 - PoC reference
 - Concrete recommendation
 
@@ -480,9 +480,10 @@ The dashboard runs locally at `http://localhost:3000` and auto-refreshes when ou
 | Statistics | `/stats` | Per-contract metrics, test coverage, dependencies, ERCs |
 | System Diagram | `/diagram` | Interactive Excalidraw architecture diagram |
 | Flows | `/flows` | Interactive Excalidraw flow charts |
-| Access Control | `/access` | Role → function matrix with confidence badges |
+| Access Control | `/access` | Role → function matrix with "Show unprotected only" toggle |
 | State Variables | `/state` | Variable inventory with reader/writer tracking |
-| External Calls | `/calls` | Call surface with trust levels and warnings |
+| External Calls | `/calls` | Call surface with filterable Trust column |
+| Functions | `/functions` | Aggregated function view with state/call cross-references |
 | Invariants | `/invariants` | Identified invariants and doc/code discrepancies |
 | Spec Conformance | `/conformance` | Code vs spec check results, deviations first |
 | Annotations | `/annotations` | Your `@audit` tags, filterable by type and status |

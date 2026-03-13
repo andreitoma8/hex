@@ -33,6 +33,9 @@ export function extractFunctionFacts(
   const functions: AccessFunction[] = [];
 
   for (const contract of contracts) {
+    // Skip interface contracts — they're just signatures, not implementations
+    if (contract.type === 'interface') continue;
+
     const file = fileMap.get(contract.name) ?? '';
 
     for (const func of contract.functions) {
