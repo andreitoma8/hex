@@ -13,7 +13,7 @@ Read:
 - The validation memo from `<output_dir>/validations/` (if exists)
 - The PoC file (if exists)
 - The relevant source code
-- `<output_dir>/findings.json` — to determine next finding ID
+- `<output_dir>/findings.json` and `<output_dir>/tracking.json` — to determine next finding ID. Use the highest existing ID (F-prefixed) from **either** file and increment by 1. This ensures rejected or invalidated findings don't have their IDs reused.
 
 ## Step 0: Validation Gate
 
@@ -105,6 +105,8 @@ Write the finding following this exact structure:
   "created_at": "<ISO timestamp>"
 }
 ```
+
+**Recommendation must be prose only.** Do not include code snippets, code blocks, or inline code in the `recommendation` field. Describe the fix in plain language. Code examples belong only in `root_cause.locations[].snippet`.
 
 ## Code Block Formatting Rules (STRICT)
 
