@@ -17,6 +17,8 @@ interface FunctionRow {
   name: string;
   visibility: string;
   state_mutability: string;
+  state: 'writable' | 'read-only';
+  payable: 'payable' | 'non-payable';
   modifiers: string[];
   state_vars_read: string[];
   state_vars_written: string[];
@@ -88,11 +90,36 @@ const columns: FilterableColumn<FunctionRow>[] = [
     cell: (row) => <VisibilityBadge visibility={row.visibility} />,
   },
   {
-    id: 'state_mutability',
-    header: 'Mutability',
-    accessorKey: 'state_mutability',
+    id: 'state',
+    header: 'State',
+    accessorKey: 'state',
     enableColumnFilter: true,
-    cell: (row) => <span className="text-xs text-gray-400">{row.state_mutability}</span>,
+    cell: (row) => {
+      const style = row.state === 'writable'
+        ? 'bg-orange-600/20 text-orange-400 border-orange-500/30'
+        : 'bg-blue-600/20 text-blue-400 border-blue-500/30';
+      return (
+        <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${style}`}>
+          {row.state}
+        </span>
+      );
+    },
+  },
+  {
+    id: 'payable',
+    header: 'Payable',
+    accessorKey: 'payable',
+    enableColumnFilter: true,
+    cell: (row) => {
+      const style = row.payable === 'payable'
+        ? 'bg-green-600/20 text-green-400 border-green-500/30'
+        : 'bg-gray-600/20 text-gray-400 border-gray-500/30';
+      return (
+        <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${style}`}>
+          {row.payable}
+        </span>
+      );
+    },
   },
   {
     id: 'modifiers',

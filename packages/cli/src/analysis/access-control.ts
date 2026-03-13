@@ -38,12 +38,11 @@ export function extractFunctionFacts(
 
     for (const func of contract.functions) {
       if (func.isConstructor || func.isFallback || func.isReceive) continue;
-      if (func.visibility === 'internal' || func.visibility === 'private') continue;
 
       functions.push({
         contract: contract.name,
         function: func.name,
-        visibility: func.visibility === 'default' ? 'public' : func.visibility,
+        visibility: func.visibility === 'default' ? 'internal' : func.visibility,
         state_mutability: (func.stateMutability as 'pure' | 'view' | 'nonpayable' | 'payable') ?? null,
         modifiers: func.modifiers,
         evidence: {

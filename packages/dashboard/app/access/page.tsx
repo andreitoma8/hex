@@ -57,10 +57,15 @@ export default function AccessPage() {
 
   const { functions, roles } = data;
 
-  const writeFunctions = functions.filter(
+  // Access control page only shows externally-callable functions
+  const externalFunctions = functions.filter(
+    (fn) => fn.visibility === 'external' || fn.visibility === 'public',
+  );
+
+  const writeFunctions = externalFunctions.filter(
     (fn) => fn.state_mutability !== 'view' && fn.state_mutability !== 'pure',
   );
-  const readOnlyFunctions = functions.filter(
+  const readOnlyFunctions = externalFunctions.filter(
     (fn) => fn.state_mutability === 'view' || fn.state_mutability === 'pure',
   );
 
@@ -80,7 +85,7 @@ export default function AccessPage() {
       <h2 className="mb-6 text-2xl font-bold text-gray-100">Access Control</h2>
 
       <p className="mb-6 text-sm text-gray-400">
-        {functions.length} function{functions.length !== 1 ? 's' : ''} analyzed
+        {externalFunctions.length} function{externalFunctions.length !== 1 ? 's' : ''} analyzed
         ({writeFunctions.length} state-changing, {readOnlyFunctions.length} read-only)
         {' '}across {roles.length} role{roles.length !== 1 ? 's' : ''}
       </p>

@@ -65,6 +65,8 @@ interface FunctionRow {
   name: string;
   visibility: string;
   state_mutability: string;
+  state: 'writable' | 'read-only';
+  payable: 'payable' | 'non-payable';
   modifiers: string[];
   state_vars_read: string[];
   state_vars_written: string[];
@@ -86,10 +88,10 @@ function buildFunctionRows(
     if (stateVars) {
       for (const sv of stateVars.variables) {
         if (sv.contract !== fn.contract) continue;
-        if (sv.readers.some((r) => r.function === fn.function)) {
+        if (sv.readers?.some((r) => r.function === fn.function)) {
           varsRead.push(sv.name);
         }
-        if (sv.writers.some((w) => w.function === fn.function)) {
+        if (sv.writers?.some((w) => w.function === fn.function)) {
           varsWritten.push(sv.name);
         }
       }
@@ -105,11 +107,17 @@ function buildFunctionRows(
       }
     }
 
+    const mutability = fn.state_mutability ?? 'nonpayable';
+    const isReadOnly = mutability === 'view' || mutability === 'pure';
+    const isPayable = mutability === 'payable';
+
     rows.push({
       contract: fn.contract,
       name: fn.function,
       visibility: fn.visibility,
-      state_mutability: fn.state_mutability ?? 'nonpayable',
+      state_mutability: mutability,
+      state: isReadOnly ? 'read-only' : 'writable',
+      payable: isPayable ? 'payable' : 'non-payable',
       modifiers: fn.modifiers,
       state_vars_read: varsRead,
       state_vars_written: varsWritten,
