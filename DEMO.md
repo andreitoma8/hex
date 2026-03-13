@@ -75,6 +75,12 @@ Validates the issue and writes a runnable test.
 ```
 Writes a structured finding with severity, description, and recommendation.
 
+After running `/check-spec-conformance`, you can batch-convert deviations:
+```
+/conformance-to-findings
+```
+Processes all DEVIATES and PARTIAL conformance items, validates each, and writes findings or rejection memos.
+
 ### Phase 4 — AI Cross-check
 
 Drop any AI audit report into `.solaudit/ai-results/` (even a dummy JSON), then:
@@ -97,9 +103,15 @@ solaudit dashboard
 ```
 Opens `http://localhost:3000` with live visualization of all outputs.
 
+Key pages:
+- `/report` — Findings rendered as a markdown-style report (verified findings only)
+- `/all-findings` — Merged table of all findings + tracking data with filters and expandable details
+- `/access` — Access control mapping (now includes inherited functions when Slither is available)
+- `/calls` — External call surface (AST-based, works without Slither)
+
 ## Key Points
 
 - `/init-audit` works as the very first thing in Claude Code (no chicken-and-egg problem)
 - Every skill builds on all previous analysis outputs — later skills have richer context
 - Skills are native slash commands, no need to "read the skill file and follow it"
-- `solaudit update-skills --force` updates skills after a package upgrade
+- `solaudit update-skills` updates skills after a package upgrade (overwrites by default, use `--keep-custom` to preserve modifications)

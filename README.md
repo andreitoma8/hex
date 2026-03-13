@@ -187,9 +187,9 @@ Each check is classified as CONFORMS, DEVIATES, PARTIAL, UNVERIFIABLE, or UNDOCU
 
 Already generated during init. View them on the dashboard:
 
-- `/access` — Who can call what. Functions grouped by role, with confidence indicators showing whether a role was detected from a known library (high confidence) or inferred from a modifier name (low confidence, needs verification).
+- `/access` — Who can call what. Functions grouped by role, with confidence indicators showing whether a role was detected from a known library (high confidence) or inferred from a modifier name (low confidence, needs verification). Includes inherited functions when Slither is available.
 - `/state` — Every state variable with its type, mutability, which functions read and write it, and whether it's unused. Storage slots shown only when sourced from compiler artifacts.
-- `/calls` — Every external call with trust level, return value checking, and reentrancy guard status. Warnings flag edge cases like upgradeable proxy tokens or missing return checks.
+- `/calls` — Every external call with trust level, return value checking, and reentrancy guard status. Uses AST-based extraction (works without Slither), with optional Slither enrichment for unchecked returns and reentrancy guard detection.
 
 All three pages support filtering by confidence level so you can quickly see which entries need manual verification.
 
@@ -365,15 +365,16 @@ Claude independently traces the described attack path in the code and determines
 
 *Recommended model: Opus*
 
-**Step 4.4 — Tracking table**
+**Step 4.4 — All Findings**
 
-View the complete picture at `/tracking` on the dashboard:
+View the complete picture at `/all-findings` on the dashboard:
 
-- Every finding (yours and from AI agents) in one table
+- Every finding (yours and from AI agents) in one filterable table
 - Status: verified, pending validation, rejected
 - PoC status: passing, failing, not started
 - Duplicate mapping: which AI findings correspond to which of yours
-- Summary stats: total findings, unique findings, duplicates remaining
+- Summary stats: total findings by status
+- Expandable rows with full finding detail
 
 ---
 
@@ -387,9 +388,9 @@ All commands are run from within the project directory (or with `--project /path
 | `solaudit analyze` | Run all analysis commands in sequence (stats → deps → access → state → calls) |
 | `solaudit stats` | Generate codebase statistics and test coverage |
 | `solaudit deps` | Build contract dependency graph |
-| `solaudit access` | Extract access control mapping (roles → functions) |
+| `solaudit access` | Extract access control mapping (roles → functions, including inherited) |
 | `solaudit state` | Generate state variable inventory |
-| `solaudit calls` | Map external call surface |
+| `solaudit calls` | Map external call surface (AST-based, Slither optional) |
 | `solaudit annotations` | Extract `@audit` tags from source into JSON |
 | `solaudit annotations --diff` | Show only new/changed annotations |
 | `solaudit context` | Assemble optimized AI context from codebase |
@@ -399,8 +400,8 @@ All commands are run from within the project directory (or with `--project /path
 | `solaudit dashboard` | Start local dashboard and open in browser |
 | `solaudit dashboard --port 8080` | Start dashboard on a custom port |
 | `solaudit claude` | Copy skills to `.claude/skills/` for Claude Code discovery |
-| `solaudit update-skills` | Re-copy skill files from package (after upgrading) |
-| `solaudit update-skills --force` | Overwrite existing skill files |
+| `solaudit update-skills` | Re-copy skill files from package (overwrites by default) |
+| `solaudit update-skills --keep-custom` | Skip existing skill files instead of overwriting |
 
 ---
 
@@ -418,6 +419,7 @@ Skills are invoked through Claude Code. Each skill has a recommended model — s
 | `check-spec-conformance` | 1.6 | Opus | Verifies code matches docs, NatSpec, interfaces, ERC/EIPs |
 | `generate-poc` | 3.1 | Opus | Validates issue reasoning, then writes and runs PoC test |
 | `write-finding` | 3.2 | Sonnet | Writes structured finding to JSON + rendered markdown |
+| `conformance-to-findings` | 3.3 | Sonnet | Batch-converts spec conformance deviations into validated findings |
 | `compare-findings` | 4.2 | Sonnet | Semantic dedup of your findings vs AI agent findings |
 | `validate-ai-finding` | 4.3 | Opus | Independently verifies a novel AI agent finding |
 
@@ -435,6 +437,7 @@ Skills use Claude Code's native skill format, stored in `.claude/skills/<name>/S
 ├── check-spec-conformance/SKILL.md
 ├── generate-poc/SKILL.md
 ├── write-finding/SKILL.md
+├── conformance-to-findings/SKILL.md
 ├── compare-findings/SKILL.md
 └── validate-ai-finding/SKILL.md
 ```
@@ -446,11 +449,11 @@ Skills use Claude Code's native skill format, stored in `.claude/skills/<name>/S
 **Updating skills after upgrading SolAudit:**
 
 ```bash
-solaudit update-skills           # re-copy all default skills from the new package version
-solaudit update-skills --force   # overwrite existing skill files
+solaudit update-skills              # re-copy and overwrite all skill files from the new package version
+solaudit update-skills --keep-custom  # skip existing skill files to preserve your modifications
 ```
 
-This copies default skill files but skips existing ones unless `--force` is used.
+By default, `update-skills` overwrites existing skills with the latest version. Use `--keep-custom` to preserve any per-project modifications you've made.
 
 ### What Skills See
 
@@ -483,8 +486,8 @@ The dashboard runs locally at `http://localhost:3000` and auto-refreshes when ou
 | Invariants | `/invariants` | Identified invariants and doc/code discrepancies |
 | Spec Conformance | `/conformance` | Code vs spec check results, deviations first |
 | Annotations | `/annotations` | Your `@audit` tags, filterable by type and status |
-| Findings | `/findings` | Validated findings with severity and PoC links |
-| Tracking | `/tracking` | Master table of all findings (manual + AI agents) |
+| Report | `/report` | Verified findings rendered as a markdown-style report |
+| All Findings | `/all-findings` | Merged table of all findings + tracking data with filters |
 
 ---
 
