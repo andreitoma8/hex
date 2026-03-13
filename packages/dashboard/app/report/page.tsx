@@ -1,6 +1,6 @@
 import { readJsonFile } from '@/lib/data';
 import { NotYetGenerated } from '@/components/NotYetGenerated';
-import { FindingsClient } from './FindingsClient';
+import { ReportClient } from './ReportClient';
 
 interface Finding {
   id: string;
@@ -29,6 +29,16 @@ interface FindingsData {
   findings: Finding[];
 }
 
+interface TrackingEntry {
+  id: string;
+  status: string;
+  [key: string]: unknown;
+}
+
+interface TrackingData {
+  findings: TrackingEntry[];
+}
+
 type Severity = 'Critical' | 'High' | 'Medium' | 'Low' | 'Info';
 
 const SEVERITY_ORDER: Severity[] = ['Critical', 'High', 'Medium', 'Low', 'Info'];
@@ -41,19 +51,35 @@ const SEVERITY_BAR_COLORS: Record<string, string> = {
   Info: 'bg-gray-500',
 };
 
-export default function FindingsPage() {
+export default function ReportPage() {
   const findingsData = readJsonFile<FindingsData>('findings.json');
 
   if (!findingsData) {
     return (
       <div>
-        <h2 className="mb-6 text-2xl font-bold text-gray-100">Findings</h2>
+        <h2 className="mb-6 text-2xl font-bold text-gray-100">Report</h2>
         <NotYetGenerated command="Use the write-finding skill to create findings" />
       </div>
     );
   }
 
-  const findings = findingsData.findings ?? [];
+  const allFindings = findingsData.findings ?? [];
+
+  // Filter to only verified findings if tracking exists
+  const trackingData = readJsonFile<TrackingData>('tracking.json');
+  let findings = allFindings;
+  if (trackingData) {
+    const verifiedIds = new Set(
+      trackingData.findings
+        .filter((t) => t.status === 'verified')
+        .map((t) => t.id),
+    );
+    findings = allFindings.filter((f) => verifiedIds.has(f.id));
+    // If tracking exists but no verified findings yet, show all
+    if (findings.length === 0 && allFindings.length > 0) {
+      findings = allFindings;
+    }
+  }
 
   // Count by severity
   const counts: Record<string, number> = {};
@@ -64,7 +90,7 @@ export default function FindingsPage() {
 
   return (
     <div>
-      <h2 className="mb-6 text-2xl font-bold text-gray-100">Findings</h2>
+      <h2 className="mb-6 text-2xl font-bold text-gray-100">Report</h2>
 
       {/* Severity summary */}
       <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-5">
@@ -86,12 +112,12 @@ export default function FindingsPage() {
         ))}
       </div>
 
-      {/* Total */}
       <p className="mb-6 text-sm text-gray-400">
-        {findings.length} total finding{findings.length !== 1 ? 's' : ''}
+        {findings.length} finding{findings.length !== 1 ? 's' : ''}
+        {trackingData ? ' (verified)' : ''}
       </p>
 
-      <FindingsClient findings={findings} />
+      <ReportClient findings={findings} />
     </div>
   );
 }

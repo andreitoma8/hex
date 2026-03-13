@@ -3,38 +3,35 @@
 import { FilterableTable, type FilterableColumn } from '@/components/FilterableTable';
 import { SeverityBadge } from '@/components/SeverityBadge';
 import { CodeReference } from '@/components/CodeReference';
-
-// ─── Types ──────────────────────────────────────────────────────────
-
-interface Finding {
-  id: string;
-  title: string;
-  severity: string;
-  likelihood?: string;
-  impact?: string;
-  category?: string;
-  description?: string;
-  impact_detail?: string;
-  root_cause?: {
-    summary: string;
-    locations: { file: string; line_start: number; line_end: number; snippet?: string }[];
-  };
-  poc?: { status: string; file: string | null; validation_memo?: string | null };
-  recommendation?: string;
-  references?: {
-    annotation_id: string | null;
-    annotation_location: string | null;
-    external_links: string[];
-  };
-}
+import type { MergedFinding } from './page';
 
 type Severity = 'Critical' | 'High' | 'Medium' | 'Low' | 'Info';
 
 const SEVERITY_ORDER: Record<string, number> = { Critical: 0, High: 1, Medium: 2, Low: 3, Info: 4 };
 
-// ─── Columns ────────────────────────────────────────────────────────
+const STATUS_STYLES: Record<string, string> = {
+  verified: 'bg-green-600/20 text-green-400 border-green-500/30',
+  pending_validation: 'bg-yellow-600/20 text-yellow-400 border-yellow-500/30',
+  rejected: 'bg-red-600/20 text-red-400 border-red-500/30',
+  duplicate: 'bg-gray-600/20 text-gray-400 border-gray-500/30',
+};
 
-const columns: FilterableColumn<Finding>[] = [
+const POC_STYLES: Record<string, string> = {
+  passing: 'text-green-400',
+  failing: 'text-red-400',
+  not_started: 'text-gray-500',
+};
+
+function StatusBadge({ status }: { status: string }) {
+  const style = STATUS_STYLES[status] ?? STATUS_STYLES.duplicate;
+  return (
+    <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${style}`}>
+      {status}
+    </span>
+  );
+}
+
+const columns: FilterableColumn<MergedFinding>[] = [
   {
     id: 'id',
     header: 'ID',
@@ -63,24 +60,48 @@ const columns: FilterableColumn<Finding>[] = [
     cell: (row) => <SeverityBadge severity={(row.severity ?? 'Info') as Severity} />,
   },
   {
-    id: 'category',
-    header: 'Category',
-    accessorKey: 'category',
+    id: 'source',
+    header: 'Source',
+    accessorKey: 'source',
     enableColumnFilter: true,
     cell: (row) => (
-      <span className="inline-flex items-center rounded bg-gray-700 px-2 py-0.5 text-xs text-gray-300">
-        {row.category ?? '-'}
+      <span className="font-mono text-xs text-gray-400">{row.source}</span>
+    ),
+  },
+  {
+    id: 'status',
+    header: 'Status',
+    accessorKey: 'status',
+    enableColumnFilter: true,
+    cell: (row) => <StatusBadge status={row.status} />,
+  },
+  {
+    id: 'poc_status',
+    header: 'PoC',
+    accessorKey: 'poc_status',
+    cell: (row) => (
+      <span className={POC_STYLES[row.poc_status] ?? 'text-gray-500'}>
+        {row.poc_status}
       </span>
     ),
   },
 ];
 
-// ─── Expanded row detail ────────────────────────────────────────────
+function FindingDetail({ item }: { item: MergedFinding }) {
+  const finding = item.finding;
+  if (!finding) {
+    return (
+      <div className="text-sm text-gray-400">
+        <p>No detailed finding data available.</p>
+        {item.duplicates.length > 0 && (
+          <p className="mt-2">Duplicates: {item.duplicates.join(', ')}</p>
+        )}
+      </div>
+    );
+  }
 
-function FindingDetail({ finding }: { finding: Finding }) {
   return (
     <div className="space-y-4 text-sm">
-      {/* Description */}
       {finding.description && (
         <div>
           <h4 className="mb-1 text-xs font-semibold uppercase text-gray-400">Description</h4>
@@ -88,7 +109,6 @@ function FindingDetail({ finding }: { finding: Finding }) {
         </div>
       )}
 
-      {/* Impact */}
       {finding.impact_detail && (
         <div>
           <h4 className="mb-1 text-xs font-semibold uppercase text-gray-400">Impact</h4>
@@ -96,7 +116,6 @@ function FindingDetail({ finding }: { finding: Finding }) {
         </div>
       )}
 
-      {/* Likelihood & Impact ratings */}
       {(finding.likelihood || finding.impact) && (
         <div className="flex gap-4">
           {finding.likelihood && (
@@ -112,7 +131,6 @@ function FindingDetail({ finding }: { finding: Finding }) {
         </div>
       )}
 
-      {/* Root Cause */}
       {finding.root_cause && (
         <div>
           <h4 className="mb-1 text-xs font-semibold uppercase text-gray-400">Root Cause</h4>
@@ -135,7 +153,6 @@ function FindingDetail({ finding }: { finding: Finding }) {
         </div>
       )}
 
-      {/* Recommendation */}
       {finding.recommendation && (
         <div>
           <h4 className="mb-1 text-xs font-semibold uppercase text-gray-400">Recommendation</h4>
@@ -143,7 +160,6 @@ function FindingDetail({ finding }: { finding: Finding }) {
         </div>
       )}
 
-      {/* PoC */}
       {finding.poc && finding.poc.file && (
         <div>
           <h4 className="mb-1 text-xs font-semibold uppercase text-gray-400">Proof of Concept</h4>
@@ -154,34 +170,23 @@ function FindingDetail({ finding }: { finding: Finding }) {
         </div>
       )}
 
-      {/* References */}
-      {finding.references && (finding.references.annotation_id || (finding.references.external_links?.length ?? 0) > 0) && (
+      {item.duplicates.length > 0 && (
         <div>
-          <h4 className="mb-1 text-xs font-semibold uppercase text-gray-400">References</h4>
-          {finding.references.annotation_id && (
-            <p className="text-xs text-gray-400">
-              Annotation: {finding.references.annotation_id}
-              {finding.references.annotation_location && ` (${finding.references.annotation_location})`}
-            </p>
-          )}
-          {finding.references.external_links?.map((link, i) => (
-            <p key={i} className="text-xs text-blue-400">{link}</p>
-          ))}
+          <h4 className="mb-1 text-xs font-semibold uppercase text-gray-400">Duplicates</h4>
+          <p className="text-xs text-gray-400">{item.duplicates.join(', ')}</p>
         </div>
       )}
     </div>
   );
 }
 
-// ─── Component ──────────────────────────────────────────────────────
-
-export function FindingsClient({ findings }: { findings: Finding[] }) {
+export function AllFindingsClient({ findings }: { findings: MergedFinding[] }) {
   return (
     <FilterableTable
       columns={columns}
       data={findings}
       defaultOpen={true}
-      expandedRow={(finding) => <FindingDetail finding={finding} />}
+      expandedRow={(item) => <FindingDetail item={item} />}
     />
   );
 }

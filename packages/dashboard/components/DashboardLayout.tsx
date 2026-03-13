@@ -12,8 +12,8 @@ const NAV_ITEMS = [
   { href: '/invariants', label: 'Invariants' },
   { href: '/conformance', label: 'Spec Conformance' },
   { href: '/annotations', label: 'Annotations' },
-  { href: '/findings', label: 'Findings' },
-  { href: '/tracking', label: 'Tracking' },
+  { href: '/report', label: 'Report' },
+  { href: '/all-findings', label: 'All Findings' },
   { href: '/diagram', label: 'Diagram' },
   { href: '/flows', label: 'Flows' },
 ];
