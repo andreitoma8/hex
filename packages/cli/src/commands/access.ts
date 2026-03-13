@@ -7,7 +7,7 @@ import { getOutputDir, normalizePath } from '../core/paths.js';
 import { writeJsonOutput } from '../core/output.js';
 import { parseSolidity } from '../parsers/solidity-parser.js';
 import { parseFunctionSummary } from '../parsers/slither.js';
-import { extractFunctionFacts, interpretRoles } from '../analysis/access-control.js';
+import { extractFunctionFacts, mergeInheritedFunctions, interpretRoles } from '../analysis/access-control.js';
 import { runSlither } from '../core/external-tools.js';
 import type { AccessControl } from '../types/index.js';
 
@@ -41,7 +41,7 @@ export const accessCommand = new Command('access')
       }
 
       // Tier 1: Raw function facts
-      const functions = extractFunctionFacts(allContracts, fileMap);
+      let functions = extractFunctionFacts(allContracts, fileMap);
 
       // Tier 2: Try Slither for enhanced analysis
       spin.text = 'Running Slither analysis (Tier 2)...';
@@ -56,9 +56,16 @@ export const accessCommand = new Command('access')
           const json = JSON.parse(result.stdout);
           slitherSummary = parseFunctionSummary(json);
           logger.info('Slither analysis complete — enhanced Tier 2 data available');
+
+          // Merge inherited functions from Slither
+          functions = mergeInheritedFunctions(functions, slitherSummary, allContracts, fileMap);
+          const inheritedCount = functions.filter((f) => f.inherited_from).length;
+          if (inheritedCount > 0) {
+            logger.info(`Found ${inheritedCount} inherited functions via Slither`);
+          }
         }
       } catch {
-        logger.warn('Slither not available — Tier 2 limited to naming heuristics');
+        logger.warn('Slither not available — Tier 2 limited to naming heuristics. Inherited functions may be missing.');
       }
 
       // Tier 2: Role interpretation

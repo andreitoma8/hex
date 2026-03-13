@@ -142,6 +142,7 @@ export const AccessFunctionSchema = z.object({
   state_mutability: z.enum(['pure', 'view', 'nonpayable', 'payable']).nullable(),
   modifiers: z.array(z.string()),
   evidence: EvidenceSchema,
+  inherited_from: z.string().optional(),
 });
 
 export const RoleFunctionRefSchema = z.object({

@@ -1,7 +1,6 @@
 import type { ParsedContract } from '../parsers/solidity-parser.js';
 import type { SlitherFunctionSummary } from '../parsers/slither.js';
 import type { AccessFunction, Role, RoleFunctionRef } from '../types/index.js';
-import type { Evidence } from '../types/index.js';
 
 // Known OpenZeppelin access control patterns
 const OZ_ACCESS_PATTERNS: Record<string, { role: string; description: string }> = {
@@ -55,6 +54,109 @@ export function extractFunctionFacts(
   }
 
   return functions;
+}
+
+/**
+ * Merge inherited functions from Slither function-summary into the function list.
+ * Slither's function-summary includes ALL functions per contract (including inherited).
+ * We deduplicate: overridden functions keep the child contract's version,
+ * non-overridden inherited functions get tagged with inherited_from.
+ */
+export function mergeInheritedFunctions(
+  functions: AccessFunction[],
+  slitherSummary: SlitherFunctionSummary[],
+  contracts: ParsedContract[],
+  fileMap: Map<string, string>,
+): AccessFunction[] {
+  // Build set of scope contract names
+  const scopeContracts = new Set(contracts.map((c) => c.name));
+
+  // Build set of already-known function keys (contract.function)
+  const knownKeys = new Set(functions.map((f) => `${f.contract}.${f.function}`));
+
+  // Build inheritance map: child -> parents[]
+  const inheritanceMap = new Map<string, string[]>();
+  for (const contract of contracts) {
+    if (contract.baseContracts.length > 0) {
+      inheritanceMap.set(contract.name, contract.baseContracts);
+    }
+  }
+
+  // Group Slither summaries by contract
+  const slitherByContract = new Map<string, SlitherFunctionSummary[]>();
+  for (const s of slitherSummary) {
+    if (!scopeContracts.has(s.contract)) continue;
+    if (!slitherByContract.has(s.contract)) slitherByContract.set(s.contract, []);
+    slitherByContract.get(s.contract)!.push(s);
+  }
+
+  const inherited: AccessFunction[] = [];
+
+  for (const [contractName, summaries] of slitherByContract) {
+    const parents = inheritanceMap.get(contractName) ?? [];
+    if (parents.length === 0) continue;
+
+    for (const summary of summaries) {
+      // Skip constructors and special functions
+      const funcName = summary.function;
+      if (funcName === 'constructor' || funcName === 'fallback' || funcName === 'receive' || funcName === '') continue;
+      // Skip if we already know about this function from AST parsing
+      if (knownKeys.has(`${contractName}.${funcName}`)) continue;
+
+      // Skip slitherConstructor naming patterns
+      if (funcName.startsWith('slither')) continue;
+
+      // Map Slither visibility to our enum
+      const visibility = mapSlitherVisibility(summary.visibility);
+      if (!visibility) continue;
+
+      // Determine which parent this function comes from
+      const parentContract = findParentContract(funcName, parents, slitherSummary);
+
+      const key = `${contractName}.${funcName}`;
+      if (knownKeys.has(key)) continue;
+      knownKeys.add(key);
+
+      inherited.push({
+        contract: contractName,
+        function: funcName,
+        visibility,
+        state_mutability: null,
+        modifiers: summary.modifiers.filter((m) => m !== '[]' && m !== ''),
+        evidence: {
+          file: fileMap.get(contractName) ?? '',
+          line_start: 0,
+          line_end: 0,
+        },
+        inherited_from: parentContract ?? undefined,
+      });
+    }
+  }
+
+  return [...functions, ...inherited];
+}
+
+function mapSlitherVisibility(vis: string): 'external' | 'public' | 'internal' | 'private' | null {
+  const normalized = vis.toLowerCase().trim();
+  if (normalized === 'external') return 'external';
+  if (normalized === 'public') return 'public';
+  if (normalized === 'internal') return 'internal';
+  if (normalized === 'private') return 'private';
+  return null;
+}
+
+function findParentContract(
+  funcName: string,
+  parents: string[],
+  allSummaries: SlitherFunctionSummary[],
+): string | null {
+  for (const parent of parents) {
+    const parentSummary = allSummaries.find(
+      (s) => s.contract === parent && s.function === funcName,
+    );
+    if (parentSummary) return parent;
+  }
+  return parents[0] ?? null;
 }
 
 /**
