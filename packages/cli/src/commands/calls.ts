@@ -3,9 +3,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { logger } from '../core/logger.js';
 import { loadConfig } from '../core/config.js';
-import { getOutputDir } from '../core/paths.js';
+import { getOutputDir, normalizePath } from '../core/paths.js';
 import { writeJsonOutput, readJsonFile } from '../core/output.js';
 import { parseDetectors } from '../parsers/slither.js';
+import { extractExternalCalls } from '../parsers/solidity-parser.js';
 import { buildExternalCalls } from '../analysis/external-calls.js';
 import { runSlither } from '../core/external-tools.js';
 import type { ExternalCalls, StateVars, AccessControl } from '../types/index.js';
@@ -21,26 +22,38 @@ export const callsCommand = new Command('calls')
       const config = loadConfig(projectDir);
       const outputDir = getOutputDir(config.project.project_dir, config.settings.output_dir);
 
-      // This command requires Slither
-      spin.text = 'Running Slither detectors...';
-      const result = await runSlither(config.project.project_dir, [
-        '.',
-        '--detect',
-        'unchecked-transfer,unchecked-lowlevel,reentrancy-eth,reentrancy-no-eth,reentrancy-benign,reentrancy-events,calls-loop',
-        '--json', '-',
-      ]);
+      // Tier 1: AST-based external call extraction
+      spin.text = 'Parsing contracts for external calls (AST)...';
+      const allAstCalls: ReturnType<typeof extractExternalCalls> = [];
 
-      if (result.exitCode !== 0 && !result.stdout) {
-        throw new Error(
-          `Slither failed (exit code ${result.exitCode}). This command requires Slither.\n${result.stderr.slice(0, 300)}`,
-        );
+      for (const scopeFile of config.project.scope) {
+        const filePath = path.resolve(config.project.project_dir, scopeFile);
+        if (!fs.existsSync(filePath)) continue;
+
+        const source = fs.readFileSync(filePath, 'utf-8');
+        const calls = extractExternalCalls(source, normalizePath(scopeFile));
+        allAstCalls.push(...calls);
       }
 
-      let detectors;
+      logger.info(`AST extraction found ${allAstCalls.length} external calls`);
+
+      // Tier 2: Try Slither for enrichment (unchecked returns, reentrancy)
+      let slitherDetectors = undefined;
       try {
-        detectors = parseDetectors(JSON.parse(result.stdout));
+        spin.text = 'Running Slither detectors for enrichment...';
+        const result = await runSlither(config.project.project_dir, [
+          '.',
+          '--detect',
+          'unchecked-transfer,unchecked-lowlevel,reentrancy-eth,reentrancy-no-eth,reentrancy-benign,reentrancy-events,calls-loop',
+          '--json', '-',
+        ]);
+
+        if (result.exitCode === 0 && result.stdout) {
+          slitherDetectors = parseDetectors(JSON.parse(result.stdout));
+          logger.info('Slither enrichment available — enhanced return check and reentrancy data');
+        }
       } catch {
-        throw new Error('Failed to parse Slither output. Ensure Slither is properly installed.');
+        logger.warn('Slither not available — return check and reentrancy guard data will have low confidence');
       }
 
       // Load supplementary data for trust level classification
@@ -75,10 +88,11 @@ export const callsCommand = new Command('calls')
       }
 
       const calls = buildExternalCalls(
-        detectors,
+        allAstCalls,
         immutabilityMap,
         scopeContracts,
         accessControlledSetters,
+        slitherDetectors,
       );
 
       const externalCalls: ExternalCalls = { calls };

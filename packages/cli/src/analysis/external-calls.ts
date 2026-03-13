@@ -1,4 +1,5 @@
 import type { SlitherDetectorResult } from '../parsers/slither.js';
+import type { ASTExternalCall } from '../parsers/solidity-parser.js';
 import type { ExternalCall } from '../types/index.js';
 
 // Call type classification heuristics
@@ -13,100 +14,80 @@ const CALL_TYPE_PATTERNS: Record<string, string[]> = {
 };
 
 /**
- * Build external calls data from Slither detector results.
+ * Build external calls from AST-extracted calls, optionally enriched with Slither data.
  */
 export function buildExternalCalls(
-  detectors: SlitherDetectorResult[],
-  stateVarsImmutability: Map<string, boolean>, // target var name -> isImmutable
+  astCalls: ASTExternalCall[],
+  stateVarsImmutability: Map<string, boolean>,
   scopeContracts: Set<string>,
-  accessControlledSetters: Map<string, string>, // var name -> role
+  accessControlledSetters: Map<string, string>,
+  slitherDetectors?: SlitherDetectorResult[],
 ): ExternalCall[] {
-  const calls: ExternalCall[] = [];
-  const seen = new Set<string>();
+  // Build Slither enrichment maps if available
+  const slitherUnchecked = new Set<string>();
+  const slitherReentrancy = new Set<string>();
 
-  // Process reentrancy detectors for external call info
-  for (const det of detectors) {
-    if (!det.check.startsWith('reentrancy') &&
-        det.check !== 'unchecked-transfer' &&
-        det.check !== 'unchecked-lowlevel' &&
-        det.check !== 'calls-loop' &&
-        det.check !== 'external-function') continue;
-
-    for (const elem of det.elements) {
-      if (elem.type !== 'node') continue;
-
-      const key = `${elem.source_mapping.filename_relative}:${elem.source_mapping.lines[0]}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-
-      const { contract, func } = parseElementContext(elem);
-      const { target, method } = parseCallTarget(elem.name);
-      const callType = classifyCallType(method);
-
-      const isUnchecked = det.check === 'unchecked-transfer' || det.check === 'unchecked-lowlevel';
-      const isReentrancy = det.check.startsWith('reentrancy');
-
-      const trustLevel = classifyTrustLevel(target, stateVarsImmutability, scopeContracts, accessControlledSetters);
-
-      calls.push({
-        contract,
-        function: func,
-        evidence: {
-          file: elem.source_mapping.filename_relative,
-          line_start: elem.source_mapping.lines[0] ?? 0,
-          line_end: elem.source_mapping.lines[elem.source_mapping.lines.length - 1] ?? 0,
-          snippet: elem.name,
-        },
-        target,
-        method,
-        return_checked: {
-          value: !isUnchecked,
-          confidence: 'high',
-          derived_from: 'slither',
-        },
-        inside_reentrancy_guard: {
-          value: !isReentrancy,
-          confidence: isReentrancy ? 'high' : 'medium',
-          derived_from: 'slither',
-        },
-        call_type: callType,
-        trust_level: trustLevel,
-      });
+  if (slitherDetectors) {
+    for (const det of slitherDetectors) {
+      for (const elem of det.elements) {
+        if (elem.type !== 'node') continue;
+        const key = `${elem.source_mapping.filename_relative}:${elem.source_mapping.lines[0]}`;
+        if (det.check === 'unchecked-transfer' || det.check === 'unchecked-lowlevel') {
+          slitherUnchecked.add(key);
+        }
+        if (det.check.startsWith('reentrancy')) {
+          slitherReentrancy.add(key);
+        }
+      }
     }
   }
 
+  const calls: ExternalCall[] = [];
+  const seen = new Set<string>();
+
+  for (const ac of astCalls) {
+    const key = `${ac.file}:${ac.lineStart}:${ac.method}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const callType = classifyCallType(ac.method);
+    const trustLevel = classifyTrustLevel(ac.target, stateVarsImmutability, scopeContracts, accessControlledSetters);
+
+    // Slither enrichment
+    const lineKey = `${ac.file}:${ac.lineStart}`;
+    const hasSlither = slitherDetectors != null;
+    const isUnchecked = slitherUnchecked.has(lineKey);
+    const isReentrancy = slitherReentrancy.has(lineKey);
+
+    calls.push({
+      contract: ac.contract,
+      function: ac.function,
+      evidence: {
+        file: ac.file,
+        line_start: ac.lineStart,
+        line_end: ac.lineEnd,
+        snippet: ac.snippet,
+      },
+      target: ac.target,
+      method: ac.method,
+      return_checked: {
+        value: hasSlither ? !isUnchecked : true,
+        confidence: hasSlither ? 'high' : 'low',
+        derived_from: hasSlither ? 'slither' : 'heuristic',
+        ...(hasSlither ? {} : { reasoning: 'No Slither data — assuming checked' }),
+      },
+      inside_reentrancy_guard: {
+        value: hasSlither ? !isReentrancy : false,
+        confidence: hasSlither ? (isReentrancy ? 'high' : 'medium') : 'low',
+        derived_from: hasSlither ? 'slither' : 'heuristic',
+        ...(hasSlither ? {} : { reasoning: 'No Slither data — reentrancy guard status unknown' }),
+      },
+      call_type: callType,
+      trust_level: trustLevel,
+    });
+  }
+
   return calls;
-}
-
-function parseElementContext(elem: { name: string; type_specific_fields?: Record<string, unknown> }): { contract: string; func: string } {
-  let contract = '';
-  let func = '';
-  let current = elem.type_specific_fields?.parent as Record<string, unknown> | undefined;
-  while (current) {
-    const type = String(current.type ?? '');
-    const name = String(current.name ?? '');
-    if (type === 'function' && !func) func = name;
-    if (type === 'contract' && !contract) contract = name;
-    current = (current.type_specific_fields as Record<string, unknown> | undefined)?.parent as Record<string, unknown> | undefined;
-  }
-  return { contract, func };
-}
-
-function parseCallTarget(name: string): { target: string; method: string } {
-  // Try to extract target and method from call expression
-  // e.g., "IERC20(asset).transferFrom(...)" -> target: "IERC20(asset)", method: "transferFrom"
-  const match = name.match(/([^.]+)\.(\w+)\s*\(/);
-  if (match) {
-    return { target: match[1].trim(), method: match[2] };
-  }
-
-  // Low-level calls
-  const lowLevel = name.match(/\.(\w+)\s*\{/);
-  if (lowLevel) {
-    return { target: name.split('.')[0]?.trim() ?? '', method: lowLevel[1] };
-  }
-
-  return { target: '', method: '' };
 }
 
 function classifyCallType(method: string): string {
@@ -126,7 +107,7 @@ function classifyTrustLevel(
 ): ExternalCall['trust_level'] {
   // Extract variable name from target if possible
   const varMatch = target.match(/\((\w+)\)/);
-  const varName = varMatch?.[1];
+  const varName = varMatch?.[1] ?? target;
 
   // Check if target is an in-scope contract
   if (scopeContracts.has(target)) {
@@ -139,7 +120,7 @@ function classifyTrustLevel(
   }
 
   // Check immutability
-  if (varName && stateVarsImmutability.get(varName)) {
+  if (stateVarsImmutability.get(varName)) {
     return {
       value: 'semi-trusted',
       confidence: 'medium',
@@ -150,7 +131,7 @@ function classifyTrustLevel(
   }
 
   // Check if settable by privileged role
-  if (varName && accessControlledSetters.has(varName)) {
+  if (accessControlledSetters.has(varName)) {
     return {
       value: 'semi-trusted',
       confidence: 'medium',

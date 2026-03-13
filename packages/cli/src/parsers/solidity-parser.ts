@@ -245,6 +245,228 @@ function expressionToString(node: ASTNode): string {
   }
 }
 
+// ─── External call extraction from AST ────────────────────────────
+
+export interface ASTExternalCall {
+  contract: string;
+  function: string;
+  target: string;
+  method: string;
+  file: string;
+  lineStart: number;
+  lineEnd: number;
+  snippet: string;
+  callType: 'member_access' | 'low_level';
+}
+
+/**
+ * Extract external calls from parsed Solidity AST by walking all function bodies.
+ * Identifies MemberAccess + FunctionCall on external contracts and low-level calls.
+ */
+export function extractExternalCalls(
+  source: string,
+  filePath: string,
+): ASTExternalCall[] {
+  let ast;
+  try {
+    ast = parser.parse(source, { loc: true, range: true, tolerant: true });
+  } catch {
+    return [];
+  }
+
+  const calls: ASTExternalCall[] = [];
+  const lines = source.split('\n');
+
+  for (const node of ast.children) {
+    if (node.type !== 'ContractDefinition') continue;
+    const contractNode = node as ASTNode & { type: 'ContractDefinition'; name: string; subNodes: ASTNode[] };
+    if (contractNode.kind === 'interface' || contractNode.kind === 'library') continue;
+
+    for (const sub of contractNode.subNodes ?? []) {
+      if (sub.type !== 'FunctionDefinition') continue;
+      const funcNode = sub as ASTNode & {
+        name: string | null;
+        isConstructor: boolean;
+        isFallback: boolean;
+        isReceiveEther: boolean;
+        body: ASTNode | null;
+      };
+      const funcName = funcNode.name ?? (funcNode.isConstructor ? 'constructor' : funcNode.isFallback ? 'fallback' : 'receive');
+
+      if (!funcNode.body) continue;
+      walkForExternalCalls(funcNode.body, contractNode.name, funcName, filePath, lines, calls);
+    }
+  }
+
+  return calls;
+}
+
+function walkForExternalCalls(
+  node: ASTNode,
+  contractName: string,
+  funcName: string,
+  filePath: string,
+  lines: string[],
+  calls: ASTExternalCall[],
+): void {
+  if (!node || typeof node !== 'object') return;
+
+  // Skip emit statements — they are events, not external calls
+  if (node.type === 'EmitStatement') return;
+
+  if (node.type === 'FunctionCall') {
+    const fc = node as ASTNode & {
+      expression: ASTNode;
+      arguments: ASTNode[];
+    };
+
+    // Check for MemberAccess pattern: expr.method(...)
+    if (fc.expression?.type === 'MemberAccess') {
+      const ma = fc.expression as ASTNode & {
+        expression: ASTNode;
+        memberName: string;
+      };
+
+      const target = expressionToCallTarget(ma.expression);
+      const method = ma.memberName;
+
+      // Skip common non-external patterns
+      if (!isLikelyExternalCall(target, method)) {
+        // Still walk children
+        walkChildren(node, contractName, funcName, filePath, lines, calls);
+        return;
+      }
+
+      const lineStart = node.loc?.start.line ?? 0;
+      const lineEnd = node.loc?.end.line ?? 0;
+      const snippet = lines.slice(Math.max(0, lineStart - 1), lineEnd).join('\n').trim();
+
+      // Detect low-level calls
+      const isLowLevel = ['call', 'staticcall', 'delegatecall', 'send'].includes(method);
+
+      calls.push({
+        contract: contractName,
+        function: funcName,
+        target,
+        method,
+        file: filePath,
+        lineStart,
+        lineEnd,
+        snippet,
+        callType: isLowLevel ? 'low_level' : 'member_access',
+      });
+    }
+
+    // Check for NameValueExpression (low-level calls with value: foo.call{value: x}(...))
+    if (fc.expression?.type === 'NameValueExpression') {
+      const nve = fc.expression as ASTNode & {
+        expression: ASTNode;
+      };
+      if (nve.expression?.type === 'MemberAccess') {
+        const ma = nve.expression as ASTNode & {
+          expression: ASTNode;
+          memberName: string;
+        };
+        const target = expressionToCallTarget(ma.expression);
+        const method = ma.memberName;
+        const lineStart = node.loc?.start.line ?? 0;
+        const lineEnd = node.loc?.end.line ?? 0;
+        const snippet = lines.slice(Math.max(0, lineStart - 1), lineEnd).join('\n').trim();
+
+        calls.push({
+          contract: contractName,
+          function: funcName,
+          target,
+          method,
+          file: filePath,
+          lineStart,
+          lineEnd,
+          snippet,
+          callType: 'low_level',
+        });
+      }
+    }
+  }
+
+  walkChildren(node, contractName, funcName, filePath, lines, calls);
+}
+
+function walkChildren(
+  node: ASTNode,
+  contractName: string,
+  funcName: string,
+  filePath: string,
+  lines: string[],
+  calls: ASTExternalCall[],
+): void {
+  for (const key of Object.keys(node)) {
+    if (key === 'loc' || key === 'range') continue;
+    const val = (node as unknown as Record<string, unknown>)[key];
+    if (Array.isArray(val)) {
+      for (const item of val) {
+        if (item && typeof item === 'object' && 'type' in item) {
+          walkForExternalCalls(item as ASTNode, contractName, funcName, filePath, lines, calls);
+        }
+      }
+    } else if (val && typeof val === 'object' && 'type' in val) {
+      walkForExternalCalls(val as ASTNode, contractName, funcName, filePath, lines, calls);
+    }
+  }
+}
+
+function expressionToCallTarget(node: ASTNode): string {
+  if (!node) return '';
+  const n = node as ASTNode & { name?: string; namePath?: string; type: string; expression?: ASTNode; memberName?: string; arguments?: ASTNode[] };
+
+  switch (n.type) {
+    case 'Identifier':
+      return n.name ?? '';
+    case 'MemberAccess':
+      return `${expressionToCallTarget(n.expression!)}.${n.memberName}`;
+    case 'FunctionCall': {
+      // Handle type casts like IERC20(token)
+      const callee = n.expression as ASTNode & { namePath?: string; name?: string; type: string };
+      if (callee?.type === 'UserDefinedTypeName' || callee?.type === 'Identifier') {
+        return callee.namePath ?? callee.name ?? '';
+      }
+      return expressionToCallTarget(n.expression!);
+    }
+    case 'IndexAccess':
+      return expressionToCallTarget(n.expression!);
+    default:
+      return '';
+  }
+}
+
+/**
+ * Heuristic: is this likely an external call vs an internal/library call?
+ */
+function isLikelyExternalCall(target: string, method: string): boolean {
+  // Low-level calls are always external
+  if (['call', 'staticcall', 'delegatecall', 'send', 'transfer'].includes(method)) return true;
+
+  // Skip common library/internal patterns
+  if (target === 'abi') return false;
+  if (target === 'msg' || target === 'block' || target === 'tx') return false;
+  if (target === 'super') return false;
+  if (target === 'this') return false;
+  if (target === 'type') return false;
+
+  // Skip string/bytes methods
+  if (method === 'concat') return false;
+
+  // Math library methods on types
+  if (['add', 'sub', 'mul', 'div', 'mod'].includes(method) && !target.includes('(')) return false;
+
+  // If target starts with uppercase or is a cast like IERC20, likely external
+  if (target.match(/^[A-Z]/)) return true;
+
+  // If target is a variable (lowercase), could be external
+  if (target.match(/^[a-z_]/)) return true;
+
+  return false;
+}
+
 /**
  * Extract the Solidity version from pragma statements.
  */
