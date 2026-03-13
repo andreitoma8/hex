@@ -49,13 +49,17 @@ function parseInvariantsMarkdown(md: string): ParsedInvariants {
       for (const item of items) {
         const idMatch = item.match(/\[(DISC-\d+)\]\s*(.+)/);
         if (!idMatch) continue;
+        const severityMatch = item.match(/\*\*Severity:\*\*\s*(.+)/i);
         const docsMatch = item.match(/\*\*Docs say:\*\*\s*(.+)/i);
+        const docRefMatch = item.match(/\*\*Doc ref:\*\*\s*(.+)/i);
         const codeMatch = item.match(/\*\*Code does:\*\*\s*(.+)/i);
         const riskMatch = item.match(/\*\*Risk:\*\*\s*(.+)/i);
         result.discrepancies.push({
           id: idMatch[1],
           description: idMatch[2].trim(),
+          severity: severityMatch?.[1]?.trim() ?? '-',
           docs_say: docsMatch?.[1]?.trim() ?? '-',
+          doc_ref: docRefMatch?.[1]?.trim(),
           code_does: codeMatch?.[1]?.trim() ?? '-',
           risk: riskMatch?.[1]?.trim() ?? '-',
         });

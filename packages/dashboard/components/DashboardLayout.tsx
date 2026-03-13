@@ -7,7 +7,7 @@ const NAV_ITEMS = [
   { href: '/', label: 'Home' },
   { href: '/stats', label: 'Stats' },
   { href: '/access', label: 'Access Control' },
-  { href: '/state', label: 'State Variables' },
+  { href: '/functions', label: 'Functions' },
   { href: '/calls', label: 'External Calls' },
   { href: '/invariants', label: 'Invariants' },
   { href: '/conformance', label: 'Spec Conformance' },

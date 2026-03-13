@@ -1,12 +1,27 @@
-import { readJsonFile, readMarkdownFile } from '@/lib/data';
+import { readJsonFile } from '@/lib/data';
 import { NotYetGenerated } from '@/components/NotYetGenerated';
-import { MarkdownRenderer } from '@/components/MarkdownRenderer';
-import { SeverityBadge } from '@/components/SeverityBadge';
+import { FindingsClient } from './FindingsClient';
 
 interface Finding {
   id: string;
   title: string;
   severity: string;
+  likelihood?: string;
+  impact?: string;
+  category?: string;
+  description?: string;
+  impact_detail?: string;
+  root_cause?: {
+    summary: string;
+    locations: { file: string; line_start: number; line_end: number; snippet?: string }[];
+  };
+  poc?: { status: string; file: string | null; validation_memo?: string | null };
+  recommendation?: string;
+  references?: {
+    annotation_id: string | null;
+    annotation_location: string | null;
+    external_links: string[];
+  };
   [key: string]: unknown;
 }
 
@@ -28,7 +43,6 @@ const SEVERITY_BAR_COLORS: Record<string, string> = {
 
 export default function FindingsPage() {
   const findingsData = readJsonFile<FindingsData>('findings.json');
-  const markdown = readMarkdownFile('findings.md');
 
   if (!findingsData) {
     return (
@@ -77,40 +91,7 @@ export default function FindingsPage() {
         {findings.length} total finding{findings.length !== 1 ? 's' : ''}
       </p>
 
-      {/* Findings markdown content */}
-      {markdown && (
-        <div className="rounded-lg border border-gray-700 bg-gray-800 p-6">
-          <MarkdownRenderer content={markdown} />
-        </div>
-      )}
-
-      {/* If no markdown, show a table of findings */}
-      {!markdown && findings.length > 0 && (
-        <div className="overflow-x-auto rounded-lg border border-gray-700">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-gray-700 bg-gray-800 text-xs uppercase text-gray-400">
-              <tr>
-                <th className="px-4 py-3">ID</th>
-                <th className="px-4 py-3">Severity</th>
-                <th className="px-4 py-3">Title</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-700">
-              {findings.map((f) => (
-                <tr key={f.id} className="bg-gray-800/50 hover:bg-gray-700/50">
-                  <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-gray-300">
-                    {f.id}
-                  </td>
-                  <td className="px-4 py-3">
-                    <SeverityBadge severity={f.severity as Severity} />
-                  </td>
-                  <td className="px-4 py-3 text-gray-300">{f.title}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <FindingsClient findings={findings} />
     </div>
   );
 }

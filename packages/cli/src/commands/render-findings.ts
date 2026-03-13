@@ -1,5 +1,4 @@
 import { Command } from 'commander';
-import fs from 'node:fs';
 import path from 'node:path';
 import { logger } from '../core/logger.js';
 import { loadConfig } from '../core/config.js';
@@ -86,61 +85,38 @@ export const renderFindingsCommand = new Command('render-findings')
 function renderFinding(f: Finding): string {
   const lines: string[] = [];
 
-  lines.push(`## [${f.id}] ${f.title}`);
-  lines.push('');
-  lines.push(`**Severity:** ${f.severity}`);
-  lines.push(`**Likelihood:** ${f.likelihood}`);
-  lines.push(`**Impact:** ${f.impact}`);
-  lines.push(`**Category:** ${f.category}`);
-  lines.push('');
-  lines.push('### Description');
-  lines.push('');
-  lines.push(f.description);
-  lines.push('');
-  lines.push('### Impact');
-  lines.push('');
-  lines.push(f.impact_detail);
-  lines.push('');
-  lines.push('### Root Cause');
-  lines.push('');
-  lines.push(f.root_cause.summary);
+  // Title with severity
+  lines.push(`## **[${f.severity}] ${f.title}**`);
   lines.push('');
 
+  // File locations
+  const files = f.root_cause.locations.map((loc) => `\`${loc.file}\``).join(', ');
+  if (files) {
+    lines.push(`**File(s):** ${files}`);
+    lines.push('');
+  }
+
+  // Description
+  lines.push(`**Description:** ${f.description}`);
+  lines.push('');
+
+  // Root cause code with @audit-issue comments
   for (const loc of f.root_cause.locations) {
-    lines.push(`\`${loc.file}:${loc.line_start}-${loc.line_end}\``);
     if (loc.snippet) {
       lines.push('```solidity');
       lines.push(loc.snippet);
       lines.push('```');
+      lines.push('');
     }
-    lines.push('');
   }
 
-  if (f.poc.file) {
-    lines.push('### Proof of Concept');
-    lines.push('');
-    lines.push(`PoC: \`${f.poc.file}\` (${f.poc.status})`);
-    lines.push('');
-  }
-
-  lines.push('### Recommendation');
-  lines.push('');
-  lines.push(f.recommendation);
+  // Recommendation
+  lines.push(`**Recommendation(s):** ${f.recommendation}`);
   lines.push('');
 
-  if (f.references.annotation_id || f.references.external_links.length > 0) {
-    lines.push('### References');
-    lines.push('');
-    if (f.references.annotation_id) {
-      lines.push(
-        `- Annotation: ${f.references.annotation_id} (${f.references.annotation_location})`,
-      );
-    }
-    for (const link of f.references.external_links) {
-      lines.push(`- ${link}`);
-    }
-    lines.push('');
-  }
+  // Status
+  lines.push('**Status:** Unresolved');
+  lines.push('');
 
   return lines.join('\n');
 }

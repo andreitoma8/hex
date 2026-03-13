@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { SignalBars } from '@/components/SignalBars';
+import { SeverityBadge } from '@/components/SeverityBadge';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -22,7 +24,9 @@ interface CodeInvariant {
 interface Discrepancy {
   id: string;
   description: string;
+  severity: string;
   docs_say: string;
+  doc_ref?: string;
   code_does: string;
   risk: string;
 }
@@ -83,24 +87,6 @@ function CollapsibleSection({
   );
 }
 
-// ─── Confidence badge ───────────────────────────────────────────────
-
-const CONFIDENCE_STYLES: Record<string, string> = {
-  high: 'bg-green-600/20 text-green-400 border-green-500/30',
-  medium: 'bg-yellow-600/20 text-yellow-400 border-yellow-500/30',
-  low: 'bg-red-600/20 text-red-400 border-red-500/30',
-};
-
-function ConfBadge({ level }: { level: string }) {
-  const normalized = level.toLowerCase();
-  const style = CONFIDENCE_STYLES[normalized] ?? CONFIDENCE_STYLES.low;
-  return (
-    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${style}`}>
-      {level}
-    </span>
-  );
-}
-
 // ─── Main component ─────────────────────────────────────────────────
 
 export function InvariantsTable({ data }: { data: ParsedInvariants }) {
@@ -118,9 +104,9 @@ export function InvariantsTable({ data }: { data: ParsedInvariants }) {
           <table className="w-full text-left text-sm">
             <thead className="border-b border-gray-700 bg-gray-800/50 text-xs uppercase text-gray-400">
               <tr>
+                <th className="px-4 py-2.5 w-10"></th>
                 <th className="px-4 py-2.5">ID</th>
                 <th className="px-4 py-2.5">Invariant</th>
-                <th className="px-4 py-2.5">Confidence</th>
                 <th className="px-4 py-2.5">Enforced In</th>
                 <th className="px-4 py-2.5">Source</th>
               </tr>
@@ -128,9 +114,9 @@ export function InvariantsTable({ data }: { data: ParsedInvariants }) {
             <tbody className="divide-y divide-gray-700/50">
               {data.fromDocs.map((inv) => (
                 <tr key={inv.id} className="hover:bg-gray-800/30 transition-colors">
+                  <td className="px-4 py-3"><SignalBars level={inv.confidence} /></td>
                   <td className="px-4 py-3 font-mono text-xs text-gray-300">{inv.id}</td>
                   <td className="px-4 py-3 text-gray-200">{inv.invariant}</td>
-                  <td className="px-4 py-3"><ConfBadge level={inv.confidence} /></td>
                   <td className="px-4 py-3 font-mono text-xs text-gray-400">{inv.enforced_in}</td>
                   <td className="px-4 py-3 text-xs text-gray-400">{inv.source}</td>
                 </tr>
@@ -152,18 +138,18 @@ export function InvariantsTable({ data }: { data: ParsedInvariants }) {
           <table className="w-full text-left text-sm">
             <thead className="border-b border-gray-700 bg-gray-800/50 text-xs uppercase text-gray-400">
               <tr>
+                <th className="px-4 py-2.5 w-10"></th>
                 <th className="px-4 py-2.5">ID</th>
                 <th className="px-4 py-2.5">Invariant</th>
-                <th className="px-4 py-2.5">Confidence</th>
                 <th className="px-4 py-2.5">Enforced In</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-700/50">
               {data.fromCode.map((inv) => (
                 <tr key={inv.id} className="hover:bg-gray-800/30 transition-colors">
+                  <td className="px-4 py-3"><SignalBars level={inv.confidence} /></td>
                   <td className="px-4 py-3 font-mono text-xs text-gray-300">{inv.id}</td>
                   <td className="px-4 py-3 text-gray-200">{inv.invariant}</td>
-                  <td className="px-4 py-3"><ConfBadge level={inv.confidence} /></td>
                   <td className="px-4 py-3 font-mono text-xs text-gray-400">{inv.enforced_in}</td>
                 </tr>
               ))}
@@ -193,10 +179,20 @@ export function InvariantsTable({ data }: { data: ParsedInvariants }) {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
                   </svg>
                   <span className="font-mono text-xs text-red-300">{disc.id}</span>
+                  {disc.severity && disc.severity !== '-' && (
+                    <SeverityBadge severity={disc.severity as 'Critical' | 'High' | 'Medium' | 'Low' | 'Info'} />
+                  )}
                   <span className="text-sm font-medium text-red-200">{disc.description}</span>
                 </div>
                 <div className="ml-6 space-y-1 text-sm">
-                  <p className="text-gray-400"><span className="font-medium text-gray-300">Docs say:</span> {disc.docs_say}</p>
+                  <p className="text-gray-400">
+                    <span className="font-medium text-gray-300">Docs say:</span> {disc.docs_say}
+                  </p>
+                  {disc.doc_ref && disc.doc_ref !== '-' && (
+                    <p className="text-gray-500 text-xs">
+                      <span className="font-medium text-gray-400">Doc ref:</span> {disc.doc_ref}
+                    </p>
+                  )}
                   <p className="text-gray-400"><span className="font-medium text-gray-300">Code does:</span> {disc.code_does}</p>
                   <p className="text-red-300/80"><span className="font-medium text-red-200">Risk:</span> {disc.risk}</p>
                 </div>

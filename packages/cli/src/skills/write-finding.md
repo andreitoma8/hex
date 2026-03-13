@@ -92,7 +92,7 @@ All inserted audit comments must be full sentences starting with a capital lette
 
 ## Actions
 
-1. Append the finding to `<output_dir>/findings.json`
+1. Append the finding to the `findings` array inside `<output_dir>/findings.json`. The file structure is `{ "findings": [...] }`. If the file doesn't exist, create it with this wrapper.
 2. Regenerate markdown: `npx solaudit render-findings`
 3. Update the source annotation to `@audit-issue-verified` with finding ID
 4. Update `<output_dir>/tracking.json` with the new finding entry

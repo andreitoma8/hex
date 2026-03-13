@@ -66,9 +66,11 @@ Use swim lanes to separate contracts:
 
 ## Output
 
-Write valid Excalidraw JSON to `<output_dir>/flows.excalidraw`.
+Generate each flow as a separate file: `<output_dir>/flow-<name>.excalidraw` (e.g., `flow-deposit.excalidraw`, `flow-admin-pause.excalidraw`).
+
+Generate flows one at a time, not programmatically all at once. If there are more than 3 flows, do them sequentially — verify each flow renders correctly before starting the next.
 
 The JSON format follows the same schema as `generate-diagram.md`. Use the swim lane layout:
 - Y-axis: flow progression (top to bottom)
 - X-axis: contract separation (left to right)
-- Group related flows vertically with section headers
+- Each file contains a single flow

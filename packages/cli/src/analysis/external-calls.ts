@@ -79,11 +79,17 @@ export function buildExternalCalls(
 }
 
 function parseElementContext(elem: { name: string; type_specific_fields?: Record<string, unknown> }): { contract: string; func: string } {
-  const parent = elem.type_specific_fields?.parent as Record<string, unknown> | undefined;
-  return {
-    contract: String(parent?.contract ?? ''),
-    func: String(parent?.function ?? ''),
-  };
+  let contract = '';
+  let func = '';
+  let current = elem.type_specific_fields?.parent as Record<string, unknown> | undefined;
+  while (current) {
+    const type = String(current.type ?? '');
+    const name = String(current.name ?? '');
+    if (type === 'function' && !func) func = name;
+    if (type === 'contract' && !contract) contract = name;
+    current = (current.type_specific_fields as Record<string, unknown> | undefined)?.parent as Record<string, unknown> | undefined;
+  }
+  return { contract, func };
 }
 
 function parseCallTarget(name: string): { target: string; method: string } {

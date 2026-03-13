@@ -51,6 +51,16 @@ Use `access-control.json` to verify access control claims.
 - Flag any invariant that is **partially enforced** (enforced in some paths but not others)
 - Rate confidence: high (clearly enforced with explicit checks), medium (partially enforced), low (assumed but not checked)
 
+## Discrepancy Severity Guide
+
+Rate each discrepancy using the same Likelihood x Impact matrix as findings:
+
+| | Low Impact | Medium Impact | High Impact |
+|---|---|---|---|
+| **High Likelihood** | Medium | High | Critical |
+| **Medium Likelihood** | Low | Medium | High |
+| **Low Likelihood** | Info | Low | Medium |
+
 ## Output Format
 
 Write to `<output_dir>/invariants.md`:
@@ -66,9 +76,11 @@ Write to `<output_dir>/invariants.md`:
 
 ## Discrepancies
 1. [DISC-01] <description of mismatch between docs and code>
+   - **Severity:** Critical/High/Medium/Low/Info
    - **Docs say:** <quote>
+   - **Doc ref:** <section name, URL anchor, or page reference from the documentation>
    - **Code does:** <description>
-   - **Risk:** <potential impact>
+   - **Risk:** <explanation of potential impact>
 
 ## Implicit Assumptions
 1. [ASSUM-01] <assumption that the code relies on but never explicitly checks>
