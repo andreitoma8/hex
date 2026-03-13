@@ -15,6 +15,42 @@ Read:
 - The relevant source code
 - `<output_dir>/findings.json` — to determine next finding ID
 
+## Step 0: Validation Gate
+
+Before writing a finding, verify the issue has been validated.
+
+### 1. Look up the issue in `<output_dir>/tracking.json`
+
+Match the issue by annotation ID, title, or description. Then act based on status:
+
+### 2. Act based on status
+
+**No tracking entry (new/manual finding) or `status: "pending_validation"`:**
+
+Validate by reasoning before proceeding — trace the attack path in the code step by step:
+1. **Is this actually exploitable?** Trace the exact execution path.
+2. **What are the preconditions?** What state must the system be in? What does the attacker need?
+3. **What would the impact be?** Quantify if possible (fund loss amount, DoS duration, etc.).
+4. **Are there existing protections?** Check for reentrancy guards, access control that blocks the attack path, input validation that blocks required preconditions, economic constraints that make the attack unprofitable.
+
+Then:
+- **If valid:** Write a validation memo to `<output_dir>/validations/<annotation_id>_memo.md` (use the memo format from the `generate-poc` skill). Add or update the tracking entry with `status: "verified"`, `poc_status: "not_started"`. Proceed to write the finding.
+- **If invalid:** Write a validation memo explaining why. Add or update the tracking entry with `status: "rejected"`. **Stop — do not write the finding.** Inform the auditor of the rejection reason.
+
+**`status: "rejected"`:**
+
+**Stop — do not write the finding.** Inform the auditor that this issue was previously rejected. Point to the existing validation memo at `<output_dir>/validations/` if present.
+
+**`status: "verified"`:**
+
+Proceed to write the finding.
+
+### 3. PoC status handling
+
+Record whatever the current `poc_status` is in the finding's `poc` field. **Never auto-trigger PoC generation.** If `poc_status` is `"not_started"` or absent, set `poc.status: "not_started"` and `poc.file: null` in the finding.
+
+---
+
 ## Severity Guide
 
 Rate severity using Likelihood × Impact:
