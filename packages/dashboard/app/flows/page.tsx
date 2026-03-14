@@ -72,7 +72,7 @@ export default function FlowsPage() {
 
       {/* Active flow diagram */}
       {flows[activeTab] && (
-        <ExcalidrawViewer filename={flows[activeTab].filename} />
+        <ExcalidrawViewer key={flows[activeTab].filename} filename={flows[activeTab].filename} />
       )}
     </div>
   );
