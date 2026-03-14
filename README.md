@@ -133,7 +133,7 @@ claude
 > /generate-diagram
 ```
 
-Produces an Excalidraw diagram showing contracts, inheritance, external calls, and role connections. Viewable in the dashboard at `/diagram` or openable directly in the Excalidraw desktop app.
+Produces an Excalidraw diagram showing contracts (with ERC labels and purpose annotations), inheritance, external calls, state variable references, and role connections. Viewable in the dashboard at `/diagram` or openable directly in the Excalidraw desktop app.
 
 *Recommended model: Sonnet*
 

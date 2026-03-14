@@ -21,6 +21,11 @@ Read these files from the output directory:
   - `per_contract`: Array of `{ contract, file, type, nsloc, functions, external_functions, modifiers, events, errors }`
 - **`external-calls.json`** — External call surface with trust levels
   - `calls`: Array of `{ contract, function, target, method, trust_level: { value: "trusted"|"semi-trusted"|"untrusted"|"external" }, call_type }`
+- **`overview.md`** (optional) — AI-generated protocol overview. If present, extract per-contract purpose descriptions to use as annotations on the diagram.
+- **`state-vars.json`** — State variable inventory
+  - `variables`: Array of `{ contract, name, type, visibility, mutability, ... }`
+  - Look for address-type variables (`address`, `IERC20`, `IStrategy`, etc.) that reference other in-scope contracts. These represent architectural dependencies ("Contract A holds a reference to Contract B") that may not appear in `external-calls.json`.
+- **ERC/EIP from `stats.json`** — Note that `stats.json.erc_eip_usage` contains detected ERC/EIP standards. Also, `stats.json.per_contract.inherits` can map which contract implements which ERC.
 
 ## Step 0: Plan Before Drawing
 
@@ -41,7 +46,11 @@ The 1-3 most important contracts get larger rectangles. Rank by:
 - Most incoming/outgoing calls (from `deps.json.graph`)
 - Most external functions (from `stats.json`)
 
-### 3. Plan the cluster grid
+### 3. Map ERC/EIP usage to contracts
+
+Using `stats.json.per_contract.inherits`, determine which contracts implement ERC/EIP standards (e.g., if Vault inherits ERC4626, label it `[ERC-4626]`). Cross-reference with `stats.json.erc_eip_usage` to confirm.
+
+### 4. Plan the cluster grid
 
 Assign each cluster from `deps.json.clusters` to a canvas region. Output the plan in a code fence before starting JSON generation:
 
@@ -93,6 +102,7 @@ Use these exact colors. Do not invent new ones.
 | External call (semi-trusted) | `#f59e0b` | dashed |
 | External call (untrusted/external) | `#ef4444` | dashed |
 | Role → contract connection | `#9ca3af` | dotted |
+| State var reference | `#9ca3af` | dotted, thin (`strokeWidth: 1`) |
 
 ### Text colors
 
@@ -150,8 +160,8 @@ Use these exact colors. Do not invent new ones.
   "y": 115,
   "width": 180,
   "height": 50,
-  "text": "Vault\n(1,245 nSLOC)",
-  "originalText": "Vault\n(1,245 nSLOC)",
+  "text": "Vault [ERC-4626]\n(1,245 nSLOC)\nMain deposit/withdrawal entry",
+  "originalText": "Vault [ERC-4626]\n(1,245 nSLOC)\nMain deposit/withdrawal entry",
   "fontSize": 16,
   "fontFamily": 1,
   "textAlign": "center",
@@ -187,6 +197,13 @@ Use these exact colors. Do not invent new ones.
 - `text` and `originalText` must be identical
 - Include `autoResize: true` so text auto-fits
 - Use `fontFamily: 1` (sans-serif) for all text
+
+**Contract label format** — Build the label with up to 3 lines:
+- With ERC: `"Vault [ERC-4626]\n(342 nSLOC)"`
+- With ERC + purpose (from `overview.md`): `"Vault [ERC-4626]\n(342 nSLOC)\nMain deposit/withdrawal entry"`
+- Without either: `"ContractName\n(342 nSLOC)"` (unchanged)
+
+Keep purpose annotations to max 30 characters. Use the hero height (120px) to accommodate the extra line.
 
 ### Inheritance Arrow (solid, elbow)
 
@@ -256,6 +273,18 @@ Color the stroke based on trust level from `external-calls.json`:
 - trusted → `#3b82f6`
 - semi-trusted → `#f59e0b`
 - untrusted/external → `#ef4444`
+
+### State Variable Reference Arrow (dotted, thin)
+
+For each address-type state variable in `state-vars.json` where the type matches an in-scope contract name (or its interface), draw a thin dotted arrow from the holder to the referenced contract. **Only draw these if there isn't already an external call arrow between the same pair.**
+
+Same structure as inheritance arrow, but with:
+```json
+"strokeStyle": "dotted",
+"strokeColor": "#9ca3af",
+"strokeWidth": 1,
+"endArrowhead": "arrow"
+```
 
 ### Role Badge (small labeled rectangle)
 
@@ -391,7 +420,7 @@ Size contracts by importance:
 
 | Tier | Width | Height | When |
 |------|-------|--------|------|
-| Hero | 240 | 100 | Top 1-3 by nSLOC or connections |
+| Hero | 240 | 120 | Top 1-3 by nSLOC or connections |
 | Primary | 200 | 80 | Standard contracts |
 | Secondary | 160 | 60 | Libraries, small utilities |
 | Interface | 160 | 50 | Interface contracts (thinner) |
@@ -449,6 +478,7 @@ Use descriptive string IDs. Never use UUIDs.
 | Role badge | `role-<roleName>` | `role-anyone` |
 | Role label | `text-role-<roleName>` | `text-role-anyone` |
 | Role connector | `arrow-role-<role>-<Contract>` | `arrow-role-anyone-Vault` |
+| State var ref arrow | `arrow-ref-<Holder>-<Referenced>` | `arrow-ref-Vault-Oracle` |
 | Cluster boundary | `cluster-<id>` | `cluster-core` |
 | Cluster title | `text-cluster-<id>` | `text-cluster-core` |
 | Diagram title | `title` | `title` |
@@ -459,7 +489,7 @@ Use sequential integer seeds: namespace by section (cluster 1: 100xxx, cluster 2
 
 ## Generation Procedure
 
-1. **Read** all four data files
+1. **Read** all data files (deps, stats, access-control, external-calls, state-vars; optionally overview.md)
 2. **Plan** the layout (Step 0). Output the plan in a code fence.
 3. **Build the `elements` array** in this order:
    a. Title text element
@@ -468,7 +498,8 @@ Use sequential integer seeds: namespace by section (cluster 1: 100xxx, cluster 2
    d. Contract rectangles + labels (in topological order from `deps.json`)
    e. Inheritance arrows (from `deps.json.graph[contract].inherits`)
    f. External call arrows (from `external-calls.json.calls`, only where both caller and target are in-scope contracts)
-   g. Role badges + labels + connector arrows (from `access-control.json.roles`)
+   g. State variable reference arrows (from `state-vars.json`, only where no external call arrow already exists between the same pair)
+   h. Role badges + labels + connector arrows (from `access-control.json.roles`)
 4. **Assemble** the complete JSON:
 
 ```json
@@ -509,6 +540,9 @@ After generating the file, verify each point before finishing:
 - [ ] All contracts from `deps.json.graph` appear in the diagram
 - [ ] `strokeStyle` is `"solid"` for inheritance arrows, `"dashed"` for call arrows
 - [ ] `roughness: 0`, `elbowed: true`, `roundness: null` on all arrows
+- [ ] ERC labels match `erc_eip_usage` data where applicable
+- [ ] State variable reference arrows don't duplicate existing external call arrows
+- [ ] Contract annotations (if from overview.md) are max one line, no longer than 30 chars
 
 ---
 
