@@ -128,12 +128,6 @@ const columns: FilterableColumn<FunctionRow>[] = [
     cell: (row) => <TagList items={row.modifiers} />,
   },
   {
-    id: 'state_vars_written',
-    header: 'Writes',
-    accessorKey: 'state_vars_written',
-    cell: (row) => <TagList items={row.state_vars_written} color="yellow" />,
-  },
-  {
     id: 'external_calls',
     header: 'External Calls',
     accessorKey: 'external_calls',
