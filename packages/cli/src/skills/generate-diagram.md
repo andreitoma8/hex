@@ -163,7 +163,7 @@ Use these exact colors. Do not invent new ones.
   "text": "Vault [ERC-4626]\n(1,245 nSLOC)\nMain deposit/withdrawal entry",
   "originalText": "Vault [ERC-4626]\n(1,245 nSLOC)\nMain deposit/withdrawal entry",
   "fontSize": 16,
-  "fontFamily": 1,
+  "fontFamily": 2,
   "textAlign": "center",
   "verticalAlign": "middle",
   "containerId": "contract-Vault",
@@ -196,7 +196,7 @@ Use these exact colors. Do not invent new ones.
 - The text's `containerId` must match the rectangle's `id`
 - `text` and `originalText` must be identical
 - Include `autoResize: true` so text auto-fits
-- Use `fontFamily: 1` (sans-serif) for all text
+- Use `fontFamily: 2` (Helvetica) for all text — do NOT use 1 (Virgil/handwritten)
 
 **Contract label format** — Build the label with up to 3 lines:
 - With ERC: `"Vault [ERC-4626]\n(342 nSLOC)"`
@@ -328,7 +328,7 @@ Same structure as inheritance arrow, but with:
   "text": "anyone",
   "originalText": "anyone",
   "fontSize": 12,
-  "fontFamily": 1,
+  "fontFamily": 2,
   "textAlign": "center",
   "verticalAlign": "middle",
   "containerId": "role-anyone",
