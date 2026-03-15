@@ -47,7 +47,6 @@ export interface MergedFinding {
   status: string;
   poc_status: string;
   duplicates: string[];
-  // Full finding detail (if available)
   finding?: Finding;
 }
 
@@ -58,29 +57,25 @@ export default function AllFindingsPage() {
   if (!findingsData && !trackingData) {
     return (
       <div>
-        <h2 className="mb-6 text-2xl font-bold text-gray-100">All Findings</h2>
+        <h2 className="mb-sp-5 text-title font-semibold text-text-primary">All Findings</h2>
         <NotYetGenerated command="Findings and tracking data will appear as you progress through the audit" />
       </div>
     );
   }
 
-  // Build findings map for detail lookup
   const findingsMap = new Map<string, Finding>();
   for (const f of findingsData?.findings ?? []) {
     findingsMap.set(f.id, f);
   }
 
-  // Build tracking map
   const trackingMap = new Map<string, TrackingEntry>();
   for (const t of trackingData?.findings ?? []) {
     trackingMap.set(t.id, t);
   }
 
-  // Merge: start from tracking if available, add findings not in tracking
   const merged: MergedFinding[] = [];
   const seenIds = new Set<string>();
 
-  // Add all tracking entries
   for (const t of trackingData?.findings ?? []) {
     seenIds.add(t.id);
     merged.push({
@@ -96,7 +91,6 @@ export default function AllFindingsPage() {
     });
   }
 
-  // Add findings not in tracking
   for (const f of findingsData?.findings ?? []) {
     if (seenIds.has(f.id)) continue;
     merged.push({
@@ -120,21 +114,21 @@ export default function AllFindingsPage() {
 
   return (
     <div>
-      <h2 className="mb-6 text-2xl font-bold text-gray-100">All Findings</h2>
+      <h2 className="mb-sp-5 text-title font-semibold text-text-primary">All Findings</h2>
 
       {/* Summary stats */}
-      <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-5">
-        <div className="rounded-lg border border-gray-700 bg-gray-800 p-4 text-center">
-          <div className="text-2xl font-bold text-gray-100">{merged.length}</div>
-          <div className="text-sm text-gray-400">Total</div>
+      <div className="mb-sp-5 grid grid-cols-2 gap-sp-3 md:grid-cols-5">
+        <div className="rounded-md border border-border-default bg-surface-2 p-sp-4 text-center">
+          <div className="text-display text-text-primary">{merged.length}</div>
+          <div className="text-caption text-text-secondary">Total</div>
         </div>
         {Object.entries(byStatus).map(([status, count]) => (
           <div
             key={status}
-            className="rounded-lg border border-gray-700 bg-gray-800 p-4 text-center"
+            className="rounded-md border border-border-default bg-surface-2 p-sp-4 text-center"
           >
-            <div className="text-2xl font-bold text-gray-100">{count}</div>
-            <div className="text-sm text-gray-400">{status}</div>
+            <div className="text-display text-text-primary">{count}</div>
+            <div className="text-caption text-text-secondary">{status}</div>
           </div>
         ))}
       </div>

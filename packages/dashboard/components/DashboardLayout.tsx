@@ -2,49 +2,238 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useTheme } from 'next-themes';
+import { useEffect, useState } from 'react';
 
-const NAV_ITEMS = [
-  { href: '/', label: 'Home' },
-  { href: '/stats', label: 'Stats' },
-  { href: '/access', label: 'Access Control' },
-  { href: '/functions', label: 'Functions' },
-  { href: '/calls', label: 'External Calls' },
-  { href: '/invariants', label: 'Invariants' },
-  { href: '/conformance', label: 'Spec Conformance' },
-  { href: '/report', label: 'Report' },
-  { href: '/all-findings', label: 'All Findings' },
-  { href: '/diagram', label: 'Diagram' },
-  { href: '/flows', label: 'Flows' },
+/* ── Icon components (inline SVG, no library) ── */
+
+function IconHome(p: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 12 8.954-8.955a1.126 1.126 0 0 1 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+    </svg>
+  );
+}
+function IconStats(p: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />
+    </svg>
+  );
+}
+function IconLock(p: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+    </svg>
+  );
+}
+function IconFunctions(p: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />
+    </svg>
+  );
+}
+function IconCalls(p: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+    </svg>
+  );
+}
+function IconShield(p: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
+    </svg>
+  );
+}
+function IconSpec(p: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M10.125 2.25h-4.5c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125v-9M10.125 2.25h.375a9 9 0 0 1 9 9v.375M10.125 2.25A3.375 3.375 0 0 1 13.5 5.625v1.5c0 .621.504 1.125 1.125 1.125h1.5a3.375 3.375 0 0 1 3.375 3.375" />
+    </svg>
+  );
+}
+function IconDiagram(p: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 3.75H6A2.25 2.25 0 0 0 3.75 6v1.5M16.5 3.75H18A2.25 2.25 0 0 1 20.25 6v1.5m0 9V18A2.25 2.25 0 0 1 18 20.25h-1.5m-9 0H6A2.25 2.25 0 0 1 3.75 18v-1.5M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+    </svg>
+  );
+}
+function IconFlows(p: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 0 0 6 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0 1 18 16.5h-2.25m-7.5 0h7.5m-7.5 0-1 3m8.5-3 1 3m0 0 .5 1.5m-.5-1.5h-9.5m0 0-.5 1.5" />
+    </svg>
+  );
+}
+function IconReport(p: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+    </svg>
+  );
+}
+function IconFindings(p: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+    </svg>
+  );
+}
+
+/* ── Theme icons ── */
+function IconSun(p: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
+    </svg>
+  );
+}
+function IconMoon(p: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
+    </svg>
+  );
+}
+function IconMonitor(p: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 17.25v1.007a3 3 0 0 1-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0 1 15 18.257V17.25m6-12V15a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 15V5.25A2.25 2.25 0 0 1 5.25 3h13.5A2.25 2.25 0 0 1 21 5.25Z" />
+    </svg>
+  );
+}
+
+/* ── Nav structure ── */
+const NAV_GROUPS = [
+  {
+    label: 'Overview',
+    items: [
+      { href: '/', label: 'Home', icon: IconHome },
+      { href: '/stats', label: 'Stats', icon: IconStats },
+    ],
+  },
+  {
+    label: 'Analysis',
+    items: [
+      { href: '/access', label: 'Access Control', icon: IconLock },
+      { href: '/functions', label: 'Functions', icon: IconFunctions },
+      { href: '/calls', label: 'External Calls', icon: IconCalls },
+    ],
+  },
+  {
+    label: 'Reasoning',
+    items: [
+      { href: '/invariants', label: 'Invariants', icon: IconShield },
+      { href: '/conformance', label: 'Spec Conformance', icon: IconSpec },
+    ],
+  },
+  {
+    label: 'Visuals',
+    items: [
+      { href: '/diagram', label: 'Diagram', icon: IconDiagram },
+      { href: '/flows', label: 'Flows', icon: IconFlows },
+    ],
+  },
+  {
+    label: 'Findings',
+    items: [
+      { href: '/report', label: 'Report', icon: IconReport },
+      { href: '/all-findings', label: 'All Findings', icon: IconFindings },
+    ],
+  },
 ];
 
+/* ── Theme toggle ── */
+function ThemeToggle() {
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return <div className="h-8" />;
+
+  const cycle = () => {
+    if (theme === 'light') setTheme('dark');
+    else if (theme === 'dark') setTheme('system');
+    else setTheme('light');
+  };
+
+  const Icon = theme === 'light' ? IconSun : theme === 'dark' ? IconMoon : IconMonitor;
+  const label = theme === 'light' ? 'Light' : theme === 'dark' ? 'Dark' : 'System';
+
+  return (
+    <div>
+      <div className="mb-1.5 px-1 text-[10px] font-medium uppercase tracking-wider text-text-tertiary">
+        Theme
+      </div>
+      <button
+        type="button"
+        onClick={cycle}
+        className="flex w-full items-center gap-2 rounded-md border border-border-default bg-surface-2 px-2.5 py-1.5 text-body text-text-secondary hover:bg-surface-3 hover:text-text-primary"
+      >
+        <Icon className="h-4 w-4 shrink-0" />
+        <span>{label}</span>
+      </button>
+    </div>
+  );
+}
+
+/* ── Layout ── */
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   return (
-    <div className="flex min-h-screen">
-      {/* Sidebar */}
-      <nav className="w-56 bg-gray-800 border-r border-gray-700 p-4 flex flex-col gap-1 shrink-0">
-        <div className="mb-6">
-          <h1 className="text-lg font-bold text-white">SolAudit</h1>
-          <p className="text-xs text-gray-400">Dashboard</p>
+    <div className="min-h-screen">
+      {/* Sidebar — fixed */}
+      <nav className="fixed left-0 top-0 flex h-screen w-[200px] flex-col border-r border-border-default bg-surface-1">
+        {/* Logo */}
+        <div className="px-4 pb-2 pt-5">
+          <h1 className="text-heading font-semibold text-text-primary">SolAudit</h1>
+          <span className="mt-0.5 inline-block rounded-sm bg-accent-subtle px-1.5 py-0.5 text-caption text-accent">
+            v0.1.13
+          </span>
         </div>
-        {NAV_ITEMS.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={`px-3 py-2 rounded text-sm transition-colors ${
-              pathname === item.href
-                ? 'bg-blue-600 text-white'
-                : 'text-gray-300 hover:bg-gray-700 hover:text-white'
-            }`}
-          >
-            {item.label}
-          </Link>
-        ))}
+
+        {/* Nav groups — scrollable */}
+        <div className="mt-2 flex-1 overflow-y-auto px-2 pb-4">
+          {NAV_GROUPS.map((group) => (
+            <div key={group.label} className="mt-4 first:mt-0">
+              <div className="mb-1 px-2.5 text-caption font-medium uppercase tracking-wider text-text-tertiary">
+                {group.label}
+              </div>
+              {group.items.map((item) => {
+                const isActive = pathname === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`group flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-body ${
+                      isActive
+                        ? 'border-l-2 border-l-accent bg-accent-subtle text-accent font-medium'
+                        : 'border-l-2 border-l-transparent text-text-secondary hover:bg-surface-3 hover:text-text-primary'
+                    }`}
+                  >
+                    <item.icon className="h-4 w-4 shrink-0" />
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+
+        {/* Footer: theme toggle — always visible */}
+        <div className="border-t border-border-default px-2 py-3">
+          <ThemeToggle />
+        </div>
       </nav>
 
-      {/* Main content */}
-      <main className="flex-1 p-6 overflow-auto">
+      {/* Main content — offset by sidebar width */}
+      <main className="ml-[200px] min-h-screen bg-surface-0 p-sp-5">
         {children}
       </main>
     </div>

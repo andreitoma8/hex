@@ -24,7 +24,6 @@ interface ExternalCall {
   trust_level: ConfidenceValue;
 }
 
-/** Flattened row for table display and filtering */
 interface CallRow {
   contract: string;
   fn: string;
@@ -36,22 +35,18 @@ interface CallRow {
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
-const TRUST_BADGE_STYLES: Record<string, string> = {
-  external: 'bg-red-600/20 text-red-400 border-red-500/30',
-  untrusted: 'bg-red-600/20 text-red-400 border-red-500/30',
-  'semi-trusted': 'bg-yellow-600/20 text-yellow-400 border-yellow-500/30',
-  semi_trusted: 'bg-yellow-600/20 text-yellow-400 border-yellow-500/30',
-  trusted: 'bg-green-600/20 text-green-400 border-green-500/30',
+const TRUST_STYLES: Record<string, string> = {
+  external: 'bg-[var(--critical)]/15 text-[var(--critical)]',
+  untrusted: 'bg-[var(--critical)]/15 text-[var(--critical)]',
+  'semi-trusted': 'bg-[var(--medium)]/15 text-[var(--medium)]',
+  semi_trusted: 'bg-[var(--medium)]/15 text-[var(--medium)]',
+  trusted: 'bg-[var(--success)]/15 text-[var(--success)]',
 };
 
 function TrustBadge({ trust }: { trust: string }) {
-  const style =
-    TRUST_BADGE_STYLES[trust.toLowerCase()] ??
-    'bg-gray-600/20 text-gray-400 border-gray-500/30';
+  const style = TRUST_STYLES[trust.toLowerCase()] ?? 'bg-[var(--neutral)]/15 text-[var(--neutral)]';
   return (
-    <span
-      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${style}`}
-    >
+    <span className={`inline-flex items-center rounded-sm px-2 py-0.5 text-caption font-medium ${style}`}>
       {trust}
     </span>
   );
@@ -80,26 +75,26 @@ const columns: FilterableColumn<CallRow>[] = [
     header: 'Contract',
     accessorKey: 'contract',
     enableColumnFilter: true,
-    cell: (row) => <span className="font-medium text-gray-200">{row.contract}</span>,
+    cell: (row) => <span className="font-medium text-text-primary">{row.contract}</span>,
   },
   {
     id: 'function',
     header: 'Function',
     accessorKey: 'fn',
-    cell: (row) => <span className="font-mono text-sm text-gray-300">{row.fn}</span>,
+    cell: (row) => <span className="font-mono text-body text-text-secondary">{row.fn}</span>,
   },
   {
     id: 'call',
     header: 'Call',
     accessorKey: 'call',
-    cell: (row) => <span className="font-mono text-sm text-gray-300">{row.call}</span>,
+    cell: (row) => <span className="font-mono text-body text-text-secondary">{row.call}</span>,
   },
   {
     id: 'return_checked',
     header: 'Return Checked',
     accessorKey: 'return_checked',
     cell: (row) => (
-      <span className={row.return_checked ? 'text-green-400' : 'text-red-400'}>
+      <span className={row.return_checked ? 'text-[var(--success)]' : 'text-[var(--critical)]'}>
         {row.return_checked ? 'Yes' : 'No'}
       </span>
     ),
@@ -110,7 +105,7 @@ const columns: FilterableColumn<CallRow>[] = [
     accessorKey: 'call_type',
     enableColumnFilter: true,
     cell: (row) => (
-      <span className="inline-flex items-center rounded bg-gray-700 px-2 py-0.5 text-xs text-gray-300">
+      <span className="inline-flex items-center rounded-sm bg-surface-3 px-2 py-0.5 text-caption text-text-secondary">
         {row.call_type}
       </span>
     ),
@@ -129,7 +124,6 @@ const columns: FilterableColumn<CallRow>[] = [
 export function CallsClient({ calls }: { calls: ExternalCall[] }) {
   const rows = flattenCalls(calls);
 
-  // Counts by trust level
   const trustCounts: Record<string, number> = {};
   for (const r of rows) {
     trustCounts[r.trust] = (trustCounts[r.trust] ?? 0) + 1;
@@ -139,34 +133,33 @@ export function CallsClient({ calls }: { calls: ExternalCall[] }) {
 
   return (
     <div>
-      <h2 className="mb-6 text-2xl font-bold text-gray-100">External Calls</h2>
+      <h2 className="mb-sp-5 text-title font-semibold text-text-primary">External Calls</h2>
 
-      <p className="mb-4 text-sm text-gray-400">
+      <p className="mb-sp-3 text-body text-text-secondary">
         {rows.length} external call{rows.length !== 1 ? 's' : ''} found
       </p>
 
       {/* Summary cards */}
-      <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div className="mb-sp-5 grid grid-cols-2 gap-sp-3 sm:grid-cols-4">
         {Object.entries(trustCounts).map(([level, count]) => (
           <div
             key={level}
-            className="rounded-lg border border-gray-700 bg-gray-800 p-4"
+            className="rounded-md border border-border-default bg-surface-2 p-sp-4"
           >
-            <div className="text-2xl font-bold text-gray-100">{count}</div>
-            <div className="mt-1 flex items-center gap-2">
+            <div className="text-display text-text-primary">{count}</div>
+            <div className="mt-1">
               <TrustBadge trust={level} />
             </div>
           </div>
         ))}
         {uncheckedReturns > 0 && (
-          <div className="rounded-lg border border-red-800/50 bg-red-950/20 p-4">
-            <div className="text-2xl font-bold text-red-400">{uncheckedReturns}</div>
-            <div className="mt-1 text-sm text-red-300/70">Unchecked returns</div>
+          <div className="rounded-md border border-[var(--critical)]/30 bg-[var(--critical)]/5 p-sp-4">
+            <div className="text-display text-[var(--critical)]">{uncheckedReturns}</div>
+            <div className="mt-1 text-caption text-[var(--critical)]/70">Unchecked returns</div>
           </div>
         )}
       </div>
 
-      {/* Main table */}
       <FilterableTable
         columns={columns}
         data={rows}

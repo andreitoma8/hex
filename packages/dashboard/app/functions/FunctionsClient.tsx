@@ -29,35 +29,32 @@ interface FunctionRow {
 // ─── Helpers ────────────────────────────────────────────────────────
 
 const VISIBILITY_STYLES: Record<string, string> = {
-  external: 'bg-red-600/20 text-red-400 border-red-500/30',
-  public: 'bg-orange-600/20 text-orange-400 border-orange-500/30',
-  internal: 'bg-blue-600/20 text-blue-400 border-blue-500/30',
-  private: 'bg-gray-600/20 text-gray-400 border-gray-500/30',
+  external: 'bg-[var(--critical)]/15 text-[var(--critical)]',
+  public: 'bg-[var(--high)]/15 text-[var(--high)]',
+  internal: 'bg-[var(--low)]/15 text-[var(--low)]',
+  private: 'bg-[var(--neutral)]/15 text-[var(--neutral)]',
 };
 
 function VisibilityBadge({ visibility }: { visibility: string }) {
-  const style =
-    VISIBILITY_STYLES[visibility] ?? 'bg-gray-600/20 text-gray-400 border-gray-500/30';
+  const style = VISIBILITY_STYLES[visibility] ?? 'bg-[var(--neutral)]/15 text-[var(--neutral)]';
   return (
-    <span
-      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${style}`}
-    >
+    <span className={`inline-flex items-center rounded-sm px-2 py-0.5 text-caption font-medium ${style}`}>
       {visibility}
     </span>
   );
 }
 
-function TagList({ items, color = 'gray' }: { items: string[]; color?: string }) {
-  if (items.length === 0) return <span className="text-gray-600">--</span>;
-  const bgColor = color === 'yellow' ? 'bg-yellow-900/30 text-yellow-300' :
-                  color === 'red' ? 'bg-red-900/30 text-red-300' :
-                  'bg-gray-700 text-gray-300';
+function TagList({ items, color = 'default' }: { items: string[]; color?: string }) {
+  if (items.length === 0) return <span className="text-text-tertiary">--</span>;
+  const bgColor = color === 'yellow' ? 'bg-[var(--medium)]/10 text-[var(--medium)]' :
+                  color === 'red' ? 'bg-[var(--critical)]/10 text-[var(--critical)]' :
+                  'bg-surface-3 text-text-secondary';
   return (
     <div className="flex flex-wrap gap-1">
       {items.map((item) => (
         <span
           key={item}
-          className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-mono ${bgColor}`}
+          className={`inline-flex items-center rounded-sm px-1.5 py-0.5 font-mono text-caption ${bgColor}`}
         >
           {item}
         </span>
@@ -74,13 +71,13 @@ const columns: FilterableColumn<FunctionRow>[] = [
     header: 'Contract',
     accessorKey: 'contract',
     enableColumnFilter: true,
-    cell: (row) => <span className="font-medium text-gray-200">{row.contract}</span>,
+    cell: (row) => <span className="font-medium text-text-primary">{row.contract}</span>,
   },
   {
     id: 'name',
     header: 'Function',
     accessorKey: 'name',
-    cell: (row) => <span className="font-mono text-sm text-gray-300">{row.name}</span>,
+    cell: (row) => <span className="font-mono text-body text-text-secondary">{row.name}</span>,
   },
   {
     id: 'visibility',
@@ -96,10 +93,10 @@ const columns: FilterableColumn<FunctionRow>[] = [
     enableColumnFilter: true,
     cell: (row) => {
       const style = row.state === 'writable'
-        ? 'bg-orange-600/20 text-orange-400 border-orange-500/30'
-        : 'bg-blue-600/20 text-blue-400 border-blue-500/30';
+        ? 'bg-[var(--high)]/15 text-[var(--high)]'
+        : 'bg-[var(--low)]/15 text-[var(--low)]';
       return (
-        <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${style}`}>
+        <span className={`inline-flex items-center rounded-sm px-2 py-0.5 text-caption font-medium ${style}`}>
           {row.state}
         </span>
       );
@@ -112,10 +109,10 @@ const columns: FilterableColumn<FunctionRow>[] = [
     enableColumnFilter: true,
     cell: (row) => {
       const style = row.payable === 'payable'
-        ? 'bg-green-600/20 text-green-400 border-green-500/30'
-        : 'bg-gray-600/20 text-gray-400 border-gray-500/30';
+        ? 'bg-[var(--success)]/15 text-[var(--success)]'
+        : 'bg-[var(--neutral)]/15 text-[var(--neutral)]';
       return (
-        <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${style}`}>
+        <span className={`inline-flex items-center rounded-sm px-2 py-0.5 text-caption font-medium ${style}`}>
           {row.payable}
         </span>
       );

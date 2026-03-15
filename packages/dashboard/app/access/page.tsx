@@ -49,7 +49,7 @@ export default function AccessPage() {
   if (!data) {
     return (
       <div>
-        <h2 className="mb-6 text-2xl font-bold text-gray-100">Access Control</h2>
+        <h2 className="mb-sp-5 text-title font-semibold text-text-primary">Access Control</h2>
         <NotYetGenerated command="solaudit access" />
       </div>
     );
@@ -57,7 +57,6 @@ export default function AccessPage() {
 
   const { functions, roles } = data;
 
-  // Access control page only shows externally-callable functions
   const externalFunctions = functions.filter(
     (fn) => fn.visibility === 'external' || fn.visibility === 'public',
   );
@@ -69,7 +68,6 @@ export default function AccessPage() {
     (fn) => fn.state_mutability === 'view' || fn.state_mutability === 'pure',
   );
 
-  // Separate "anyone" role from others
   const anyoneRole = roles.find(
     (r) => r.role.toLowerCase() === 'anyone' || r.role.toLowerCase() === 'public',
   );
@@ -77,18 +75,33 @@ export default function AccessPage() {
     (r) => r.role.toLowerCase() !== 'anyone' && r.role.toLowerCase() !== 'public',
   );
 
-  // Set of function keys belonging to "anyone" role for highlighting
   const anyoneFnKeys = anyoneRole?.functions.map((f) => `${f.contract}::${f.function}`) ?? [];
+
+  // Unprotected count: state-changing functions callable by anyone
+  const writeFnKeys = new Set(writeFunctions.map((fn) => `${fn.contract}::${fn.function}`));
+  const unprotectedCount = anyoneFnKeys.filter((k) => writeFnKeys.has(k)).length;
 
   return (
     <div>
-      <h2 className="mb-6 text-2xl font-bold text-gray-100">Access Control</h2>
+      <h2 className="mb-sp-5 text-title font-semibold text-text-primary">Access Control</h2>
 
-      <p className="mb-6 text-sm text-gray-400">
-        {externalFunctions.length} function{externalFunctions.length !== 1 ? 's' : ''} analyzed
-        ({writeFunctions.length} state-changing, {readOnlyFunctions.length} read-only)
-        {' '}across {roles.length} role{roles.length !== 1 ? 's' : ''}
-      </p>
+      {/* Summary strip */}
+      <div className="mb-sp-5 flex flex-wrap gap-sp-3">
+        <div className="flex items-center gap-2 rounded-md border border-border-default bg-surface-2 px-sp-4 py-sp-2">
+          <span className="text-heading font-semibold text-text-primary">{externalFunctions.length}</span>
+          <span className="text-caption text-text-secondary">Total</span>
+        </div>
+        <div className="flex items-center gap-2 rounded-md border border-border-default bg-surface-2 px-sp-4 py-sp-2">
+          <span className="text-heading font-semibold text-text-primary">{writeFunctions.length}</span>
+          <span className="text-caption text-text-secondary">State-Changing</span>
+        </div>
+        {unprotectedCount > 0 && (
+          <div className="flex items-center gap-2 rounded-md border border-[var(--critical)]/30 bg-[var(--critical)]/5 px-sp-4 py-sp-2">
+            <span className="text-heading font-semibold text-[var(--critical)]">{unprotectedCount}</span>
+            <span className="text-caption text-[var(--critical)]/80">Unprotected</span>
+          </div>
+        )}
+      </div>
 
       <AccessClient
         writeFunctions={writeFunctions}

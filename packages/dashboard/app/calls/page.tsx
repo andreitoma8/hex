@@ -40,7 +40,7 @@ export default function CallsPage() {
   if (!data) {
     return (
       <div>
-        <h2 className="mb-6 text-2xl font-bold text-gray-100">External Calls</h2>
+        <h2 className="mb-sp-5 text-title font-semibold text-text-primary">External Calls</h2>
         <NotYetGenerated command="solaudit calls" />
       </div>
     );

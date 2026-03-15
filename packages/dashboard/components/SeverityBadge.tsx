@@ -5,11 +5,11 @@ interface SeverityBadgeProps {
 }
 
 const STYLES: Record<Severity, string> = {
-  Critical: 'bg-red-600/20 text-red-400 border-red-500/30',
-  High: 'bg-orange-600/20 text-orange-400 border-orange-500/30',
-  Medium: 'bg-yellow-600/20 text-yellow-400 border-yellow-500/30',
-  Low: 'bg-blue-600/20 text-blue-400 border-blue-500/30',
-  Info: 'bg-gray-600/20 text-gray-400 border-gray-500/30',
+  Critical: 'bg-[var(--critical)]/15 text-[var(--critical)]',
+  High: 'bg-[var(--high)]/15 text-[var(--high)]',
+  Medium: 'bg-[var(--medium)]/15 text-[var(--medium)]',
+  Low: 'bg-[var(--low)]/15 text-[var(--low)]',
+  Info: 'bg-[var(--info)]/15 text-[var(--info)]',
 };
 
 export function SeverityBadge({ severity }: SeverityBadgeProps) {
@@ -17,7 +17,7 @@ export function SeverityBadge({ severity }: SeverityBadgeProps) {
 
   return (
     <span
-      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${style}`}
+      className={`inline-flex items-center rounded-sm px-2 py-0.5 text-caption font-medium ${style}`}
     >
       {severity}
     </span>

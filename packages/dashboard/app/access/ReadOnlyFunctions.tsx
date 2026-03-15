@@ -19,19 +19,16 @@ interface AccessFunction {
 }
 
 const VISIBILITY_STYLES: Record<string, string> = {
-  external: 'bg-red-600/20 text-red-400 border-red-500/30',
-  public: 'bg-orange-600/20 text-orange-400 border-orange-500/30',
-  internal: 'bg-blue-600/20 text-blue-400 border-blue-500/30',
-  private: 'bg-gray-600/20 text-gray-400 border-gray-500/30',
+  external: 'bg-[var(--critical)]/15 text-[var(--critical)]',
+  public: 'bg-[var(--high)]/15 text-[var(--high)]',
+  internal: 'bg-[var(--low)]/15 text-[var(--low)]',
+  private: 'bg-[var(--neutral)]/15 text-[var(--neutral)]',
 };
 
 function VisibilityBadge({ visibility }: { visibility: string }) {
-  const style =
-    VISIBILITY_STYLES[visibility] ?? 'bg-gray-600/20 text-gray-400 border-gray-500/30';
+  const style = VISIBILITY_STYLES[visibility] ?? 'bg-[var(--neutral)]/15 text-[var(--neutral)]';
   return (
-    <span
-      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${style}`}
-    >
+    <span className={`inline-flex items-center rounded-sm px-2 py-0.5 text-caption font-medium ${style}`}>
       {visibility}
     </span>
   );
@@ -48,14 +45,14 @@ export function ReadOnlyFunctions({
   const anyoneSet = new Set(anyoneFnKeys);
 
   return (
-    <div className="mb-10">
+    <div className="mb-sp-6">
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-center gap-2 rounded-lg border border-gray-700 bg-gray-800/50 px-4 py-3 text-left transition-colors hover:bg-gray-700/50"
+        className="flex w-full items-center gap-2 rounded-md border border-border-default bg-surface-2 px-sp-4 py-sp-3 text-left hover:bg-surface-3"
       >
         <svg
-          className={`h-4 w-4 text-gray-500 transition-transform ${expanded ? 'rotate-90' : ''}`}
+          className={`h-4 w-4 text-text-tertiary ${expanded ? 'rotate-90' : ''}`}
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -63,25 +60,25 @@ export function ReadOnlyFunctions({
         >
           <path strokeLinecap="round" strokeLinejoin="round" d="m9 5 7 7-7 7" />
         </svg>
-        <span className="text-sm font-medium text-gray-300">
+        <span className="text-body font-medium text-text-primary">
           Read-Only Functions ({functions.length})
         </span>
-        <span className="text-xs text-gray-500">view / pure</span>
+        <span className="text-caption text-text-tertiary">view / pure</span>
       </button>
 
       {expanded && (
-        <div className="mt-2 overflow-x-auto rounded-lg border border-gray-700">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-gray-700 bg-gray-800 text-xs uppercase text-gray-400">
+        <div className="mt-2 overflow-x-auto rounded-md border border-border-default">
+          <table className="w-full text-left text-body">
+            <thead className="border-b border-border-default bg-surface-2 text-caption font-medium uppercase tracking-wider text-text-tertiary">
               <tr>
-                <th className="px-4 py-3">Contract</th>
-                <th className="px-4 py-3">Function</th>
-                <th className="px-4 py-3">Visibility</th>
-                <th className="px-4 py-3">Mutability</th>
-                <th className="px-4 py-3">Location</th>
+                <th className="px-sp-4 py-sp-2">Contract</th>
+                <th className="px-sp-4 py-sp-2">Function</th>
+                <th className="px-sp-4 py-sp-2">Visibility</th>
+                <th className="px-sp-4 py-sp-2">Mutability</th>
+                <th className="px-sp-4 py-sp-2">Location</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-700/50">
+            <tbody className="divide-y divide-border-subtle">
               {functions.map((fn) => {
                 const key = `${fn.contract}::${fn.function}`;
                 const isAnyone = anyoneSet.has(key);
@@ -90,19 +87,19 @@ export function ReadOnlyFunctions({
                     key={key}
                     className={
                       isAnyone
-                        ? 'bg-red-950/30 transition-colors hover:bg-red-900/30'
-                        : 'bg-gray-900 transition-colors hover:bg-gray-800/70'
+                        ? 'bg-[var(--critical)]/5 hover:bg-[var(--critical)]/10'
+                        : 'bg-surface-1 hover:bg-surface-3'
                     }
                   >
-                    <td className="px-4 py-3 font-medium text-gray-200">{fn.contract}</td>
-                    <td className="px-4 py-3 font-mono text-sm text-gray-300">{fn.function}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-sp-4 py-sp-2 font-medium text-text-primary">{fn.contract}</td>
+                    <td className="px-sp-4 py-sp-2 font-mono text-body text-text-secondary">{fn.function}</td>
+                    <td className="px-sp-4 py-sp-2">
                       <VisibilityBadge visibility={fn.visibility} />
                     </td>
-                    <td className="px-4 py-3 text-xs text-gray-400">
+                    <td className="px-sp-4 py-sp-2 text-caption text-text-tertiary">
                       {fn.state_mutability ?? '--'}
                     </td>
-                    <td className="px-4 py-3 font-mono text-xs text-gray-500">
+                    <td className="px-sp-4 py-sp-2 font-mono text-caption text-text-tertiary">
                       {fn.evidence.file}:{fn.evidence.line_start}
                     </td>
                   </tr>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, Fragment } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -70,7 +70,7 @@ export function FilterableTable<T extends object>({
         ...(col.sortingFn ? { sortingFn: col.sortingFn } : {}),
         cell: col.cell
           ? ({ row }) => col.cell!(row.original)
-          : ({ getValue }) => <span className="text-gray-300">{String(getValue() ?? '')}</span>,
+          : ({ getValue }) => <span className="text-text-primary">{String(getValue() ?? '')}</span>,
       })),
     [columns],
   );
@@ -115,19 +115,19 @@ export function FilterableTable<T extends object>({
   const filterableCols = columns.filter((c) => c.enableColumnFilter);
 
   return (
-    <div className="mb-6 rounded-lg border border-gray-700 overflow-hidden">
+    <div className="overflow-hidden rounded-md border border-border-default">
       {/* Collapsible header */}
       {title && (
         <button
           type="button"
           onClick={() => setOpen(!open)}
-          className="flex w-full items-center justify-between bg-gray-800 px-4 py-3 text-left hover:bg-gray-700/50 transition-colors"
+          className="flex w-full items-center justify-between bg-surface-2 px-sp-4 py-sp-3 text-left hover:bg-surface-3"
         >
-          <span className="text-sm font-semibold text-gray-200">
+          <span className="text-heading font-medium text-text-primary">
             {title} ({data.length})
           </span>
           <svg
-            className={`h-4 w-4 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`}
+            className={`h-4 w-4 text-text-tertiary ${open ? 'rotate-180' : ''}`}
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -140,32 +140,54 @@ export function FilterableTable<T extends object>({
 
       {open && (
         <>
-          {/* Filter dropdowns */}
+          {/* Filter pills */}
           {filterableCols.length > 0 && (
-            <div className="flex flex-wrap gap-3 border-b border-gray-700 bg-gray-800/50 px-4 py-2">
+            <div className="flex flex-wrap gap-2 border-b border-border-subtle bg-surface-1 px-sp-4 py-sp-2">
               {filterableCols.map((col) => {
                 const currentFilter = columnFilters.find((f) => f.id === col.id);
                 return (
-                  <select
-                    key={col.id}
-                    value={(currentFilter?.value as string) ?? ''}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setColumnFilters((prev) => {
-                        const without = prev.filter((f) => f.id !== col.id);
-                        if (!val) return without;
-                        return [...without, { id: col.id, value: val }];
-                      });
-                    }}
-                    className="rounded border border-gray-600 bg-gray-700 px-2 py-1 text-xs text-gray-300 focus:border-blue-500 focus:outline-none"
-                  >
-                    <option value="">All {col.header}</option>
-                    {(filterOptions[col.id] ?? []).map((opt) => (
-                      <option key={opt} value={opt}>
-                        {opt}
-                      </option>
-                    ))}
-                  </select>
+                  <div key={col.id} className="flex flex-wrap gap-1">
+                    {/* "All" pill */}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setColumnFilters((prev) => prev.filter((f) => f.id !== col.id))
+                      }
+                      className={`rounded-sm px-2.5 py-1 text-caption font-medium ${
+                        !currentFilter?.value
+                          ? 'bg-accent text-white'
+                          : 'bg-surface-3 text-text-secondary hover:text-text-primary'
+                      }`}
+                    >
+                      All {col.header}
+                    </button>
+                    {(filterOptions[col.id] ?? []).map((opt) => {
+                      const count = data.filter(
+                        (r) => String((r as Record<string, unknown>)[col.accessorKey]) === opt,
+                      ).length;
+                      return (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() =>
+                            setColumnFilters((prev) => {
+                              const without = prev.filter((f) => f.id !== col.id);
+                              if (currentFilter?.value === opt) return without;
+                              return [...without, { id: col.id, value: opt }];
+                            })
+                          }
+                          className={`rounded-sm px-2.5 py-1 text-caption font-medium ${
+                            currentFilter?.value === opt
+                              ? 'bg-accent text-white'
+                              : 'bg-surface-3 text-text-secondary hover:text-text-primary'
+                          }`}
+                        >
+                          {opt}
+                          <span className="ml-1 opacity-60">{count}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 );
               })}
             </div>
@@ -173,14 +195,14 @@ export function FilterableTable<T extends object>({
 
           {/* Table */}
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-gray-700 bg-gray-800 text-xs uppercase text-gray-400">
+            <table className="w-full text-left text-body">
+              <thead className="border-b border-border-default bg-surface-2 text-caption font-medium uppercase tracking-wider text-text-tertiary">
                 <tr>
                   {table.getHeaderGroups().map((hg) =>
                     hg.headers.map((header) => (
                       <th
                         key={header.id}
-                        className="px-4 py-3 cursor-pointer select-none hover:text-gray-200 transition-colors"
+                        className="cursor-pointer select-none px-sp-4 py-sp-2 hover:text-text-secondary"
                         onClick={header.column.getToggleSortingHandler()}
                       >
                         <div className="flex items-center gap-1">
@@ -197,7 +219,7 @@ export function FilterableTable<T extends object>({
                   )}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-700/50">
+              <tbody className="divide-y divide-border-subtle">
                 {table.getRowModel().rows.map((row) => {
                   const rowData = row.original;
                   const rowKey = (rowData as Record<string, unknown>).id
@@ -207,11 +229,12 @@ export function FilterableTable<T extends object>({
                   const isClickable = !!onRowClick || !!expandedRow;
 
                   return (
-                    <>{/* Fragment for row + expansion */}
+                    <Fragment key={row.id}>
                       <tr
-                        key={row.id}
-                        className={`transition-colors ${
-                          rowClassName ? rowClassName(rowData) : 'bg-gray-800/50 hover:bg-gray-700/50'
+                        className={`${
+                          rowClassName
+                            ? rowClassName(rowData)
+                            : 'bg-surface-1 hover:bg-surface-3'
                         } ${isClickable ? 'cursor-pointer' : ''}`}
                         onClick={() => {
                           if (expandedRow) {
@@ -221,19 +244,19 @@ export function FilterableTable<T extends object>({
                         }}
                       >
                         {row.getVisibleCells().map((cell) => (
-                          <td key={cell.id} className="px-4 py-3">
+                          <td key={cell.id} className="h-9 px-sp-4 py-sp-2">
                             {flexRender(cell.column.columnDef.cell, cell.getContext())}
                           </td>
                         ))}
                       </tr>
                       {expandedRow && isExpanded && (
-                        <tr key={`${row.id}-expanded`}>
-                          <td colSpan={columns.length} className="bg-gray-900/70 px-6 py-4">
+                        <tr>
+                          <td colSpan={columns.length} className="bg-surface-0 px-sp-5 py-sp-4">
                             {expandedRow(rowData)}
                           </td>
                         </tr>
                       )}
-                    </>
+                    </Fragment>
                   );
                 })}
               </tbody>

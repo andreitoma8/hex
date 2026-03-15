@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { ThemeProvider } from 'next-themes';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import './globals.css';
 
@@ -13,9 +14,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark">
-      <body className="bg-gray-900 text-gray-100 min-h-screen">
-        <DashboardLayout>{children}</DashboardLayout>
+    <html lang="en" suppressHydrationWarning>
+      <body className="min-h-screen bg-surface-0 text-text-primary">
+        <ThemeProvider attribute="data-theme" defaultTheme="system" enableSystem>
+          <DashboardLayout>{children}</DashboardLayout>
+        </ThemeProvider>
       </body>
     </html>
   );

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { FilterableTable, type FilterableColumn } from '@/components/FilterableTable';
 import { CodeReference } from '@/components/CodeReference';
 import { ConfidenceBadge } from '@/components/ConfidenceBadge';
@@ -42,34 +42,34 @@ interface Role {
 // ─── Helpers ────────────────────────────────────────────────────────
 
 const VISIBILITY_STYLES: Record<string, string> = {
-  external: 'bg-red-600/20 text-red-400 border-red-500/30',
-  public: 'bg-orange-600/20 text-orange-400 border-orange-500/30',
-  internal: 'bg-blue-600/20 text-blue-400 border-blue-500/30',
-  private: 'bg-gray-600/20 text-gray-400 border-gray-500/30',
+  external: 'bg-[var(--critical)]/15 text-[var(--critical)]',
+  public: 'bg-[var(--high)]/15 text-[var(--high)]',
+  internal: 'bg-[var(--low)]/15 text-[var(--low)]',
+  private: 'bg-[var(--neutral)]/15 text-[var(--neutral)]',
 };
 
 function VisibilityBadge({ visibility }: { visibility: string }) {
-  const style =
-    VISIBILITY_STYLES[visibility] ?? 'bg-gray-600/20 text-gray-400 border-gray-500/30';
+  const style = VISIBILITY_STYLES[visibility] ?? 'bg-[var(--neutral)]/15 text-[var(--neutral)]';
   return (
-    <span
-      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${style}`}
-    >
+    <span className={`inline-flex items-center rounded-sm px-2 py-0.5 text-caption font-medium ${style}`}>
       {visibility}
     </span>
   );
 }
 
+const TABS = ['All', 'State-Changing', 'Read-Only'] as const;
+type Tab = (typeof TABS)[number];
+
 // ─── Columns ────────────────────────────────────────────────────────
 
-function makeWriteColumns(anyoneFnKeys: Set<string>): FilterableColumn<AccessFunction>[] {
-  return [
+function makeColumns(anyoneFnKeys: Set<string>, showMutability: boolean): FilterableColumn<AccessFunction>[] {
+  const cols: FilterableColumn<AccessFunction>[] = [
     {
       id: 'contract',
       header: 'Contract',
       accessorKey: 'contract',
       enableColumnFilter: true,
-      cell: (row) => <span className="font-medium text-gray-200">{row.contract}</span>,
+      cell: (row) => <span className="font-medium text-text-primary">{row.contract}</span>,
     },
     {
       id: 'function',
@@ -79,10 +79,10 @@ function makeWriteColumns(anyoneFnKeys: Set<string>): FilterableColumn<AccessFun
         const key = `${row.contract}::${row.function}`;
         const isAnyone = anyoneFnKeys.has(key);
         return (
-          <span className="font-mono text-sm text-gray-300">
+          <span className="font-mono text-body text-text-secondary">
             {row.function}
             {isAnyone && (
-              <span className="ml-2 inline-flex items-center rounded bg-red-600/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-red-400">
+              <span className="ml-2 inline-flex items-center rounded-sm bg-[var(--critical)]/15 px-1.5 py-0.5 text-caption font-semibold uppercase text-[var(--critical)]">
                 anyone
               </span>
             )}
@@ -97,6 +97,18 @@ function makeWriteColumns(anyoneFnKeys: Set<string>): FilterableColumn<AccessFun
       enableColumnFilter: true,
       cell: (row) => <VisibilityBadge visibility={row.visibility} />,
     },
+  ];
+
+  if (showMutability) {
+    cols.push({
+      id: 'mutability',
+      header: 'Mutability',
+      accessorKey: 'state_mutability',
+      cell: (row) => <span className="text-caption text-text-tertiary">{row.state_mutability ?? '--'}</span>,
+    });
+  }
+
+  cols.push(
     {
       id: 'modifiers',
       header: 'Modifiers',
@@ -107,14 +119,14 @@ function makeWriteColumns(anyoneFnKeys: Set<string>): FilterableColumn<AccessFun
             {row.modifiers.map((mod: string) => (
               <span
                 key={mod}
-                className="inline-flex items-center rounded bg-gray-700 px-2 py-0.5 text-xs text-gray-300"
+                className="inline-flex items-center rounded-sm bg-surface-3 px-2 py-0.5 text-caption text-text-secondary"
               >
                 {mod}
               </span>
             ))}
           </div>
         ) : (
-          <span className="text-gray-600">--</span>
+          <span className="text-text-tertiary">--</span>
         ),
     },
     {
@@ -130,7 +142,9 @@ function makeWriteColumns(anyoneFnKeys: Set<string>): FilterableColumn<AccessFun
         />
       ),
     },
-  ];
+  );
+
+  return cols;
 }
 
 // ─── Component ──────────────────────────────────────────────────────
@@ -147,179 +161,134 @@ export function AccessClient({
   writeFunctions,
   readOnlyFunctions,
   anyoneFnKeys,
-  anyoneRole,
   otherRoles,
 }: AccessClientProps) {
+  const [activeTab, setActiveTab] = useState<Tab>('All');
   const [showUnprotectedOnly, setShowUnprotectedOnly] = useState(false);
-  const anyoneSet = new Set(anyoneFnKeys);
-  const writeColumns = makeWriteColumns(anyoneSet);
+  const anyoneSet = useMemo(() => new Set(anyoneFnKeys), [anyoneFnKeys]);
 
-  // Build a set of write-function keys for attack surface filtering
-  const writeFnKeys = new Set(
-    writeFunctions.map((fn) => `${fn.contract}::${fn.function}`),
+  const allFunctions = useMemo(
+    () => [...writeFunctions, ...readOnlyFunctions],
+    [writeFunctions, readOnlyFunctions],
   );
-  const attackSurfaceFns = anyoneRole?.functions.filter(
-    (fn) => writeFnKeys.has(`${fn.contract}::${fn.function}`),
-  ) ?? [];
 
-  // Filter write functions when toggle is active
-  const displayedWriteFunctions = showUnprotectedOnly
-    ? writeFunctions.filter((fn) => anyoneSet.has(`${fn.contract}::${fn.function}`))
-    : writeFunctions;
+  const unprotectedFunctions = useMemo(() => {
+    return writeFunctions.filter((fn) => anyoneSet.has(`${fn.contract}::${fn.function}`));
+  }, [writeFunctions, anyoneSet]);
+
+  const displayedData = useMemo(() => {
+    switch (activeTab) {
+      case 'All':
+        return allFunctions;
+      case 'State-Changing':
+        return showUnprotectedOnly ? unprotectedFunctions : writeFunctions;
+      case 'Read-Only':
+        return readOnlyFunctions;
+    }
+  }, [activeTab, showUnprotectedOnly, allFunctions, writeFunctions, readOnlyFunctions, unprotectedFunctions]);
+
+  const showMutability = activeTab === 'All' || activeTab === 'Read-Only';
+  const columns = useMemo(
+    () => makeColumns(anyoneSet, showMutability),
+    [anyoneSet, showMutability],
+  );
 
   return (
     <>
-      {/* State-changing functions table */}
-      <div className="mb-10">
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-200">
-            State-Changing Functions
-          </h3>
+      {/* Segmented control */}
+      <div className="mb-sp-5 flex flex-wrap items-center gap-sp-3">
+        <div className="inline-flex overflow-x-auto rounded-md bg-surface-3 p-1">
+          {TABS.map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => {
+                setActiveTab(tab);
+                if (tab !== 'State-Changing') setShowUnprotectedOnly(false);
+              }}
+              className={`whitespace-nowrap rounded-sm px-sp-3 py-1.5 text-body font-medium ${
+                activeTab === tab
+                  ? 'bg-surface-2 text-text-primary shadow-sm'
+                  : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              {tab}
+              <span className="ml-1.5 text-caption opacity-60">
+                {tab === 'All' && allFunctions.length}
+                {tab === 'State-Changing' && writeFunctions.length}
+                {tab === 'Read-Only' && readOnlyFunctions.length}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* Unprotected toggle — only visible on State-Changing tab */}
+        {activeTab === 'State-Changing' && unprotectedFunctions.length > 0 && (
           <button
-            onClick={() => setShowUnprotectedOnly(!showUnprotectedOnly)}
-            className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+            type="button"
+            onClick={() => setShowUnprotectedOnly((v) => !v)}
+            className={`rounded-sm px-sp-3 py-1.5 text-body font-medium ${
               showUnprotectedOnly
-                ? 'border-red-500/50 bg-red-600/20 text-red-400'
-                : 'border-gray-600 bg-gray-800 text-gray-400 hover:border-gray-500 hover:text-gray-300'
+                ? 'bg-[var(--critical)]/15 text-[var(--critical)] shadow-sm'
+                : 'bg-surface-3 text-text-secondary hover:text-text-primary'
             }`}
           >
-            {showUnprotectedOnly ? 'Showing unprotected only' : 'Show unprotected only'}
+            Unprotected only
+            <span className="ml-1.5 text-caption opacity-60">{unprotectedFunctions.length}</span>
           </button>
-        </div>
+        )}
+      </div>
+
+      {/* Table */}
+      <div className="mb-sp-6">
         <FilterableTable
-          columns={writeColumns}
-          data={displayedWriteFunctions}
+          columns={columns}
+          data={displayedData}
           defaultOpen={true}
           rowClassName={(row) => {
             const key = `${row.contract}::${row.function}`;
             return anyoneSet.has(key)
-              ? 'bg-red-950/30 transition-colors hover:bg-red-900/30'
-              : 'bg-gray-900 transition-colors hover:bg-gray-800/70';
+              ? 'bg-[var(--critical)]/5 hover:bg-[var(--critical)]/10'
+              : 'bg-surface-1 hover:bg-surface-3';
           }}
         />
       </div>
 
-      {/* Read-only functions (collapsible) */}
-      {readOnlyFunctions.length > 0 && (
-        <div className="mb-10">
-          <FilterableTable
-            columns={[
-              {
-                id: 'contract',
-                header: 'Contract',
-                accessorKey: 'contract',
-                enableColumnFilter: true,
-                cell: (row) => <span className="font-medium text-gray-200">{row.contract}</span>,
-              },
-              {
-                id: 'function',
-                header: 'Function',
-                accessorKey: 'function',
-                cell: (row) => <span className="font-mono text-sm text-gray-300">{row.function}</span>,
-              },
-              {
-                id: 'visibility',
-                header: 'Visibility',
-                accessorKey: 'visibility',
-                cell: (row) => <VisibilityBadge visibility={row.visibility} />,
-              },
-              {
-                id: 'mutability',
-                header: 'Mutability',
-                accessorKey: 'state_mutability',
-                cell: (row) => <span className="text-xs text-gray-400">{row.state_mutability ?? '--'}</span>,
-              },
-              {
-                id: 'location',
-                header: 'Location',
-                accessorKey: 'evidence',
-                cell: (row) => (
-                  <CodeReference
-                    file={row.evidence.file}
-                    lineStart={row.evidence.line_start}
-                    lineEnd={row.evidence.line_end}
-                    snippet={row.evidence.snippet}
-                  />
-                ),
-              },
-            ]}
-            data={readOnlyFunctions}
-            title={`Read-Only Functions (${readOnlyFunctions.length})`}
-            defaultOpen={false}
-          />
-        </div>
-      )}
-
-      {/* Attack Surface */}
-      {attackSurfaceFns.length > 0 && (
-        <div className="mb-10">
-          <h3 className="mb-3 text-lg font-semibold text-red-400">
-            Attack Surface &mdash; Callable by Anyone
-          </h3>
-          <div className="rounded-lg border border-red-800/50 bg-red-950/20 p-5">
-            <p className="mb-3 text-sm text-red-300/80">
-              {attackSurfaceFns.length} state-changing function
-              {attackSurfaceFns.length !== 1 ? 's' : ''} can be called without
-              restriction. These form the primary attack surface.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {attackSurfaceFns.map((fn) => (
-                <span
-                  key={`${fn.contract}::${fn.function}`}
-                  className="inline-flex items-center rounded border border-red-700/50 bg-red-900/30 px-2.5 py-1 text-sm font-mono text-red-300"
-                >
-                  {fn.contract}.{fn.function}
-                </span>
-              ))}
-            </div>
-            {anyoneRole && anyoneRole.warnings.length > 0 && (
-              <div className="mt-3 space-y-1">
-                {anyoneRole.warnings.map((w, i) => (
-                  <p key={i} className="text-xs text-yellow-400">
-                    Warning: {w}
-                  </p>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* Role cards */}
       {otherRoles.length > 0 && (
-        <div className="mb-8">
-          <h3 className="mb-3 text-lg font-semibold text-gray-200">Roles</h3>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mb-sp-6">
+          <h3 className="mb-sp-3 text-heading font-medium text-text-primary">Roles</h3>
+          <div className="grid gap-sp-3 sm:grid-cols-2">
             {otherRoles.map((role) => (
               <div
                 key={role.role}
-                className="rounded-lg border border-gray-700 bg-gray-800 p-5"
+                className="rounded-md border border-border-default bg-surface-2 p-sp-4"
               >
-                <div className="mb-2 flex items-center justify-between">
-                  <h4 className="font-semibold text-gray-100">{role.role}</h4>
+                <div className="mb-sp-2 flex items-center justify-between">
+                  <h4 className="text-heading font-medium text-text-primary">{role.role}</h4>
                   <ConfidenceBadge level={role.confidence} derivedFrom={role.derived_from} />
                 </div>
-                <p className="mb-3 text-sm text-gray-400">{role.description}</p>
+                <p className="mb-sp-3 text-body text-text-secondary">{role.description}</p>
 
                 {role.modifier && (
-                  <p className="mb-2 text-xs text-gray-500">
+                  <p className="mb-sp-2 text-caption text-text-tertiary">
                     Modifier:{' '}
-                    <code className="rounded bg-gray-900 px-1.5 py-0.5 text-gray-300">
+                    <code className="rounded-sm bg-surface-0 px-1.5 py-0.5 text-text-secondary">
                       {role.modifier}
                     </code>
                   </p>
                 )}
 
                 {role.functions.length > 0 && (
-                  <div className="mb-2">
-                    <p className="mb-1 text-xs font-medium uppercase text-gray-500">
+                  <div className="mb-sp-2">
+                    <p className="mb-1 text-caption font-medium uppercase text-text-tertiary">
                       Functions ({role.functions.length})
                     </p>
                     <div className="flex flex-wrap gap-1">
                       {role.functions.map((fn) => (
                         <span
                           key={`${fn.contract}::${fn.function}`}
-                          className="inline-flex items-center rounded bg-gray-700 px-2 py-0.5 text-xs font-mono text-gray-300"
+                          className="inline-flex items-center rounded-sm bg-surface-3 px-2 py-0.5 font-mono text-caption text-text-secondary"
                         >
                           {fn.contract}.{fn.function}
                         </span>
@@ -329,9 +298,9 @@ export function AccessClient({
                 )}
 
                 {role.warnings.length > 0 && (
-                  <div className="mt-2 space-y-1 border-t border-gray-700 pt-2">
+                  <div className="mt-sp-2 space-y-1 border-t border-border-subtle pt-sp-2">
                     {role.warnings.map((w, i) => (
-                      <p key={i} className="text-xs text-yellow-400">
+                      <p key={i} className="text-caption text-[var(--medium)]">
                         {w}
                       </p>
                     ))}

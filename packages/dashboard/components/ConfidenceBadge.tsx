@@ -10,9 +10,9 @@ interface ConfidenceBadgeProps {
 }
 
 const STYLES: Record<ConfidenceLevel, string> = {
-  high: 'bg-green-600/20 text-green-400 border-green-500/30',
-  medium: 'bg-yellow-600/20 text-yellow-400 border-yellow-500/30',
-  low: 'bg-red-600/20 text-red-400 border-red-500/30',
+  high: 'bg-[var(--success)]/15 text-[var(--success)]',
+  medium: 'bg-[var(--medium)]/15 text-[var(--medium)]',
+  low: 'bg-[var(--critical)]/15 text-[var(--critical)]',
 };
 
 export function ConfidenceBadge({ level, derivedFrom }: ConfidenceBadgeProps) {
@@ -27,14 +27,13 @@ export function ConfidenceBadge({ level, derivedFrom }: ConfidenceBadgeProps) {
       onMouseLeave={() => setShowTooltip(false)}
     >
       <span
-        className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${style}`}
+        className={`inline-flex items-center rounded-sm px-2 py-0.5 text-caption font-medium ${style}`}
       >
         {level}
       </span>
       {derivedFrom && showTooltip && (
-        <span className="absolute bottom-full left-1/2 z-50 mb-2 -translate-x-1/2 whitespace-nowrap rounded bg-gray-700 px-2 py-1 text-xs text-gray-200 shadow-lg">
+        <span className="absolute bottom-full left-1/2 z-50 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md border border-border-default bg-surface-3 px-2 py-1 text-caption text-text-secondary shadow-lg">
           Derived from: {derivedFrom}
-          <span className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-gray-700" />
         </span>
       )}
     </span>

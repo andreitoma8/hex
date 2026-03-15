@@ -82,7 +82,6 @@ function buildFunctionRows(
   const rows: FunctionRow[] = [];
 
   for (const fn of access.functions) {
-    // Find state variables this function reads/writes
     const varsRead: string[] = [];
     const varsWritten: string[] = [];
     if (stateVars) {
@@ -97,7 +96,6 @@ function buildFunctionRows(
       }
     }
 
-    // Find external calls made by this function
     const extCalls: string[] = [];
     if (calls) {
       for (const c of calls.calls) {
@@ -137,7 +135,7 @@ export default function FunctionsPage() {
   if (!access) {
     return (
       <div>
-        <h2 className="mb-6 text-2xl font-bold text-gray-100">Functions</h2>
+        <h2 className="mb-sp-5 text-title font-semibold text-text-primary">Functions</h2>
         <NotYetGenerated command="solaudit access" />
       </div>
     );
@@ -149,8 +147,8 @@ export default function FunctionsPage() {
 
   return (
     <div>
-      <h2 className="mb-6 text-2xl font-bold text-gray-100">Functions</h2>
-      <p className="mb-6 text-sm text-gray-400">
+      <h2 className="mb-sp-5 text-title font-semibold text-text-primary">Functions</h2>
+      <p className="mb-sp-4 text-body text-text-secondary">
         {rows.length} function{rows.length !== 1 ? 's' : ''} across{' '}
         {new Set(rows.map((r) => r.contract)).size} contracts
       </p>

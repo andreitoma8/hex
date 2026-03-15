@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { MermaidViewer } from '@/components/MermaidViewer';
+import { MermaidViewer, LoadingSpinner } from '@/components/MermaidViewer';
 
 export default function DiagramPage() {
   const [syntax, setSyntax] = useState<string | null>(null);
@@ -34,8 +34,10 @@ export default function DiagramPage() {
   if (loading) {
     return (
       <div>
-        <h2 className="mb-6 text-2xl font-bold text-gray-100">Diagram</h2>
-        <p className="text-gray-400">Loading...</p>
+        <h2 className="mb-sp-5 text-title font-semibold text-text-primary">Diagram</h2>
+        <div className="flex h-[600px] items-center justify-center rounded-md border border-border-default bg-surface-1">
+          <LoadingSpinner label="Loading diagram..." />
+        </div>
       </div>
     );
   }
@@ -43,10 +45,10 @@ export default function DiagramPage() {
   if (notFound || !syntax) {
     return (
       <div>
-        <h2 className="mb-6 text-2xl font-bold text-gray-100">Diagram</h2>
-        <div className="flex flex-col items-center justify-center rounded-lg border border-gray-700 bg-gray-800/50 py-16">
-          <p className="mb-2 text-lg font-medium text-gray-300">Not Yet Generated</p>
-          <p className="text-sm text-gray-500">
+        <h2 className="mb-sp-5 text-title font-semibold text-text-primary">Diagram</h2>
+        <div className="flex flex-col items-center justify-center rounded-md border border-dashed border-border-emphasis bg-surface-1 py-sp-8">
+          <p className="mb-2 text-heading font-medium text-text-primary">Not Yet Generated</p>
+          <p className="text-body text-text-tertiary">
             Use the diagram skill to generate diagram.mmd
           </p>
         </div>
@@ -56,7 +58,7 @@ export default function DiagramPage() {
 
   return (
     <div>
-      <h2 className="mb-6 text-2xl font-bold text-gray-100">Diagram</h2>
+      <h2 className="mb-sp-5 text-title font-semibold text-text-primary">Diagram</h2>
       <MermaidViewer syntax={syntax} />
     </div>
   );

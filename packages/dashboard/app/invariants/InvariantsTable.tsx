@@ -45,194 +45,193 @@ export interface ParsedInvariants {
   assumptions: Assumption[];
 }
 
-// ─── Section component ──────────────────────────────────────────────
+// ─── Tabs ───────────────────────────────────────────────────────────
 
-function CollapsibleSection({
-  title,
-  count,
-  borderColor,
-  defaultOpen = true,
-  children,
-}: {
-  title: string;
+type TabKey = 'docs' | 'code' | 'discrepancies' | 'assumptions';
+
+interface Tab {
+  key: TabKey;
+  label: string;
   count: number;
-  borderColor: string;
-  defaultOpen?: boolean;
-  children: React.ReactNode;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-
-  return (
-    <div className={`mb-6 rounded-lg border ${borderColor} overflow-hidden`}>
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="flex w-full items-center justify-between bg-gray-800 px-5 py-3 text-left hover:bg-gray-750 transition-colors"
-      >
-        <span className="text-sm font-semibold text-gray-200">
-          {title} ({count})
-        </span>
-        <svg
-          className={`h-4 w-4 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="m19 9-7 7-7-7" />
-        </svg>
-      </button>
-      {open && <div className="bg-gray-900/50">{children}</div>}
-    </div>
-  );
+  accent?: string;
 }
 
 // ─── Main component ─────────────────────────────────────────────────
 
 export function InvariantsTable({ data }: { data: ParsedInvariants }) {
+  const [activeTab, setActiveTab] = useState<TabKey>('docs');
+
+  const tabs: Tab[] = [
+    { key: 'docs', label: 'From Docs', count: data.fromDocs.length },
+    { key: 'code', label: 'From Code', count: data.fromCode.length },
+    { key: 'discrepancies', label: 'Discrepancies', count: data.discrepancies.length, accent: 'text-[var(--critical)]' },
+    { key: 'assumptions', label: 'Assumptions', count: data.assumptions.length, accent: 'text-[var(--medium)]' },
+  ];
+
   return (
     <div>
-      {/* From Documentation */}
-      <CollapsibleSection
-        title="From Documentation"
-        count={data.fromDocs.length}
-        borderColor="border-gray-700"
-      >
-        {data.fromDocs.length === 0 ? (
-          <p className="px-5 py-4 text-sm text-gray-500">No documentation invariants found.</p>
-        ) : (
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-gray-700 bg-gray-800/50 text-xs uppercase text-gray-400">
-              <tr>
-                <th className="px-4 py-2.5 w-10"></th>
-                <th className="px-4 py-2.5">ID</th>
-                <th className="px-4 py-2.5">Invariant</th>
-                <th className="px-4 py-2.5">Enforced In</th>
-                <th className="px-4 py-2.5">Source</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-700/50">
-              {data.fromDocs.map((inv) => (
-                <tr key={inv.id} className="hover:bg-gray-800/30 transition-colors">
-                  <td className="px-4 py-3"><SignalBars level={inv.confidence} /></td>
-                  <td className="px-4 py-3 font-mono text-xs text-gray-300">{inv.id}</td>
-                  <td className="px-4 py-3 text-gray-200">{inv.invariant}</td>
-                  <td className="px-4 py-3 font-mono text-xs text-gray-400">{inv.enforced_in}</td>
-                  <td className="px-4 py-3 text-xs text-gray-400">{inv.source}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </CollapsibleSection>
+      {/* Segmented control */}
+      <div className="mb-sp-4 inline-flex rounded-md bg-surface-3 p-1">
+        {tabs.map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => setActiveTab(tab.key)}
+            className={`rounded-sm px-sp-3 py-1.5 text-body font-medium ${
+              activeTab === tab.key
+                ? 'bg-surface-2 text-text-primary shadow-sm'
+                : `text-text-secondary hover:text-text-primary ${tab.accent ?? ''}`
+            }`}
+          >
+            {tab.label}
+            <span className="ml-1.5 text-caption opacity-60">{tab.count}</span>
+          </button>
+        ))}
+      </div>
 
-      {/* From Code Analysis */}
-      <CollapsibleSection
-        title="From Code Analysis"
-        count={data.fromCode.length}
-        borderColor="border-gray-700"
-      >
-        {data.fromCode.length === 0 ? (
-          <p className="px-5 py-4 text-sm text-gray-500">No code invariants found.</p>
-        ) : (
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-gray-700 bg-gray-800/50 text-xs uppercase text-gray-400">
-              <tr>
-                <th className="px-4 py-2.5 w-10"></th>
-                <th className="px-4 py-2.5">ID</th>
-                <th className="px-4 py-2.5">Invariant</th>
-                <th className="px-4 py-2.5">Enforced In</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-700/50">
-              {data.fromCode.map((inv) => (
-                <tr key={inv.id} className="hover:bg-gray-800/30 transition-colors">
-                  <td className="px-4 py-3"><SignalBars level={inv.confidence} /></td>
-                  <td className="px-4 py-3 font-mono text-xs text-gray-300">{inv.id}</td>
-                  <td className="px-4 py-3 text-gray-200">{inv.invariant}</td>
-                  <td className="px-4 py-3 font-mono text-xs text-gray-400">{inv.enforced_in}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </CollapsibleSection>
+      {/* Tab content */}
+      {activeTab === 'docs' && <DocsTab data={data.fromDocs} />}
+      {activeTab === 'code' && <CodeTab data={data.fromCode} />}
+      {activeTab === 'discrepancies' && <DiscrepanciesTab data={data.discrepancies} />}
+      {activeTab === 'assumptions' && <AssumptionsTab data={data.assumptions} />}
+    </div>
+  );
+}
 
-      {/* Discrepancies */}
-      <CollapsibleSection
-        title="Discrepancies"
-        count={data.discrepancies.length}
-        borderColor="border-red-800/50"
-        defaultOpen={true}
-      >
-        {data.discrepancies.length === 0 ? (
-          <p className="px-5 py-4 text-sm text-gray-500">No discrepancies found.</p>
-        ) : (
-          <div className="divide-y divide-red-800/30">
-            {data.discrepancies.map((disc) => (
-              <div
-                key={disc.id}
-                className="border-l-4 border-l-red-500 bg-red-950/20 px-5 py-4"
-              >
-                <div className="mb-2 flex items-center gap-2">
-                  <svg className="h-4 w-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
-                  </svg>
-                  <span className="font-mono text-xs text-red-300">{disc.id}</span>
-                  {disc.severity && disc.severity !== '-' && (
-                    <SeverityBadge severity={disc.severity as 'Critical' | 'High' | 'Medium' | 'Low' | 'Info'} />
-                  )}
-                  <span className="text-sm font-medium text-red-200">{disc.description}</span>
-                </div>
-                <div className="ml-6 space-y-1 text-sm">
-                  <p className="text-gray-400">
-                    <span className="font-medium text-gray-300">Docs say:</span> {disc.docs_say}
-                  </p>
-                  {disc.doc_ref && disc.doc_ref !== '-' && (
-                    <p className="text-gray-500 text-xs">
-                      <span className="font-medium text-gray-400">Doc ref:</span> {disc.doc_ref}
-                    </p>
-                  )}
-                  <p className="text-gray-400"><span className="font-medium text-gray-300">Code does:</span> {disc.code_does}</p>
-                  <p className="text-red-300/80"><span className="font-medium text-red-200">Risk:</span> {disc.risk}</p>
-                </div>
-              </div>
-            ))}
+// ─── Tab content components ─────────────────────────────────────────
+
+function DocsTab({ data }: { data: DocInvariant[] }) {
+  if (data.length === 0) {
+    return <p className="py-sp-4 text-body text-text-tertiary">No documentation invariants found.</p>;
+  }
+
+  return (
+    <div className="overflow-x-auto rounded-md border border-border-default">
+      <table className="w-full text-left text-body">
+        <thead className="border-b border-border-default bg-surface-2 text-caption font-medium uppercase tracking-wider text-text-tertiary">
+          <tr>
+            <th className="w-10 px-sp-4 py-sp-2"></th>
+            <th className="px-sp-4 py-sp-2">ID</th>
+            <th className="px-sp-4 py-sp-2">Invariant</th>
+            <th className="px-sp-4 py-sp-2">Enforced In</th>
+            <th className="px-sp-4 py-sp-2">Source</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border-subtle">
+          {data.map((inv) => (
+            <tr key={inv.id} className="h-9 bg-surface-1 hover:bg-surface-3">
+              <td className="px-sp-4 py-sp-2"><SignalBars level={inv.confidence} /></td>
+              <td className="px-sp-4 py-sp-2 font-mono text-caption text-text-secondary">{inv.id}</td>
+              <td className="px-sp-4 py-sp-2 text-text-primary">{inv.invariant}</td>
+              <td className="px-sp-4 py-sp-2 font-mono text-caption text-text-tertiary">{inv.enforced_in}</td>
+              <td className="px-sp-4 py-sp-2 text-caption text-text-tertiary">{inv.source}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function CodeTab({ data }: { data: CodeInvariant[] }) {
+  if (data.length === 0) {
+    return <p className="py-sp-4 text-body text-text-tertiary">No code invariants found.</p>;
+  }
+
+  return (
+    <div className="overflow-x-auto rounded-md border border-border-default">
+      <table className="w-full text-left text-body">
+        <thead className="border-b border-border-default bg-surface-2 text-caption font-medium uppercase tracking-wider text-text-tertiary">
+          <tr>
+            <th className="w-10 px-sp-4 py-sp-2"></th>
+            <th className="px-sp-4 py-sp-2">ID</th>
+            <th className="px-sp-4 py-sp-2">Invariant</th>
+            <th className="px-sp-4 py-sp-2">Enforced In</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border-subtle">
+          {data.map((inv) => (
+            <tr key={inv.id} className="h-9 bg-surface-1 hover:bg-surface-3">
+              <td className="px-sp-4 py-sp-2"><SignalBars level={inv.confidence} /></td>
+              <td className="px-sp-4 py-sp-2 font-mono text-caption text-text-secondary">{inv.id}</td>
+              <td className="px-sp-4 py-sp-2 text-text-primary">{inv.invariant}</td>
+              <td className="px-sp-4 py-sp-2 font-mono text-caption text-text-tertiary">{inv.enforced_in}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function DiscrepanciesTab({ data }: { data: Discrepancy[] }) {
+  if (data.length === 0) {
+    return <p className="py-sp-4 text-body text-text-tertiary">No discrepancies found.</p>;
+  }
+
+  return (
+    <div className="space-y-sp-2">
+      {data.map((disc) => (
+        <div
+          key={disc.id}
+          className="rounded-md border border-border-default border-l-4 border-l-[var(--critical)] bg-surface-2 px-sp-4 py-sp-3"
+        >
+          <div className="mb-sp-2 flex items-center gap-2">
+            <span className="font-mono text-caption text-[var(--critical)]">{disc.id}</span>
+            {disc.severity && disc.severity !== '-' && (
+              <SeverityBadge severity={disc.severity as 'Critical' | 'High' | 'Medium' | 'Low' | 'Info'} />
+            )}
+            <span className="text-heading font-medium text-text-primary">{disc.description}</span>
           </div>
-        )}
-      </CollapsibleSection>
-
-      {/* Implicit Assumptions */}
-      <CollapsibleSection
-        title="Implicit Assumptions"
-        count={data.assumptions.length}
-        borderColor="border-yellow-800/50"
-      >
-        {data.assumptions.length === 0 ? (
-          <p className="px-5 py-4 text-sm text-gray-500">No implicit assumptions found.</p>
-        ) : (
-          <div className="divide-y divide-yellow-800/30">
-            {data.assumptions.map((assum) => (
-              <div
-                key={assum.id}
-                className="border-l-4 border-l-yellow-500 bg-yellow-950/10 px-5 py-4"
-              >
-                <div className="mb-2 flex items-center gap-2">
-                  <svg className="h-4 w-4 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
-                  </svg>
-                  <span className="font-mono text-xs text-yellow-300">{assum.id}</span>
-                  <span className="text-sm font-medium text-yellow-200">{assum.assumption}</span>
-                </div>
-                <div className="ml-6 space-y-1 text-sm">
-                  <p className="text-gray-400"><span className="font-medium text-gray-300">Where:</span> <code className="rounded bg-gray-800 px-1.5 py-0.5 text-xs">{assum.where}</code></p>
-                  <p className="text-yellow-300/80"><span className="font-medium text-yellow-200">If violated:</span> {assum.if_violated}</p>
-                </div>
-              </div>
-            ))}
+          <div className="ml-sp-5 space-y-1 text-body">
+            <p className="text-text-secondary">
+              <span className="font-medium text-text-primary">Docs say:</span> {disc.docs_say}
+            </p>
+            {disc.doc_ref && disc.doc_ref !== '-' && (
+              <p className="text-caption text-text-tertiary">
+                <span className="font-medium">Doc ref:</span> {disc.doc_ref}
+              </p>
+            )}
+            <p className="text-text-secondary">
+              <span className="font-medium text-text-primary">Code does:</span> {disc.code_does}
+            </p>
+            <p className="text-[var(--critical)]/80">
+              <span className="font-medium text-[var(--critical)]">Risk:</span> {disc.risk}
+            </p>
           </div>
-        )}
-      </CollapsibleSection>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function AssumptionsTab({ data }: { data: Assumption[] }) {
+  if (data.length === 0) {
+    return <p className="py-sp-4 text-body text-text-tertiary">No implicit assumptions found.</p>;
+  }
+
+  return (
+    <div className="space-y-sp-2">
+      {data.map((assum) => (
+        <div
+          key={assum.id}
+          className="rounded-md border border-border-default border-l-4 border-l-[var(--medium)] bg-surface-2 px-sp-4 py-sp-3"
+        >
+          <div className="mb-sp-2 flex items-center gap-2">
+            <span className="font-mono text-caption text-[var(--medium)]">{assum.id}</span>
+            <span className="text-heading font-medium text-text-primary">{assum.assumption}</span>
+          </div>
+          <div className="ml-sp-5 space-y-1 text-body">
+            <p className="text-text-secondary">
+              <span className="font-medium text-text-primary">Where:</span>{' '}
+              <code className="rounded-sm bg-surface-0 px-1.5 py-0.5 text-caption">{assum.where}</code>
+            </p>
+            <p className="text-[var(--medium)]/80">
+              <span className="font-medium text-[var(--medium)]">If violated:</span> {assum.if_violated}
+            </p>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

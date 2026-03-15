@@ -99,11 +99,17 @@ solaudit dashboard
 Opens `http://localhost:3000` with live visualization of all outputs.
 
 Key pages:
-- `/report` — Findings rendered as a clean markdown report matching findings.md format (verified findings only)
-- `/all-findings` — Merged table of all findings + tracking data with filters and expandable details
-- `/access` — Access control mapping with "Show unprotected only" toggle (interfaces filtered out, inherited functions included when Slither is available)
-- `/calls` — External call surface with filterable Trust column (simplified layout, no inline confidence badges)
-- `/functions` — Aggregated function view with state variable and external call cross-references
+- `/report` — Card-per-finding layout with severity accent borders and horizontal severity bar chart
+- `/all-findings` — Merged table with filter pills (severity, status) and expandable details
+- `/stats` — Segmented control: Summary (KPI cards + ERC badges), Per-Contract, Coverage, Dependencies
+- `/access` — Segmented control: All / State-Changing / Read-Only / Unprotected, with role cards below
+- `/calls` — External call surface with filter pills for Trust and Call Type
+- `/functions` — Aggregated function view with filter pills and compact 36px rows
+- `/invariants` — Tabbed layout (From Docs | From Code | Discrepancies | Assumptions) with segmented control
+- `/conformance` — Status filter pills for quick filtering (DEVIATES, PARTIAL, etc.)
+- `/diagram` + `/flows` — Full-bleed canvas with auto-fit zoom, floating controls, loading spinner, and legend overlay
+
+The dashboard has a fixed sidebar with always-visible theme toggle (Light / Dark / System). Apple-inspired design with consistent spacing, typography scale, and semantic color system. Code reference modals support Escape key to close.
 
 ## Key Points
 

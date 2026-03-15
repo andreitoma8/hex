@@ -14,7 +14,7 @@ export function SignalBars({ level }: SignalBarsProps) {
         <span
           key={bar}
           className={`inline-block rounded-sm ${
-            bar <= activeBars ? 'bg-gray-200' : 'bg-gray-600'
+            bar <= activeBars ? 'bg-text-primary' : 'bg-text-tertiary'
           }`}
           style={{
             width: '4px',

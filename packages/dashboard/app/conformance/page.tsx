@@ -30,7 +30,6 @@ interface ConformanceData {
   sources_checked?: Record<string, unknown>;
   summary?: ConformanceSummary;
   items?: ConformanceItem[];
-  // Legacy support
   checks?: Array<{
     id: string;
     requirement: string;
@@ -67,7 +66,7 @@ export default function ConformancePage() {
   if (!data) {
     return (
       <div>
-        <h2 className="mb-6 text-2xl font-bold text-gray-100">
+        <h2 className="mb-sp-5 text-title font-semibold text-text-primary">
           Spec Conformance
         </h2>
         <NotYetGenerated command="Use the check-spec-conformance skill" />
@@ -75,7 +74,6 @@ export default function ConformancePage() {
     );
   }
 
-  // Normalize: support both new schema (items) and legacy schema (checks)
   let checks: ConformanceCheck[];
   if (data.items) {
     checks = data.items.map((item) => ({
@@ -108,7 +106,6 @@ export default function ConformancePage() {
     return orderA - orderB;
   });
 
-  // Use summary from data if available, otherwise count manually
   const summary = data.summary ?? {
     total_checks: checks.length,
     conforms: checks.filter((c) => c.status === 'CONFORMS').length,
@@ -119,19 +116,19 @@ export default function ConformancePage() {
   };
 
   const STATUS_COLORS: Record<string, string> = {
-    DEVIATES: 'bg-red-500',
-    PARTIAL: 'bg-yellow-500',
-    UNVERIFIABLE: 'bg-blue-500',
-    UNDOCUMENTED: 'bg-gray-500',
-    CONFORMS: 'bg-green-500',
+    DEVIATES: 'bg-[var(--critical)]',
+    PARTIAL: 'bg-[var(--medium)]',
+    UNVERIFIABLE: 'bg-accent',
+    UNDOCUMENTED: 'bg-[var(--neutral)]',
+    CONFORMS: 'bg-[var(--success)]',
   };
 
-  const STATUS_TEXT_COLORS: Record<string, string> = {
-    DEVIATES: 'text-red-400',
-    PARTIAL: 'text-yellow-400',
-    UNVERIFIABLE: 'text-blue-400',
-    UNDOCUMENTED: 'text-gray-400',
-    CONFORMS: 'text-green-400',
+  const STATUS_TEXT: Record<string, string> = {
+    DEVIATES: 'text-[var(--critical)]',
+    PARTIAL: 'text-[var(--medium)]',
+    UNVERIFIABLE: 'text-accent',
+    UNDOCUMENTED: 'text-text-secondary',
+    CONFORMS: 'text-[var(--success)]',
   };
 
   const summaryEntries: Array<{ status: string; count: number }> = [
@@ -144,35 +141,32 @@ export default function ConformancePage() {
 
   return (
     <div>
-      <h2 className="mb-6 text-2xl font-bold text-gray-100">
+      <h2 className="mb-sp-5 text-title font-semibold text-text-primary">
         Spec Conformance
       </h2>
 
-      {/* Summary bar */}
-      <div className="mb-6 flex flex-wrap gap-4">
+      {/* Summary pills */}
+      <div className="mb-sp-5 flex flex-wrap gap-sp-3">
         {summaryEntries.map(({ status, count }) => (
           <div
             key={status}
-            className="flex items-center gap-2 rounded-lg border border-gray-700 bg-gray-800 px-4 py-2"
+            className="flex items-center gap-2 rounded-md border border-border-default bg-surface-2 px-sp-4 py-sp-2"
           >
-            <span
-              className={`inline-block h-3 w-3 rounded-full ${STATUS_COLORS[status]}`}
-            />
-            <span className={`text-sm font-medium ${STATUS_TEXT_COLORS[status]}`}>
+            <span className={`inline-block h-2.5 w-2.5 rounded-full ${STATUS_COLORS[status]}`} />
+            <span className={`text-caption font-medium ${STATUS_TEXT[status]}`}>
               {status}
             </span>
-            <span className="text-sm font-bold text-gray-100">
+            <span className="text-heading font-semibold text-text-primary">
               {count}
             </span>
           </div>
         ))}
       </div>
 
-      {/* Total + sources */}
-      <p className="mb-4 text-sm text-gray-400">
+      <p className="mb-sp-3 text-body text-text-secondary">
         {summary.total_checks} conformance check{summary.total_checks !== 1 ? 's' : ''}
         {data.sources_checked && (
-          <span className="ml-2 text-gray-500">
+          <span className="ml-2 text-text-tertiary">
             (sources: {Object.entries(data.sources_checked)
               .filter(([, v]) => v === true || (Array.isArray(v) && v.length > 0))
               .map(([k]) => k.replace(/_/g, ' '))
@@ -181,7 +175,6 @@ export default function ConformancePage() {
         )}
       </p>
 
-      {/* Table with expandable rows (client component) */}
       <ConformanceTable checks={checks} />
     </div>
   );

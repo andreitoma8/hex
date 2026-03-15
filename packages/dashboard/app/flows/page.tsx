@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { MermaidViewer } from '@/components/MermaidViewer';
+import { MermaidViewer, LoadingSpinner } from '@/components/MermaidViewer';
 
 interface FlowEntry {
   name: string;
@@ -43,8 +43,10 @@ export default function FlowsPage() {
   if (loading) {
     return (
       <div>
-        <h2 className="mb-6 text-2xl font-bold text-gray-100">Flows</h2>
-        <p className="text-gray-400">Loading...</p>
+        <h2 className="mb-sp-5 text-title font-semibold text-text-primary">Flows</h2>
+        <div className="flex h-[600px] items-center justify-center rounded-md border border-border-default bg-surface-1">
+          <LoadingSpinner label="Loading flows..." />
+        </div>
       </div>
     );
   }
@@ -52,10 +54,10 @@ export default function FlowsPage() {
   if (flows.length === 0) {
     return (
       <div>
-        <h2 className="mb-6 text-2xl font-bold text-gray-100">Flows</h2>
-        <div className="flex flex-col items-center justify-center rounded-lg border border-gray-700 bg-gray-800/50 py-16">
-          <p className="mb-2 text-lg font-medium text-gray-300">Not Yet Generated</p>
-          <p className="text-sm text-gray-500">
+        <h2 className="mb-sp-5 text-title font-semibold text-text-primary">Flows</h2>
+        <div className="flex flex-col items-center justify-center rounded-md border border-dashed border-border-emphasis bg-surface-1 py-sp-8">
+          <p className="mb-2 text-heading font-medium text-text-primary">Not Yet Generated</p>
+          <p className="text-body text-text-tertiary">
             Use the flows skill to generate flow diagrams
           </p>
         </div>
@@ -65,20 +67,20 @@ export default function FlowsPage() {
 
   return (
     <div>
-      <h2 className="mb-6 text-2xl font-bold text-gray-100">Flows</h2>
+      <h2 className="mb-sp-5 text-title font-semibold text-text-primary">Flows</h2>
 
-      {/* Tab bar */}
+      {/* Segmented control (Apple-style tab bar) */}
       {flows.length > 1 && (
-        <div className="mb-4 flex gap-1 overflow-x-auto rounded-lg border border-gray-700 bg-gray-800 p-1">
+        <div className="mb-sp-4 inline-flex overflow-x-auto rounded-md bg-surface-3 p-1">
           {flows.map((flow, idx) => (
             <button
               key={flow.filename}
               type="button"
               onClick={() => setActiveTab(idx)}
-              className={`whitespace-nowrap rounded px-3 py-1.5 text-sm transition-colors ${
+              className={`whitespace-nowrap rounded-sm px-sp-3 py-1.5 text-body font-medium ${
                 activeTab === idx
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'
+                  ? 'bg-surface-2 text-text-primary shadow-sm'
+                  : 'text-text-secondary hover:text-text-primary'
               }`}
             >
               {flow.name}
@@ -91,8 +93,8 @@ export default function FlowsPage() {
       {syntax ? (
         <MermaidViewer key={flows[activeTab]?.filename} syntax={syntax} />
       ) : (
-        <div className="flex h-[600px] items-center justify-center rounded-lg border border-gray-700 bg-gray-800">
-          <p className="text-gray-400">Loading diagram...</p>
+        <div className="flex h-[600px] items-center justify-center rounded-md border border-border-default bg-surface-1">
+          <LoadingSpinner label="Loading flow diagram..." />
         </div>
       )}
     </div>

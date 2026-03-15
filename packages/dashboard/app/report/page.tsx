@@ -37,12 +37,12 @@ type Severity = 'Critical' | 'High' | 'Medium' | 'Low' | 'Info';
 
 const SEVERITY_ORDER: Severity[] = ['Critical', 'High', 'Medium', 'Low', 'Info'];
 
-const SEVERITY_BAR_COLORS: Record<string, string> = {
-  Critical: 'bg-red-500',
-  High: 'bg-orange-500',
-  Medium: 'bg-yellow-500',
-  Low: 'bg-blue-500',
-  Info: 'bg-gray-500',
+const SEVERITY_COLORS: Record<string, string> = {
+  Critical: 'bg-[var(--critical)]',
+  High: 'bg-[var(--high)]',
+  Medium: 'bg-[var(--medium)]',
+  Low: 'bg-[var(--low)]',
+  Info: 'bg-[var(--info)]',
 };
 
 export default function ReportPage() {
@@ -51,7 +51,7 @@ export default function ReportPage() {
   if (!findingsData) {
     return (
       <div>
-        <h2 className="mb-6 text-2xl font-bold text-gray-100">Report</h2>
+        <h2 className="mb-sp-5 text-title font-semibold text-text-primary">Report</h2>
         <NotYetGenerated command="Use the write-finding skill to create findings" />
       </div>
     );
@@ -59,7 +59,6 @@ export default function ReportPage() {
 
   const allFindings = findingsData.findings ?? [];
 
-  // Filter to only verified findings if tracking exists
   const trackingData = readJsonFile<TrackingData>('tracking.json');
   let findings = allFindings;
   if (trackingData?.findings) {
@@ -69,7 +68,6 @@ export default function ReportPage() {
         .map((t) => t.id),
     );
     findings = allFindings.filter((f) => verifiedIds.has(f.id));
-    // If tracking exists but no verified findings yet, show all
     if (findings.length === 0 && allFindings.length > 0) {
       findings = allFindings;
     }
@@ -82,31 +80,44 @@ export default function ReportPage() {
     counts[sev] = (counts[sev] ?? 0) + 1;
   }
 
+  // Stacked bar total
+  const total = findings.length;
+
   return (
     <div>
-      <h2 className="mb-6 text-2xl font-bold text-gray-100">Report</h2>
+      <h2 className="mb-sp-5 text-title font-semibold text-text-primary">Report</h2>
 
-      {/* Severity summary */}
-      <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-5">
-        {SEVERITY_ORDER.map((sev) => (
-          <div
-            key={sev}
-            className="rounded-lg border border-gray-700 bg-gray-800 p-4 text-center"
-          >
-            <div className="mb-1 text-2xl font-bold text-gray-100">
-              {counts[sev] ?? 0}
-            </div>
-            <div className="flex items-center justify-center gap-2">
-              <span
-                className={`inline-block h-2.5 w-2.5 rounded-full ${SEVERITY_BAR_COLORS[sev]}`}
-              />
-              <span className="text-sm text-gray-400">{sev}</span>
-            </div>
+      {/* Horizontal severity bar */}
+      {total > 0 && (
+        <div className="mb-sp-5">
+          <div className="flex h-3 overflow-hidden rounded-sm">
+            {SEVERITY_ORDER.map((sev) => {
+              const count = counts[sev] ?? 0;
+              if (count === 0) return null;
+              const pct = (count / total) * 100;
+              return (
+                <div
+                  key={sev}
+                  className={`${SEVERITY_COLORS[sev]}`}
+                  style={{ width: `${pct}%` }}
+                  title={`${sev}: ${count}`}
+                />
+              );
+            })}
           </div>
-        ))}
-      </div>
+          <div className="mt-2 flex flex-wrap gap-4">
+            {SEVERITY_ORDER.map((sev) => (
+              <div key={sev} className="flex items-center gap-1.5">
+                <span className={`inline-block h-2 w-2 rounded-full ${SEVERITY_COLORS[sev]}`} />
+                <span className="text-caption text-text-secondary">{sev}</span>
+                <span className="text-caption font-semibold text-text-primary">{counts[sev] ?? 0}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
-      <p className="mb-6 text-sm text-gray-400">
+      <p className="mb-sp-4 text-body text-text-secondary">
         {findings.length} finding{findings.length !== 1 ? 's' : ''}
         {trackingData ? ' (verified)' : ''}
       </p>

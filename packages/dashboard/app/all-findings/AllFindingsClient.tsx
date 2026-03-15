@@ -9,22 +9,22 @@ type Severity = 'Critical' | 'High' | 'Medium' | 'Low' | 'Info';
 const SEVERITY_ORDER: Record<string, number> = { Critical: 0, High: 1, Medium: 2, Low: 3, Info: 4 };
 
 const STATUS_STYLES: Record<string, string> = {
-  verified: 'bg-green-600/20 text-green-400 border-green-500/30',
-  pending_validation: 'bg-yellow-600/20 text-yellow-400 border-yellow-500/30',
-  rejected: 'bg-red-600/20 text-red-400 border-red-500/30',
-  duplicate: 'bg-gray-600/20 text-gray-400 border-gray-500/30',
+  verified: 'bg-[var(--success)]/15 text-[var(--success)]',
+  pending_validation: 'bg-[var(--medium)]/15 text-[var(--medium)]',
+  rejected: 'bg-[var(--critical)]/15 text-[var(--critical)]',
+  duplicate: 'bg-[var(--neutral)]/15 text-[var(--neutral)]',
 };
 
 const POC_STYLES: Record<string, string> = {
-  passing: 'text-green-400',
-  failing: 'text-red-400',
-  not_started: 'text-gray-500',
+  passing: 'text-[var(--success)]',
+  failing: 'text-[var(--critical)]',
+  not_started: 'text-text-tertiary',
 };
 
 function StatusBadge({ status }: { status: string }) {
   const style = STATUS_STYLES[status] ?? STATUS_STYLES.duplicate;
   return (
-    <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${style}`}>
+    <span className={`inline-flex items-center rounded-sm px-2 py-0.5 text-caption font-medium ${style}`}>
       {status}
     </span>
   );
@@ -36,14 +36,14 @@ const columns: FilterableColumn<MergedFinding>[] = [
     header: 'ID',
     accessorKey: 'id',
     cell: (row) => (
-      <span className="whitespace-nowrap font-mono text-xs text-gray-300">{row.id}</span>
+      <span className="whitespace-nowrap font-mono text-caption text-text-secondary">{row.id}</span>
     ),
   },
   {
     id: 'title',
     header: 'Title',
     accessorKey: 'title',
-    cell: (row) => <span className="font-medium text-gray-200">{row.title}</span>,
+    cell: (row) => <span className="font-medium text-text-primary">{row.title}</span>,
   },
   {
     id: 'severity',
@@ -64,7 +64,7 @@ const columns: FilterableColumn<MergedFinding>[] = [
     accessorKey: 'source',
     enableColumnFilter: true,
     cell: (row) => (
-      <span className="font-mono text-xs text-gray-400">{row.source}</span>
+      <span className="font-mono text-caption text-text-secondary">{row.source}</span>
     ),
   },
   {
@@ -79,7 +79,7 @@ const columns: FilterableColumn<MergedFinding>[] = [
     header: 'PoC',
     accessorKey: 'poc_status',
     cell: (row) => (
-      <span className={POC_STYLES[row.poc_status] ?? 'text-gray-500'}>
+      <span className={POC_STYLES[row.poc_status] ?? 'text-text-tertiary'}>
         {row.poc_status}
       </span>
     ),
@@ -90,7 +90,7 @@ function FindingDetail({ item }: { item: MergedFinding }) {
   const finding = item.finding;
   if (!finding) {
     return (
-      <div className="text-sm text-gray-400">
+      <div className="text-body text-text-secondary">
         <p>No detailed finding data available.</p>
         {item.duplicates.length > 0 && (
           <p className="mt-2">Duplicates: {item.duplicates.join(', ')}</p>
@@ -100,22 +100,22 @@ function FindingDetail({ item }: { item: MergedFinding }) {
   }
 
   return (
-    <div className="space-y-4 text-sm">
+    <div className="space-y-sp-4 text-body">
       {finding.description && (
         <div>
-          <h4 className="mb-1 text-xs font-semibold uppercase text-gray-400">Description</h4>
-          <p className="text-gray-300">{finding.description}</p>
+          <h4 className="mb-1 text-caption font-medium uppercase text-text-tertiary">Description</h4>
+          <p className="text-text-secondary">{finding.description}</p>
         </div>
       )}
 
       {finding.root_cause?.locations && finding.root_cause.locations.length > 0 && (
         <div>
-          <h4 className="mb-1 text-xs font-semibold uppercase text-gray-400">Code Locations</h4>
+          <h4 className="mb-1 text-caption font-medium uppercase text-text-tertiary">Code Locations</h4>
           {finding.root_cause.locations.map((loc, i) => (
             <div key={i} className="mb-2">
-              <span className="font-mono text-xs text-gray-400">{loc.file}</span>
+              <span className="font-mono text-caption text-text-tertiary">{loc.file}</span>
               {loc.snippet && (
-                <pre className="mt-1 overflow-x-auto rounded bg-gray-950 p-3 text-xs text-gray-400">
+                <pre className="mt-1 overflow-x-auto rounded-md bg-surface-0 p-sp-3 text-caption text-text-secondary">
                   {loc.snippet}
                 </pre>
               )}
@@ -126,16 +126,16 @@ function FindingDetail({ item }: { item: MergedFinding }) {
 
       {finding.recommendation && (
         <div>
-          <h4 className="mb-1 text-xs font-semibold uppercase text-gray-400">Recommendation</h4>
-          <p className="text-gray-300">{finding.recommendation}</p>
+          <h4 className="mb-1 text-caption font-medium uppercase text-text-tertiary">Recommendation</h4>
+          <p className="text-text-secondary">{finding.recommendation}</p>
         </div>
       )}
 
       {finding.poc && finding.poc.file && (
         <div>
-          <h4 className="mb-1 text-xs font-semibold uppercase text-gray-400">Proof of Concept</h4>
-          <p className="text-gray-400 text-xs">
-            <code className="rounded bg-gray-800 px-1.5 py-0.5">{finding.poc.file}</code>
+          <h4 className="mb-1 text-caption font-medium uppercase text-text-tertiary">Proof of Concept</h4>
+          <p className="text-caption text-text-secondary">
+            <code className="rounded-sm bg-surface-3 px-1.5 py-0.5">{finding.poc.file}</code>
             <span className="ml-2">({finding.poc.status})</span>
           </p>
         </div>
@@ -143,8 +143,8 @@ function FindingDetail({ item }: { item: MergedFinding }) {
 
       {item.duplicates.length > 0 && (
         <div>
-          <h4 className="mb-1 text-xs font-semibold uppercase text-gray-400">Duplicates</h4>
-          <p className="text-xs text-gray-400">{item.duplicates.join(', ')}</p>
+          <h4 className="mb-1 text-caption font-medium uppercase text-text-tertiary">Duplicates</h4>
+          <p className="text-caption text-text-secondary">{item.duplicates.join(', ')}</p>
         </div>
       )}
     </div>

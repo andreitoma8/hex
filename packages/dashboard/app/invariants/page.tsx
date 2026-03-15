@@ -12,8 +12,7 @@ function parseInvariantsMarkdown(md: string): ParsedInvariants {
     assumptions: [],
   };
 
-  // Split by ## headers
-  const sections = md.split(/^## /m).slice(1); // skip content before first ##
+  const sections = md.split(/^## /m).slice(1);
 
   for (const section of sections) {
     const headerEnd = section.indexOf('\n');
@@ -21,7 +20,6 @@ function parseInvariantsMarkdown(md: string): ParsedInvariants {
     const body = section.slice(headerEnd + 1);
 
     if (/from documentation/i.test(header)) {
-      // Parse [INV-D01] entries
       const re = /\[([A-Z]+-D\d+)\]\s*(.+?)(?:\s*—\s*\*\*Confidence:\s*(High|Medium|Low)\*\*)?(?:\s*—\s*Enforced in:\s*(.+?))?(?:\s*—\s*Source:\s*(.+?))?$/gmi;
       for (const match of body.matchAll(re)) {
         result.fromDocs.push({
@@ -33,7 +31,6 @@ function parseInvariantsMarkdown(md: string): ParsedInvariants {
         });
       }
     } else if (/from code/i.test(header)) {
-      // Parse [INV-C01] entries
       const re = /\[([A-Z]+-C\d+)\]\s*(.+?)(?:\s*—\s*\*\*Confidence:\s*(High|Medium|Low)\*\*)?(?:\s*—\s*Enforced in:\s*(.+?))?$/gmi;
       for (const match of body.matchAll(re)) {
         result.fromCode.push({
@@ -44,7 +41,6 @@ function parseInvariantsMarkdown(md: string): ParsedInvariants {
         });
       }
     } else if (/discrepanc/i.test(header)) {
-      // Parse [DISC-01] entries — may be multiline with sub-items
       const items = body.split(/(?=\d+\.\s*\[DISC-)/);
       for (const item of items) {
         const idMatch = item.match(/\[(DISC-\d+)\]\s*(.+)/);
@@ -65,7 +61,6 @@ function parseInvariantsMarkdown(md: string): ParsedInvariants {
         });
       }
     } else if (/implicit|assumption/i.test(header)) {
-      // Parse [ASSUM-01] entries
       const items = body.split(/(?=\d+\.\s*\[ASSUM-)/);
       for (const item of items) {
         const idMatch = item.match(/\[(ASSUM-\d+)\]\s*(.+)/);
@@ -93,7 +88,7 @@ export default function InvariantsPage() {
   if (!markdown) {
     return (
       <div>
-        <h2 className="mb-6 text-2xl font-bold text-gray-100">Invariants</h2>
+        <h2 className="mb-sp-5 text-title font-semibold text-text-primary">Invariants</h2>
         <NotYetGenerated command="Use the identify-invariants skill" />
       </div>
     );
@@ -103,53 +98,47 @@ export default function InvariantsPage() {
 
   return (
     <div>
-      <h2 className="mb-6 text-2xl font-bold text-gray-100">Invariants</h2>
+      <h2 className="mb-sp-5 text-title font-semibold text-text-primary">Invariants</h2>
 
-      {/* Summary bar */}
-      <div className="mb-6 flex flex-wrap gap-3">
-        <div className="flex items-center gap-2 rounded-lg border border-gray-700 bg-gray-800 px-4 py-2">
-          <span className="inline-block h-3 w-3 rounded-full bg-blue-500" />
-          <span className="text-sm text-gray-300">From Docs</span>
-          <span className="text-sm font-bold text-gray-100">{parsed.fromDocs.length}</span>
+      {/* Summary strip */}
+      <div className="mb-sp-5 flex flex-wrap gap-sp-3">
+        <div className="flex items-center gap-2 rounded-md border border-border-default bg-surface-2 px-sp-4 py-sp-2">
+          <span className="inline-block h-2.5 w-2.5 rounded-full bg-accent" />
+          <span className="text-caption text-text-secondary">From Docs</span>
+          <span className="text-heading font-semibold text-text-primary">{parsed.fromDocs.length}</span>
         </div>
-        <div className="flex items-center gap-2 rounded-lg border border-gray-700 bg-gray-800 px-4 py-2">
-          <span className="inline-block h-3 w-3 rounded-full bg-purple-500" />
-          <span className="text-sm text-gray-300">From Code</span>
-          <span className="text-sm font-bold text-gray-100">{parsed.fromCode.length}</span>
+        <div className="flex items-center gap-2 rounded-md border border-border-default bg-surface-2 px-sp-4 py-sp-2">
+          <span className="inline-block h-2.5 w-2.5 rounded-full bg-[var(--info)]" />
+          <span className="text-caption text-text-secondary">From Code</span>
+          <span className="text-heading font-semibold text-text-primary">{parsed.fromCode.length}</span>
         </div>
-        <div className="flex items-center gap-2 rounded-lg border border-red-800/50 bg-red-950/20 px-4 py-2">
-          <span className="inline-block h-3 w-3 rounded-full bg-red-500" />
-          <span className="text-sm text-red-300">Discrepancies</span>
-          <span className="text-sm font-bold text-red-100">{parsed.discrepancies.length}</span>
+        <div className="flex items-center gap-2 rounded-md border border-[var(--critical)]/30 bg-[var(--critical)]/5 px-sp-4 py-sp-2">
+          <span className="inline-block h-2.5 w-2.5 rounded-full bg-[var(--critical)]" />
+          <span className="text-caption text-[var(--critical)]">Discrepancies</span>
+          <span className="text-heading font-semibold text-[var(--critical)]">{parsed.discrepancies.length}</span>
         </div>
-        <div className="flex items-center gap-2 rounded-lg border border-yellow-800/50 bg-yellow-950/20 px-4 py-2">
-          <span className="inline-block h-3 w-3 rounded-full bg-yellow-500" />
-          <span className="text-sm text-yellow-300">Assumptions</span>
-          <span className="text-sm font-bold text-yellow-100">{parsed.assumptions.length}</span>
+        <div className="flex items-center gap-2 rounded-md border border-[var(--medium)]/30 bg-[var(--medium)]/5 px-sp-4 py-sp-2">
+          <span className="inline-block h-2.5 w-2.5 rounded-full bg-[var(--medium)]" />
+          <span className="text-caption text-[var(--medium)]">Assumptions</span>
+          <span className="text-heading font-semibold text-[var(--medium)]">{parsed.assumptions.length}</span>
         </div>
       </div>
 
-      {/* Section tables */}
+      {/* Tabbed content */}
       <InvariantsTable data={parsed} />
 
       {/* Confidence methodology note */}
-      <div className="mt-6 rounded-lg border border-gray-700 bg-gray-800/50 p-5">
-        <h4 className="mb-2 text-sm font-semibold text-gray-300">Understanding Confidence Levels</h4>
-        <div className="space-y-2 text-sm text-gray-400">
+      <div className="mt-sp-5 rounded-md border border-border-default bg-surface-2 p-sp-4">
+        <h4 className="mb-sp-2 text-caption font-medium uppercase text-text-tertiary">Understanding Confidence Levels</h4>
+        <div className="space-y-2 text-body text-text-secondary">
           <p>
-            <span className="font-medium text-green-400">High</span> — The invariant is clearly
-            enforced with explicit checks (require/revert statements, modifiers, or assertions)
-            that directly validate the condition.
+            <span className="font-medium text-[var(--success)]">High</span> — Enforced with explicit checks (require/revert, modifiers, assertions).
           </p>
           <p>
-            <span className="font-medium text-yellow-400">Medium</span> — The invariant is
-            partially enforced: it holds on most code paths, but some edge cases or branches
-            may not explicitly check the condition.
+            <span className="font-medium text-[var(--medium)]">Medium</span> — Partially enforced: holds on most paths, some edge cases unchecked.
           </p>
           <p>
-            <span className="font-medium text-red-400">Low</span> — The invariant is assumed
-            but not explicitly checked. It depends on external conditions, correct caller
-            behavior, or implicit guarantees from other components.
+            <span className="font-medium text-[var(--critical)]">Low</span> — Assumed but not explicitly checked. Depends on external conditions.
           </p>
         </div>
       </div>

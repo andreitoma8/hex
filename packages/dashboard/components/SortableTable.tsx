@@ -28,15 +28,15 @@ export function SortableTable<T>({ columns, data }: SortableTableProps<T>) {
   });
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-gray-700">
-      <table className="w-full text-left text-sm">
-        <thead className="border-b border-gray-700 bg-gray-800 text-xs uppercase text-gray-400">
+    <div className="overflow-x-auto rounded-md border border-border-default">
+      <table className="w-full text-left text-body">
+        <thead className="border-b border-border-default bg-surface-2 text-caption font-medium uppercase tracking-wider text-text-tertiary">
           {table.getHeaderGroups().map((headerGroup) => (
             <tr key={headerGroup.id}>
               {headerGroup.headers.map((header) => (
                 <th
                   key={header.id}
-                  className="px-4 py-3 font-medium"
+                  className="px-sp-4 py-sp-2 font-medium"
                   style={{ width: header.getSize() !== 150 ? header.getSize() : undefined }}
                 >
                   {header.isPlaceholder ? null : (
@@ -44,7 +44,7 @@ export function SortableTable<T>({ columns, data }: SortableTableProps<T>) {
                       type="button"
                       className={`inline-flex items-center gap-1 ${
                         header.column.getCanSort()
-                          ? 'cursor-pointer select-none hover:text-gray-200'
+                          ? 'cursor-pointer select-none hover:text-text-secondary'
                           : ''
                       }`}
                       onClick={header.column.getToggleSortingHandler()}
@@ -64,12 +64,12 @@ export function SortableTable<T>({ columns, data }: SortableTableProps<T>) {
             </tr>
           ))}
         </thead>
-        <tbody className="divide-y divide-gray-700/50">
+        <tbody className="divide-y divide-border-subtle">
           {table.getRowModel().rows.length === 0 ? (
             <tr>
               <td
                 colSpan={columns.length}
-                className="px-4 py-8 text-center text-gray-500"
+                className="px-sp-4 py-sp-6 text-center text-text-tertiary"
               >
                 No data
               </td>
@@ -78,10 +78,10 @@ export function SortableTable<T>({ columns, data }: SortableTableProps<T>) {
             table.getRowModel().rows.map((row) => (
               <tr
                 key={row.id}
-                className="bg-gray-900 transition-colors hover:bg-gray-800/70"
+                className="h-9 bg-surface-1 hover:bg-surface-3"
               >
                 {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id} className="px-4 py-3 text-gray-300">
+                  <td key={cell.id} className="px-sp-4 py-sp-2 text-text-secondary">
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </td>
                 ))}
@@ -112,7 +112,7 @@ function SortDescIcon() {
 
 function SortNeutralIcon() {
   return (
-    <svg className="h-3.5 w-3.5 text-gray-600" viewBox="0 0 16 16" fill="currentColor">
+    <svg className="h-3.5 w-3.5 text-text-tertiary" viewBox="0 0 16 16" fill="currentColor">
       <path d="M8 3l3 4H5l3-4zm0 10L5 9h6l-3 4z" />
     </svg>
   );

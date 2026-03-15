@@ -2,6 +2,34 @@
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 
+/* ── Loading spinner (reusable) ── */
+export function LoadingSpinner({ label = 'Loading...' }: { label?: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 py-sp-8">
+      <svg
+        className="h-8 w-8 animate-spin text-accent"
+        viewBox="0 0 24 24"
+        fill="none"
+      >
+        <circle
+          className="opacity-25"
+          cx="12"
+          cy="12"
+          r="10"
+          stroke="currentColor"
+          strokeWidth="3"
+        />
+        <path
+          className="opacity-75"
+          fill="currentColor"
+          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+        />
+      </svg>
+      <span className="text-body text-text-secondary">{label}</span>
+    </div>
+  );
+}
+
 interface MermaidViewerProps {
   syntax: string;
 }
@@ -42,6 +70,7 @@ export function MermaidViewer({ syntax }: MermaidViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
+  const [rendering, setRendering] = useState(true);
   const [scale, setScale] = useState(1);
   const [translate, setTranslate] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
@@ -52,6 +81,7 @@ export function MermaidViewer({ syntax }: MermaidViewerProps) {
 
   useEffect(() => {
     let cancelled = false;
+    setRendering(true);
 
     async function render() {
       try {
@@ -68,16 +98,31 @@ export function MermaidViewer({ syntax }: MermaidViewerProps) {
 
         if (!cancelled && svgRef.current) {
           svgRef.current.innerHTML = svg;
-          // Make SVG responsive
           const svgEl = svgRef.current.querySelector('svg');
           if (svgEl) {
-            svgEl.style.maxWidth = '100%';
+            svgEl.style.maxWidth = 'none';
             svgEl.style.height = 'auto';
+
+            // Auto-fit: scale down to fit container if diagram overflows
+            if (containerRef.current) {
+              const padding = 48;
+              const containerW = containerRef.current.clientWidth - padding;
+              const containerH = containerRef.current.clientHeight - padding;
+              const svgW = svgEl.width.baseVal.value || svgEl.getBoundingClientRect().width;
+              const svgH = svgEl.height.baseVal.value || svgEl.getBoundingClientRect().height;
+              if (svgW > 0 && svgH > 0) {
+                const fitScale = Math.min(containerW / svgW, containerH / svgH, 1);
+                setScale(fitScale);
+                setTranslate({ x: 0, y: 0 });
+              }
+            }
           }
+          setRendering(false);
         }
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : String(err));
+          setRendering(false);
         }
       }
     }
@@ -122,10 +167,10 @@ export function MermaidViewer({ syntax }: MermaidViewerProps) {
 
   if (error) {
     return (
-      <div className="flex h-[600px] items-center justify-center rounded-lg border border-red-800/50 bg-red-950/20">
+      <div className="flex h-[600px] items-center justify-center rounded-md border border-severity-critical/30 bg-severity-critical/5">
         <div className="max-w-lg text-center">
-          <p className="mb-2 text-red-400">Failed to render diagram</p>
-          <pre className="text-xs text-red-300/60 whitespace-pre-wrap">{error}</pre>
+          <p className="mb-2 text-severity-critical">Failed to render diagram</p>
+          <pre className="whitespace-pre-wrap text-caption text-severity-critical/60">{error}</pre>
         </div>
       </div>
     );
@@ -135,40 +180,17 @@ export function MermaidViewer({ syntax }: MermaidViewerProps) {
     <div>
       {/* Overview */}
       {parsed.overview && (
-        <p className="mb-2 text-sm text-gray-400">{parsed.overview}</p>
+        <p className="mb-2 text-body text-text-secondary">{parsed.overview}</p>
       )}
 
-      <div className="relative rounded-lg border border-gray-700 bg-gray-800">
-        {/* Zoom controls */}
-        <div className="absolute top-3 right-3 z-10 flex gap-1">
-          <button
-            type="button"
-            onClick={() => zoom(0.2)}
-            className="rounded bg-gray-700 px-2.5 py-1 text-sm text-gray-300 hover:bg-gray-600 transition-colors"
-            title="Zoom in"
-          >
-            +
-          </button>
-          <button
-            type="button"
-            onClick={() => zoom(-0.2)}
-            className="rounded bg-gray-700 px-2.5 py-1 text-sm text-gray-300 hover:bg-gray-600 transition-colors"
-            title="Zoom out"
-          >
-            −
-          </button>
-          <button
-            type="button"
-            onClick={resetView}
-            className="rounded bg-gray-700 px-2.5 py-1 text-sm text-gray-300 hover:bg-gray-600 transition-colors"
-            title="Reset view"
-          >
-            ⟳
-          </button>
-          <span className="flex items-center rounded bg-gray-700/50 px-2 text-xs text-gray-400">
-            {Math.round(scale * 100)}%
-          </span>
-        </div>
+      {/* Full-bleed canvas */}
+      <div className="relative rounded-md border border-border-default bg-surface-1">
+        {/* Rendering spinner overlay */}
+        {rendering && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-surface-1/80 backdrop-blur-sm">
+            <LoadingSpinner label="Rendering diagram..." />
+          </div>
+        )}
 
         {/* Diagram viewport */}
         <div
@@ -182,7 +204,7 @@ export function MermaidViewer({ syntax }: MermaidViewerProps) {
         >
           <div
             ref={svgRef}
-            className="flex h-full w-full items-center justify-center p-8"
+            className="flex h-full w-full items-center justify-center p-sp-6"
             style={{
               transform: `translate(${translate.x}px, ${translate.y}px) scale(${scale})`,
               transformOrigin: 'center center',
@@ -190,16 +212,47 @@ export function MermaidViewer({ syntax }: MermaidViewerProps) {
             }}
           />
         </div>
-      </div>
 
-      {/* Legend */}
-      {parsed.legend.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs font-mono text-gray-500">
-          {parsed.legend.map((line, i) => (
-            <span key={i}>{line}</span>
-          ))}
+        {/* Floating zoom controls — bottom right */}
+        <div className="absolute bottom-3 right-3 z-10 flex items-center gap-1 rounded-md bg-surface-2/90 p-1 shadow-lg backdrop-blur-sm border border-border-default">
+          <button
+            type="button"
+            onClick={() => zoom(0.2)}
+            className="rounded px-2.5 py-1 text-body text-text-secondary hover:bg-surface-3 hover:text-text-primary"
+            title="Zoom in"
+          >
+            +
+          </button>
+          <button
+            type="button"
+            onClick={() => zoom(-0.2)}
+            className="rounded px-2.5 py-1 text-body text-text-secondary hover:bg-surface-3 hover:text-text-primary"
+            title="Zoom out"
+          >
+            −
+          </button>
+          <button
+            type="button"
+            onClick={resetView}
+            className="rounded px-2.5 py-1 text-body text-text-secondary hover:bg-surface-3 hover:text-text-primary"
+            title="Reset view"
+          >
+            ⟳
+          </button>
+          <span className="px-2 text-caption text-text-tertiary">
+            {Math.round(scale * 100)}%
+          </span>
         </div>
-      )}
+
+        {/* Floating legend overlay — bottom left */}
+        {parsed.legend.length > 0 && (
+          <div className="absolute bottom-3 left-3 z-10 flex flex-wrap gap-x-3 gap-y-1 rounded-md bg-surface-2/80 px-3 py-2 text-caption font-mono text-text-tertiary backdrop-blur-sm border border-border-default">
+            {parsed.legend.map((line, i) => (
+              <span key={i}>{line}</span>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
