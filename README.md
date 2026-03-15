@@ -133,7 +133,7 @@ claude
 > /generate-diagram
 ```
 
-Produces an Excalidraw diagram showing contracts (with ERC labels and purpose annotations), inheritance, external calls, state variable references, and role connections. Viewable in the dashboard at `/diagram` or openable directly in the Excalidraw desktop app.
+Generates a Mermaid architecture diagram showing concrete contracts grouped into zones, with semantic symbols (🏦 Vault, 💰 Token, 🔮 Oracle, 🔒 Governance, 📦 Storage), color-coded nodes, interaction-typed edge labels (delegatecall, external call, access-controlled), an overview header, and a visual legend. Max ~15 nodes per diagram — large protocols are automatically split into focused diagrams. Viewable in the dashboard at `/diagram` with zoom and pan controls.
 
 *Recommended model: Sonnet*
 
@@ -144,7 +144,7 @@ claude
 > /generate-flows
 ```
 
-Generates flow charts for every significant path through the protocol, grouped by user type (anyone, owner, keeper, etc.), value flows (deposits, withdrawals, fee collection), and admin operations. Entry points trace through internal calls, state changes, and external calls to their exit points.
+Generates Mermaid flow charts for every significant path through the protocol, grouped by user type (anyone, owner, keeper, etc.), value flows (deposits, withdrawals, fee collection), and admin operations. Each flow uses distinct node shapes (stadium for start/end, cylinder for state changes, rhombus for decisions), swim-lane subgraphs per contract, and plain-English labels throughout. Every decision diamond shows both success and revert paths. Only in-scope contracts get flows — out-of-scope contracts appear only as external call targets. Max ~15 nodes per flow — complex flows are automatically split. Includes overview header and visual legend.
 
 *Recommended model: Opus*
 
@@ -359,8 +359,8 @@ Skills are invoked through Claude Code. Each skill has a recommended model — s
 |-------|-------|-------------------|-------------|
 | `init-audit` | Setup | Sonnet | Runs all init + analysis tools in sequence |
 | `generate-overview` | 1.1 | Sonnet | Writes 2-3 paragraph protocol overview |
-| `generate-diagram` | 1.3 | Sonnet | Creates Excalidraw system architecture diagram |
-| `generate-flows` | 1.4 | Opus | Creates Excalidraw flow charts by user type and value paths |
+| `generate-diagram` | 1.3 | Sonnet | Creates Mermaid system architecture diagram |
+| `generate-flows` | 1.4 | Opus | Creates Mermaid flow charts by user type and value paths |
 | `identify-invariants` | 1.5 | Opus | Three-pass invariant identification (docs → code → compare) |
 | `check-spec-conformance` | 1.6 | Opus | Verifies code matches docs, NatSpec, interfaces, ERC/EIPs |
 | `generate-poc` | 3.1 | Opus | Validates issue reasoning, then writes and runs PoC test |
@@ -424,8 +424,8 @@ The dashboard runs locally at `http://localhost:3000` and auto-refreshes when ou
 |------|-----|-------------|
 | Home | `/` | Project info, AI overview, key stats |
 | Statistics | `/stats` | Per-contract metrics, test coverage, dependencies, ERCs |
-| System Diagram | `/diagram` | Interactive Excalidraw architecture diagram |
-| Flows | `/flows` | Interactive Excalidraw flow charts |
+| System Diagram | `/diagram` | Mermaid architecture diagram with zoom/pan |
+| Flows | `/flows` | Mermaid flow charts with zoom/pan |
 | Access Control | `/access` | Role → function matrix with "Show unprotected only" toggle |
 | State Variables | `/state` | Variable inventory with reader/writer tracking |
 | External Calls | `/calls` | Call surface with filterable Trust column |
@@ -467,8 +467,9 @@ All SolAudit outputs live in a single directory inside the project (default: `.s
 ├── invariants.md            # Identified invariants
 ├── spec-conformance.json    # Spec vs code conformance checks
 ├── spec-conformance.md      # Rendered conformance report
-├── diagram.excalidraw       # System architecture diagram
-├── flows.excalidraw         # Flow charts
+├── diagrams/                # All Mermaid diagram files
+│   ├── diagram.mmd          # System architecture diagram
+│   └── flow-*.mmd           # Flow charts (one per flow)
 ├── findings.json            # Canonical finding data (source of truth)
 ├── findings.md              # Rendered findings (generated from JSON)
 ├── validations/             # Issue validation memos

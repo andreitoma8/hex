@@ -11,7 +11,7 @@ export function initWatcher(outputDir: string): void {
   if (watcher) return;
 
   watcher = chokidar.watch(
-    path.join(outputDir, '**/*.{json,md,excalidraw}'),
+    path.join(outputDir, '**/*.{json,md,mmd}'),
     {
       ignoreInitial: true,
       awaitWriteFinish: {

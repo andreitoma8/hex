@@ -40,12 +40,12 @@ Writes a protocol overview to `.solaudit/overview.md`.
 ```
 /generate-diagram
 ```
-Creates an Excalidraw system architecture diagram.
+Generates a color-coded Mermaid architecture diagram with semantic symbols (🏦 Vault, 💰 Token, 🔮 Oracle, etc.), zone groupings, interaction-typed edge labels (delegatecall, external call, access-controlled), overview header, and a visual legend. Max ~15 nodes per diagram — large protocols are split automatically.
 
 ```
 /generate-flows
 ```
-Generates flow charts grouped by user type and value paths.
+Generates Mermaid flow charts with distinct node shapes (stadium for start/end, cylinder for state changes, rhombus for decisions), swim-lane subgraphs, and plain-English labels. Every decision shows both success and revert paths. Only covers in-scope contracts. Includes overview header and visual legend. Max ~15 nodes per flow.
 
 ```
 /identify-invariants

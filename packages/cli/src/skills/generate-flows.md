@@ -1,5 +1,5 @@
 ---
-description: "Generate Excalidraw flow charts by user type and value paths"
+description: "Generate Mermaid flow charts by user type and value paths"
 ---
 
 # Skill: Generate Flow Charts
@@ -8,162 +8,209 @@ description: "Generate Excalidraw flow charts by user type and value paths"
 
 ## Context Assembly
 
-Run: `npx solaudit context` to get the full codebase.
+1. Run `npx solaudit context` to get the full codebase
+2. Read `.solaudit/overview.md` if it exists
 
-Read these files from the output directory:
-- **`access-control.json`** — Role → function mapping
-- **`external-calls.json`** — External call surface with trust levels
-- **`state-vars.json`** — State variable inventory
-- **`stats.json`** — Contract overview, types, sizes, ERC/EIP data
-- **`deps.json`** — Contract relationships, clusters, inheritance
-- **`overview.md`** (optional) — AI-generated protocol overview for swim lane headers and flow naming
+From these, identify all significant flows:
+- **User-type flows**: what can each role do? (anyone, owner, keeper, etc.)
+- **Value flows**: deposits, withdrawals, fee collection, liquidations, swaps
+- **Admin flows**: configuration, pausing, upgrades — what changes and what are the consequences
 
-### ERC/EIP Mapping
+**Only generate flows for in-scope contracts** (defined in `.solaudit/config.json`). Out-of-scope contracts may appear in subgraphs as external call targets when in-scope contracts interact with them, but do not generate standalone flows for out-of-scope contracts. If a contract has no relation to the audit scope, omit it entirely.
 
-From `stats.json.per_contract.inherits`, determine which contracts implement ERC/EIP standards (e.g., Vault inherits ERC4626 → label `[ERC-4626]`). Use these labels in swim lane headers.
+## Color Palette (classDef)
 
-## Task
-
-Create Excalidraw flow charts for every significant flow in the protocol.
-
-**Critical instruction:** All labels, node text, and annotations must use **plain English descriptions** — not Solidity code. The audience is someone reviewing the protocol without reading source code.
-
-### Flow Grouping
-
-1. **User type** (from access control: anyone, owner, keeper, etc.) — trace what functions each role can call
-2. **Value flows** (deposits, withdrawals, fee collection, liquidations, swaps) — mark entry/exit points for value
-3. **Admin flows** (configuration, pausing, upgrades) — what can the admin change and what are the consequences
-
-### For Each Flow
-
-- Start with the entry point (user action that triggers the flow)
-- Trace through all internal steps, state changes, and external interactions
-- End at the outcome (result returned, tokens transferred, or operation rejected)
-- Mark value entry/exit points with red border
-- Mark important state modifications with yellow highlight
-- Show rejection conditions as rounded rectangles with red stroke (no diamond shapes)
-
-### Plain-English Labeling Rules
-
-**Swim lane headers** — Contract purpose + ERC label:
-- Bad: `Vault` → Good: `Vault [ERC-4626] — Main deposit/withdrawal entry`
-
-**Node labels** — Describe what happens, not what function is called:
-- Bad: `_deposit(assets, shares, receiver)` → Good: `Calculate shares for deposited assets and mint to receiver`
-
-**State changes** — Describe the effect:
-- Bad: `totalAssets += amount` → Good: `Increase tracked total assets`
-
-**Decisions** — Plain conditions:
-- Bad: `require(assets > 0)` → Good: `Deposit amount must be > 0`
-
-**External calls** — Purpose of interaction:
-- Bad: `IERC20(token).transferFrom(...)` → Good: `Pull deposited tokens from user`
-
-**Value transfers** — What moves and where:
-- Bad: `safeTransfer(token, receiver, amount)` → Good: `Send withdrawal proceeds to user`
-
-### Layout
-
-Use swim lanes to separate contracts:
-- Each contract gets a vertical column with header (name + ERC label + one-line purpose)
-- Steps between contracts are horizontal arrows with plain-English labels
-- State changes annotated inline
-- External calls (out-of-scope contracts) go to a separate "External" lane
-
-### Visual Conventions
-
-| Element | Shape | Color |
-|---------|-------|-------|
-| Entry point (user action) | Rounded rectangle | Green fill (`#dcfce7`) |
-| Internal step | Rectangle | White fill |
-| State change | Rectangle, dashed border | Yellow fill (`#fef9c3`) |
-| External interaction | Rectangle, bold border | Red fill (`#fee2e2`) |
-| Decision / validation | Rounded rectangle | White fill, red stroke (`#ef4444`) |
-| Value transfer | Arrow with "$" label | Red stroke |
-| Return / rejection | Rounded rectangle | Gray fill |
-
----
-
-## Excalidraw JSON Rules
-
-### Binding pattern (REQUIRED for every labeled shape)
-
-Every labeled shape = **TWO elements**: a shape with `boundElements` + a text element with `containerId`.
+Define these styles at the bottom of every diagram:
 
 ```
-Shape:  "boundElements": [{"id": "<text-id>", "type": "text"}, ...arrows...]
-Text:   "containerId": "<shape-id>",  "originalText" must equal "text"
+classDef entry fill:#b2f2bb,stroke:#2f9e44,color:#000
+classDef step fill:#ffffff,stroke:#1e1e1e,color:#000
+classDef state fill:#ffec99,stroke:#f08c00,color:#000,stroke-dasharray:5 5
+classDef ext fill:#ffc9c9,stroke:#e03131,color:#000
+classDef decision fill:#ffffff,stroke:#e03131,color:#000
+classDef reject fill:#e9ecef,stroke:#868e96,color:#000
+classDef success fill:#b2f2bb,stroke:#2f9e44,color:#000
 ```
 
-### Critical properties
+## Node Shapes
 
-1. `fontFamily: 2` (Helvetica) on ALL text — never `1` (Virgil/handwritten)
-2. `roughness: 0` on everything
-3. `autoResize: true` on bound text elements
-4. `textAlign: "center"`, `verticalAlign: "middle"` for bound text
-5. No diamond shapes — use styled rectangles instead
-6. Size containers to fit text: `height = max(minHeight, numLines × fontSize × 1.25 + 20)`
+Use distinct Mermaid shapes for semantic meaning — makes diagrams instantly scannable:
 
-### Arrow rules
+| Element Type | Class | Node Syntax | Shape |
+|-------------|-------|-------------|-------|
+| Entry point (user action) | `entry` | `id(["Label"]):::entry` | Stadium (rounded) |
+| Internal step | `step` | `id["Label"]:::step` | Rectangle |
+| State change (storage mutation) | `state` | `id[("Label")]:::state` | Cylinder |
+| External call | `ext` | `id["Label"]:::ext` | Rectangle |
+| Decision / validation | `decision` | `id{"Label"}:::decision` | Rhombus |
+| Rejection / revert | `reject` | `id(["Label"]):::reject` | Stadium (rounded) |
+| Success outcome | `success` | `id(["Label"]):::success` | Stadium (rounded) |
 
-1. Always elbowed: `roughness: 0` + `roundness: null` + `elbowed: true`
-2. `points[0]` is always `[0, 0]`; subsequent points are offsets from arrow's `(x, y)`
-3. `width`/`height` = bounding box of the `points` array
-4. Both source and target shapes must list the arrow in their `boundElements`
-5. `startBinding.elementId` / `endBinding.elementId` must reference real element IDs
+Key rules:
+- **Entry points, success outcomes, and revert/rejections** use stadium `([text])` — these are start/end nodes
+- **State changes** use cylinder `[(text)]` — they represent storage mutations
+- **Decisions** use rhombus `{text}` — branching points
+- **Steps and external calls** use rectangle `[text]` — processing nodes
 
-### Arrow labels
+## Plain-English Labeling Rules
 
-For labels on arrows (e.g., "revert", "success", "$"), use a standalone text element positioned beside the arrow. Do NOT bind it to the arrow.
+**All text must use plain English — never Solidity code.**
 
-### Element ID Convention
+| What | Bad | Good |
+|------|-----|------|
+| Node label | `_deposit(assets, shares, receiver)` | `Calculate shares and mint to receiver` |
+| State change | `totalAssets += amount` | `Increase tracked total assets` |
+| Decision | `require(assets > 0)` | `Deposit amount > 0?` |
+| External call | `IERC20(token).transferFrom(...)` | `Pull deposited tokens from user` |
+| Edge label | `safeTransfer` | `"send tokens"` |
 
-| Element | Pattern | Example |
-|---------|---------|---------|
-| Lane header | `lane-<Contract>` | `lane-Vault` |
-| Lane label | `text-lane-<Contract>` | `text-lane-Vault` |
-| Flow step | `s-<n>` | `s-1` |
-| Step label | `text-s-<n>` | `text-s-1` |
-| Validation check | `s-check-<n>` | `s-check-1` |
-| Arrow | `arrow-<src>-<dst>` | `arrow-s1-s2` |
-| Arrow label | `label-arrow-<src>-<dst>` | `label-arrow-s1-s2` |
-| Section divider | `sec-<n>` | `sec-1` |
+## Layout
 
-Use descriptive string IDs, never UUIDs. Sequential integer seeds namespaced by section.
+- **Always use `graph TD`** (top-down) — vertical layout fits desktop screens and handles branching naturally. Do not use `graph LR`.
+- Use `subgraph` blocks as swim lanes per contract
+- **Subgraph IDs must be space-free.** When a subgraph name has spaces, use `subgraph id["Display Name"]` so the ID works in `style` directives:
+  ```
+  subgraph depositPath["Deposit Path"]
+    s1["Calculate shares"]:::step
+    s2[("Update total assets")]:::state
+  end
+  style depositPath fill:none,stroke:#1971c2,stroke-dasharray:5 5,color:#1971c2
+  ```
+  Single-word names can be used directly: `subgraph Vault`
+- **Connect all subgraphs.** When a flow has multiple independent sub-paths in separate subgraphs (e.g., deposit + withdraw), connect the end of each sub-path to the start of the next with a dotted edge. This forces Mermaid to stack them vertically instead of side-by-side:
+  ```
+  okDeposit -.-> startWithdraw
+  ```
+- Cross-contract calls are edges between subgraphs
+- Every edge has a label: `s1 -->|"success"| s2`
 
-### JSON wrapper
+## Node Limit
 
-```json
-{
-  "type": "excalidraw",
-  "version": 2,
-  "source": "solaudit",
-  "elements": [ ... ],
-  "appState": { "viewBackgroundColor": "#ffffff", "gridSize": 20 },
-  "files": {}
-}
-```
+**Max ~15 steps per flow diagram.** If a flow is longer, split it into sub-flows (e.g., `flow-deposit-validation.mmd` and `flow-deposit-execution.mmd`). Each sub-flow should stand alone with its own entry and exit points.
 
----
+## Error Path Rule
+
+**Every decision diamond must show both the success path AND the revert/failure path.** Revert paths are critical for audit — they show what preconditions the protocol enforces. Never omit a revert branch from a decision.
+
+## File Structure
+
+Every `.mmd` file must include:
+
+1. **Overview comment** at the top — 1-2 sentences describing what the flow covers:
+   ```
+   %% Flow: ERC-4626 deposit — user deposits underlying tokens,
+   %% receives vault shares after validation and accounting update.
+   ```
+
+2. **The diagram** — graph definition, nodes, edges, classDefs, subgraph styles
+
+3. **Visual legend** at the bottom — a comment block showing what colors and shapes mean:
+   ```
+   %% --- Legend ---
+   %% Shapes: ([...])=Start/End  [...]= Step  [(...)]= State change  {...}=Decision
+   %% Colors: green=Entry/Success  white=Step  yellow=State  red=External/Decision  gray=Revert
+   ```
+
+## Workflow
+
+1. **Gather context** — run `npx solaudit context`, read `.solaudit/overview.md` and analysis outputs
+2. **Plan all flows** — list each flow with its steps, contracts involved, and decisions. Output in a code fence.
+3. **For each flow:**
+   a. **Write the diagram** — produce full Mermaid syntax and write to `<output_dir>/diagrams/flow-<name>.mmd` (create the `diagrams/` subdirectory if it doesn't exist)
+   b. **Validate** — read the file back and run through the validation checklist below
+   c. **Fix** — if any issue found, rewrite the file. Never leave a broken diagram.
+4. Generate flows sequentially — validate each before starting the next.
 
 ## Validation Checklist
 
-- [ ] Every shape has `boundElements` listing its text (and connected arrows)
-- [ ] Every bound text has `containerId` matching its parent shape's `id`
-- [ ] `text` === `originalText` on every text element
-- [ ] `fontFamily: 2` everywhere, never `1`
-- [ ] `roughness: 0` on all elements
-- [ ] No diamond shapes
-- [ ] Arrow `points[0]` is `[0, 0]`; `width`/`height` match points bounding box
-- [ ] Both source and target shapes list each arrow in `boundElements`
+After writing each flow, read the file back and verify ALL of the following:
 
----
+- [ ] Opening/closing quotes are balanced (count them — must be even)
+- [ ] Every node ID referenced in an edge (`A --> B`) is defined as a node
+- [ ] No duplicate node IDs
+- [ ] Every `subgraph` has a matching `end`
+- [ ] Every `classDef` name used in `:::className` is actually defined
+- [ ] All `style` targets use space-free IDs (use `subgraph id["Name"]` pattern for multi-word names)
+- [ ] All subgraphs are connected — no disconnected subgraphs (use dotted edges `-.->` between independent sub-paths)
+- [ ] Every decision node (`{...}:::decision`) has at least two outgoing edges (success + failure/revert)
+- [ ] Entry points use stadium shape `([...])`
+- [ ] Success/reject outcomes use stadium shape `([...])`
+- [ ] State changes use cylinder shape `[(...)]`
+- [ ] Overview comment block is present at the top
+- [ ] Legend comment block is present at the bottom
+- [ ] Node count is ≤15 (if over, split into sub-flows)
 
-## Output
+If any check fails, fix and rewrite — **never leave a broken diagram**.
 
-Generate each flow as a separate file: `<output_dir>/flow-<name>.excalidraw` (e.g., `flow-deposit.excalidraw`, `flow-admin-pause.excalidraw`).
+## Example
 
-Generate flows one at a time. If there are more than 3 flows, do them sequentially — verify each renders correctly before starting the next.
+```mermaid
+%% Flow: ERC-4626 deposit and withdraw — user deposits underlying tokens for vault
+%% shares, or redeems shares back to underlying after validation and accounting updates.
+graph TD
+  subgraph depositFlow["Deposit Flow"]
+    start(["User calls deposit(assets)"]):::entry
+    d1{"Deposit amount > 0?"}:::decision
+    s1["Calculate shares for deposit"]:::step
+    mint["Mint share tokens"]:::ext
+    s2[("Update tracked total assets")]:::state
+    ok(["Shares minted to user"]):::success
+    fail(["Revert: zero deposit"]):::reject
+  end
 
-Swim lane layout: Y-axis = flow progression (top to bottom), X-axis = contract separation (left to right). Each file contains a single flow.
+  subgraph withdrawFlow["Withdraw Flow"]
+    startW(["User calls withdraw(shares)"]):::entry
+    w1{"Shares balance sufficient?"}:::decision
+    w2["Calculate assets for shares"]:::step
+    burn["Burn share tokens"]:::ext
+    w3[("Decrease tracked total assets")]:::state
+    okW(["Assets returned to user"]):::success
+    failW(["Revert: insufficient shares"]):::reject
+  end
+
+  start -->|"initiates"| d1
+  d1 -->|"yes"| s1
+  d1 -->|"no"| fail
+  s1 -->|"then"| mint
+  mint -->|"returns"| s2
+  s2 -->|"complete"| ok
+
+  ok -.-> startW
+
+  startW -->|"initiates"| w1
+  w1 -->|"yes"| w2
+  w1 -->|"no"| failW
+  w2 -->|"then"| burn
+  burn -->|"returns"| w3
+  w3 -->|"complete"| okW
+
+  classDef entry fill:#b2f2bb,stroke:#2f9e44,color:#000
+  classDef step fill:#ffffff,stroke:#1e1e1e,color:#000
+  classDef state fill:#ffec99,stroke:#f08c00,color:#000,stroke-dasharray:5 5
+  classDef ext fill:#ffc9c9,stroke:#e03131,color:#000
+  classDef decision fill:#ffffff,stroke:#e03131,color:#000
+  classDef reject fill:#e9ecef,stroke:#868e96,color:#000
+  classDef success fill:#b2f2bb,stroke:#2f9e44,color:#000
+
+  style depositFlow fill:none,stroke:#2f9e44,stroke-dasharray:5 5,color:#2f9e44
+  style withdrawFlow fill:none,stroke:#1971c2,stroke-dasharray:5 5,color:#1971c2
+
+%% --- Legend ---
+%% Shapes: ([...])=Start/End  [...]= Step  [(...)]= State change  {...}=Decision
+%% Colors: green=Entry/Success  white=Step  yellow=State  red=External/Decision  gray=Revert
+```
+
+## Guidelines
+
+- **Plain English only** — no function names, no Solidity syntax in any visible text
+- **One file per flow** — `flow-deposit.mmd`, `flow-admin-pause.mmd`, etc.
+- **Every arrow has a label** — "success", "revert", "if approved", etc.
+- **Every decision shows both paths** — success AND revert/failure; revert paths are audit-critical
+- **Decisions** use rhombus `{}` syntax with red stroke to draw attention
+- **State changes** use cylinder `[()]` shape + yellow fill + dashed border to stand out
+- **Entry/exit nodes** use stadium `([])` shape — makes flow boundaries clear
+- **External calls** use red fill to highlight trust boundary crossings
+- **Max ~15 nodes** — split long flows into sub-flows
+- **Scope-aware** — only generate flows for in-scope contracts; out-of-scope contracts appear only as call targets of in-scope flows
+- **Keep it concrete** — show the actual steps, not abstractions
+- After writing all flows, tell the user to check the Flows tab in the dashboard (`solaudit dashboard`)

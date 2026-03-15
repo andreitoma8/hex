@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ExcalidrawViewer } from '@/components/ExcalidrawViewer';
+import { MermaidViewer } from '@/components/MermaidViewer';
 
 interface FlowEntry {
   name: string;
@@ -11,6 +11,7 @@ interface FlowEntry {
 export default function FlowsPage() {
   const [flows, setFlows] = useState<FlowEntry[]>([]);
   const [activeTab, setActiveTab] = useState(0);
+  const [syntax, setSyntax] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -22,6 +23,22 @@ export default function FlowsPage() {
       })
       .catch(() => setLoading(false));
   }, []);
+
+  // Load syntax when active tab changes
+  useEffect(() => {
+    if (flows.length === 0) return;
+    const flow = flows[activeTab];
+    if (!flow) return;
+
+    setSyntax(null);
+    fetch(`/api/mermaid?file=${encodeURIComponent(flow.filename)}`)
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed to load flow');
+        return res.json();
+      })
+      .then((data) => setSyntax(data.syntax ?? null))
+      .catch(() => setSyntax(null));
+  }, [flows, activeTab]);
 
   if (loading) {
     return (
@@ -71,8 +88,12 @@ export default function FlowsPage() {
       )}
 
       {/* Active flow diagram */}
-      {flows[activeTab] && (
-        <ExcalidrawViewer key={flows[activeTab].filename} filename={flows[activeTab].filename} />
+      {syntax ? (
+        <MermaidViewer key={flows[activeTab]?.filename} syntax={syntax} />
+      ) : (
+        <div className="flex h-[600px] items-center justify-center rounded-lg border border-gray-700 bg-gray-800">
+          <p className="text-gray-400">Loading diagram...</p>
+        </div>
       )}
     </div>
   );
