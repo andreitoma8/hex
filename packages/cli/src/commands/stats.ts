@@ -9,7 +9,7 @@ import { parseSolidity, type ParsedContract, type ParsedFunction } from '../pars
 import { countNsloc, getCommentRanges, getAssemblyRanges } from '../analysis/nsloc.js';
 import { detectErcs } from '../analysis/erc-detection.js';
 import { parseLcov, coveragePct } from '../parsers/lcov.js';
-import { runForge } from '../core/external-tools.js';
+import { runForge, flattenFile } from '../core/external-tools.js';
 import type { Stats, PerContractStats, TestCoverage } from '../types/index.js';
 
 export const statsCommand = new Command('stats')
@@ -240,18 +240,6 @@ function resolveDependencyVersions(
   }
 
   return deps.sort((a, b) => a.package.localeCompare(b.package));
-}
-
-async function flattenFile(projectDir: string, filePath: string): Promise<string | null> {
-  try {
-    const result = await runForge(projectDir, ['flatten', filePath]);
-    if (result.exitCode === 0 && result.stdout.trim().length > 0) {
-      return result.stdout;
-    }
-    return null;
-  } catch {
-    return null;
-  }
 }
 
 interface ResolvedMembers {

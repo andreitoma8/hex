@@ -143,6 +143,7 @@ export const AccessFunctionSchema = z.object({
   modifiers: z.array(z.string()),
   evidence: EvidenceSchema,
   inherited_from: z.string().optional(),
+  inheritance_depth: z.number().int().optional(),
 });
 
 export const RoleFunctionRefSchema = z.object({

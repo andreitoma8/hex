@@ -18,6 +18,8 @@ interface AccessFunction {
   state_mutability: string | null;
   modifiers: string[];
   evidence: Evidence;
+  inherited_from?: string;
+  inheritance_depth?: number;
 }
 
 interface AccessControl {
@@ -72,6 +74,8 @@ interface FunctionRow {
   state_vars_written: string[];
   external_calls: string[];
   evidence: Evidence;
+  inherited_from?: string;
+  inheritance_depth?: number;
 }
 
 function buildFunctionRows(
@@ -121,8 +125,17 @@ function buildFunctionRows(
       state_vars_written: varsWritten,
       external_calls: extCalls,
       evidence: fn.evidence,
+      inherited_from: fn.inherited_from,
+      inheritance_depth: fn.inheritance_depth,
     });
   }
+
+  // Sort: primary by contract name, secondary by inheritance depth (own=0 first, deepest ancestor last)
+  rows.sort((a, b) => {
+    const cmp = a.contract.localeCompare(b.contract);
+    if (cmp !== 0) return cmp;
+    return (a.inheritance_depth ?? 0) - (b.inheritance_depth ?? 0);
+  });
 
   return rows;
 }

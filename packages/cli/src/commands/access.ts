@@ -7,8 +7,8 @@ import { getOutputDir, normalizePath } from '../core/paths.js';
 import { writeJsonOutput } from '../core/output.js';
 import { parseSolidity } from '../parsers/solidity-parser.js';
 import { parseFunctionSummary } from '../parsers/slither.js';
-import { extractFunctionFacts, mergeInheritedFunctions, interpretRoles } from '../analysis/access-control.js';
-import { runSlither } from '../core/external-tools.js';
+import { extractFunctionFacts, mergeInheritedFunctions, mergeInheritedFromFlatten, interpretRoles } from '../analysis/access-control.js';
+import { runSlither, flattenFile } from '../core/external-tools.js';
 import type { AccessControl } from '../types/index.js';
 
 export const accessCommand = new Command('access')
@@ -66,6 +66,42 @@ export const accessCommand = new Command('access')
         }
       } catch {
         logger.warn('Slither not available — Tier 2 limited to naming heuristics. Inherited functions may be missing.');
+      }
+
+      // Tier 2b: Flatten-based inherited function resolution (fallback for missing Slither data)
+      // Find contracts that have parents but no inherited functions yet
+      const needsFlatten = allContracts.filter(
+        (c) => c.type !== 'interface' && c.baseContracts.length > 0
+          && !functions.some((f) => f.contract === c.name && f.inherited_from),
+      );
+
+      if (needsFlatten.length > 0) {
+        spin.text = 'Resolving inherited members via flatten...';
+        const flattenCache = new Map<string, ReturnType<typeof parseSolidity> | null>();
+
+        for (const contract of needsFlatten) {
+          const scopeFile = fileMap.get(contract.name);
+          if (!scopeFile) continue;
+
+          // Cache flattened parse per file (multiple contracts may share a file)
+          if (!flattenCache.has(scopeFile)) {
+            const filePath = path.resolve(config.project.project_dir, scopeFile);
+            const flattenedSource = await flattenFile(config.project.project_dir, filePath);
+            flattenCache.set(scopeFile, flattenedSource ? parseSolidity(flattenedSource, scopeFile) : null);
+          }
+
+          const flatParsed = flattenCache.get(scopeFile);
+          if (!flatParsed) continue;
+
+          functions = mergeInheritedFromFlatten(
+            functions, flatParsed.contracts, contract, scopeFile,
+          );
+        }
+
+        const flatInheritedCount = functions.filter((f) => f.inherited_from).length;
+        if (flatInheritedCount > 0) {
+          logger.info(`Found ${flatInheritedCount} inherited functions via flatten`);
+        }
       }
 
       // Tier 2: Role interpretation

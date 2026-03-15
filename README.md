@@ -187,7 +187,7 @@ Each check is classified as CONFORMS, DEVIATES, PARTIAL, UNVERIFIABLE, or UNDOCU
 
 Already generated during init. View them on the dashboard:
 
-- `/access` — Who can call what. Functions grouped by role, with confidence indicators showing whether a role was detected from a known library (high confidence) or inferred from a modifier name (low confidence, needs verification). Interface functions are filtered out. Includes inherited functions when Slither is available. A "Show unprotected only" toggle highlights state-changing functions callable by anyone.
+- `/access` — Who can call what. Functions grouped by role, with confidence indicators showing whether a role was detected from a known library (high confidence) or inferred from a modifier name (low confidence, needs verification). Interface functions are filtered out. Includes inherited functions (via Slither when available, or via `forge flatten` as fallback). A "Show unprotected only" toggle highlights state-changing functions callable by anyone.
 - `/state` — Every state variable with its type, mutability, which functions read and write it, and whether it's unused. Storage slots shown only when sourced from compiler artifacts.
 - `/calls` — Every external call with trust level, return value checking, and reentrancy guard status. Uses AST-based extraction (works without Slither), with optional Slither enrichment for unchecked returns and reentrancy guard detection. Trust column is filterable.
 

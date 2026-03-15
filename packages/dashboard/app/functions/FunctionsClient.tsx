@@ -24,6 +24,8 @@ interface FunctionRow {
   state_vars_written: string[];
   external_calls: string[];
   evidence: Evidence;
+  inherited_from?: string;
+  inheritance_depth?: number;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────
@@ -71,7 +73,14 @@ const columns: FilterableColumn<FunctionRow>[] = [
     header: 'Contract',
     accessorKey: 'contract',
     enableColumnFilter: true,
-    cell: (row) => <span className="font-medium text-text-primary">{row.contract}</span>,
+    cell: (row) => (
+      <div>
+        <span className="font-medium text-text-primary">{row.contract}</span>
+        {row.inherited_from && (
+          <span className="ml-1.5 text-caption text-text-tertiary">← {row.inherited_from}</span>
+        )}
+      </div>
+    ),
   },
   {
     id: 'name',

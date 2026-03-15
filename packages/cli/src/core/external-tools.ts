@@ -123,6 +123,21 @@ export async function runForge(
 }
 
 /**
+ * Flatten a Solidity file using forge flatten.
+ */
+export async function flattenFile(projectDir: string, filePath: string): Promise<string | null> {
+  try {
+    const result = await runForge(projectDir, ['flatten', filePath]);
+    if (result.exitCode === 0 && result.stdout.trim().length > 0) {
+      return result.stdout;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Run solc.
  */
 export async function runSolc(

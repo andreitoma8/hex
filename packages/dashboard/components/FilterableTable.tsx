@@ -67,6 +67,7 @@ export function FilterableTable<T extends object>({
         accessorKey: col.accessorKey,
         header: col.header,
         enableColumnFilter: col.enableColumnFilter ?? false,
+        filterFn: col.enableColumnFilter ? 'equalsString' : undefined,
         ...(col.sortingFn ? { sortingFn: col.sortingFn } : {}),
         cell: col.cell
           ? ({ row }) => col.cell!(row.original)

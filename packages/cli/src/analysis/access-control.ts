@@ -85,6 +85,23 @@ export function mergeInheritedFunctions(
     }
   }
 
+  // Compute inheritance depth for each contract's ancestors
+  // depth 1 = direct parent, 2 = grandparent, etc.
+  function computeDepths(contractName: string): Map<string, number> {
+    const depths = new Map<string, number>();
+    const visited = new Set<string>();
+    function walk(name: string, depth: number): void {
+      if (visited.has(name)) return;
+      visited.add(name);
+      if (name !== contractName) depths.set(name, depth);
+      for (const base of inheritanceMap.get(name) ?? []) {
+        walk(base, depth + 1);
+      }
+    }
+    walk(contractName, 0);
+    return depths;
+  }
+
   // Group Slither summaries by contract
   const slitherByContract = new Map<string, SlitherFunctionSummary[]>();
   for (const s of slitherSummary) {
@@ -98,6 +115,8 @@ export function mergeInheritedFunctions(
   for (const [contractName, summaries] of slitherByContract) {
     const parents = inheritanceMap.get(contractName) ?? [];
     if (parents.length === 0) continue;
+
+    const depthMap = computeDepths(contractName);
 
     for (const summary of summaries) {
       // Skip constructors and special functions
@@ -132,10 +151,89 @@ export function mergeInheritedFunctions(
           line_end: 0,
         },
         inherited_from: parentContract ?? undefined,
+        inheritance_depth: parentContract ? (depthMap.get(parentContract) ?? 1) : 1,
       });
     }
   }
 
+  return [...functions, ...inherited];
+}
+
+/**
+ * Merge inherited functions by walking the inheritance chain from flattened source AST.
+ * Fallback for when Slither is not available.
+ */
+export function mergeInheritedFromFlatten(
+  functions: AccessFunction[],
+  flatParsedContracts: ParsedContract[],
+  targetContract: ParsedContract,
+  filePath: string,
+): AccessFunction[] {
+  const contractMap = new Map<string, ParsedContract>();
+  for (const c of flatParsedContracts) contractMap.set(c.name, c);
+
+  const target = contractMap.get(targetContract.name);
+  if (!target || target.baseContracts.length === 0) return functions;
+
+  // Build set of already-known function keys for this contract
+  const knownKeys = new Set(
+    functions
+      .filter((f) => f.contract === targetContract.name)
+      .map((f) => f.function),
+  );
+
+  const visited = new Set<string>();
+  const inherited: AccessFunction[] = [];
+
+  // Compute inheritance depth for each ancestor (1 = direct parent, 2 = grandparent, etc.)
+  const depthMap = new Map<string, number>();
+  function computeDepth(name: string, depth: number): void {
+    if (visited.has(name)) return;
+    visited.add(name);
+    const contract = contractMap.get(name);
+    if (!contract) return;
+    if (name !== targetContract.name) {
+      depthMap.set(name, depth);
+    }
+    for (const base of contract.baseContracts) {
+      computeDepth(base, depth + 1);
+    }
+  }
+  computeDepth(targetContract.name, 0);
+
+  // Walk again to collect inherited functions (reset visited)
+  visited.clear();
+
+  function walk(name: string): void {
+    if (visited.has(name)) return;
+    visited.add(name);
+    const contract = contractMap.get(name);
+    if (!contract) return;
+    // Walk parents first so child overrides take precedence
+    for (const base of contract.baseContracts) walk(base);
+
+    // Skip the target contract itself — its functions are already in Tier 1
+    if (name === targetContract.name) return;
+
+    for (const func of contract.functions) {
+      if (func.isConstructor || func.isFallback || func.isReceive) continue;
+      if (knownKeys.has(func.name)) continue;
+      knownKeys.add(func.name);
+
+      inherited.push({
+        contract: targetContract.name,
+        function: func.name,
+        visibility: func.visibility === 'default' ? 'internal' : func.visibility,
+        state_mutability: (func.stateMutability as 'pure' | 'view' | 'nonpayable' | 'payable') ?? null,
+        modifiers: func.modifiers,
+        evidence: { file: filePath, line_start: 0, line_end: 0 },
+        inherited_from: name,
+        inheritance_depth: depthMap.get(name) ?? 1,
+      });
+    }
+  }
+
+  walk(targetContract.name);
   return [...functions, ...inherited];
 }
 
