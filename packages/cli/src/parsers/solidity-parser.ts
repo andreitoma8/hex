@@ -4,6 +4,8 @@ import type { ASTNode, Comment } from '@solidity-parser/parser/src/ast-types.js'
 export interface ParsedContract {
   name: string;
   type: 'contract' | 'interface' | 'library' | 'abstract';
+  lineStart: number;
+  lineEnd: number;
   baseContracts: string[];
   functions: ParsedFunction[];
   modifiers: ParsedModifier[];
@@ -148,6 +150,8 @@ function parseContract(node: ASTNode & { type: 'ContractDefinition' }): ParsedCo
   return {
     name: node.name ?? '',
     type,
+    lineStart: node.loc?.start.line ?? 0,
+    lineEnd: node.loc?.end.line ?? 0,
     baseContracts,
     functions,
     modifiers,

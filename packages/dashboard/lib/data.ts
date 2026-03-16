@@ -43,6 +43,14 @@ export function readMarkdownFile(filename: string): string | null {
 }
 
 /**
+ * Write a JSON file to the output directory.
+ */
+export function writeJsonFile(filename: string, data: unknown): void {
+  const filePath = path.join(getOutputDir(), filename);
+  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+}
+
+/**
  * Check if a file exists in the output directory.
  */
 export function fileExists(filename: string): boolean {

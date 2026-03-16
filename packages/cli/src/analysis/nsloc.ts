@@ -16,6 +16,7 @@ export function countNsloc(
   source: string,
   commentRanges: Array<{ start: number; end: number }>,
   assemblyRanges: Array<{ start: number; end: number }>,
+  lineRange?: { start: number; end: number },
 ): NslocResult {
   const lines = splitLines(source);
   const totalLines = lines.length;
@@ -43,6 +44,7 @@ export function countNsloc(
 
   for (let i = 0; i < lines.length; i++) {
     const lineNum = i + 1;
+    if (lineRange && (lineNum < lineRange.start || lineNum > lineRange.end)) continue;
     const trimmed = lines[i].trim();
 
     if (trimmed === '') {

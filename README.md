@@ -14,7 +14,7 @@ There are three components that work together off a shared project directory:
 
 **Every AI skill reads all prior analysis outputs.** When you ask Claude to identify invariants, it doesn't just read the raw source code — it also reads the stats, dependency graph, access control map, state variable inventory, external call surface, and any other analysis you've already generated. Each skill layer builds on top of all previous layers, which means the AI has structured, high-confidence facts to work with rather than re-deriving everything from scratch.
 
-**The dashboard** is a local Next.js app that visualizes everything the tools and skills produce. It reads directly from your project directory and auto-refreshes when files change. It never writes anything — it is purely a viewer.
+**The dashboard** is a local Next.js app that visualizes everything the tools and skills produce. It reads directly from your project directory and auto-refreshes when files change. The Progress page also writes back to `.solaudit/progress.json` when you mark contracts as reviewed.
 
 All three components read from and write to the same project directory. There is no server, no database, no accounts. Everything stays local.
 
@@ -423,6 +423,7 @@ The dashboard runs locally at `http://localhost:3000` and auto-refreshes when ou
 | Page | URL | What you see |
 |------|-----|-------------|
 | Home | `/` | Project info, AI overview, key stats |
+| Progress | `/progress` | Weighted progress bar, contract review checklist, audit step indicators |
 | Statistics | `/stats` | Per-contract metrics, test coverage, dependencies, ERCs |
 | System Diagram | `/diagram` | Mermaid architecture diagram with zoom/pan |
 | Flows | `/flows` | Mermaid flow charts with zoom/pan |
@@ -470,6 +471,7 @@ All SolAudit outputs live in a single directory inside the project (default: `.s
 ├── diagrams/                # All Mermaid diagram files
 │   ├── diagram.mmd          # System architecture diagram
 │   └── flow-*.mmd           # Flow charts (one per flow)
+├── progress.json            # Audit progress tracking (contract review state)
 ├── findings.json            # Canonical finding data (source of truth)
 ├── findings.md              # Rendered findings (generated from JSON)
 ├── validations/             # Issue validation memos

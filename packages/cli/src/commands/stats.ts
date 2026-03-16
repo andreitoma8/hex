@@ -89,11 +89,17 @@ export const statsCommand = new Command('stats')
           const intFuncs = contract.functions.filter((f) => f.visibility === 'internal').length;
           const privFuncs = contract.functions.filter((f) => f.visibility === 'private').length;
 
+          // Per-contract nSLOC using contract body line range
+          const contractNsloc = countNsloc(source, commentRanges, assemblyRanges, {
+            start: contract.lineStart,
+            end: contract.lineEnd,
+          });
+
           perContract.push({
             file: normalizePath(scopeFile),
             contract: contract.name,
             type: contract.type,
-            nsloc: lineCounts.nsloc, // Per-file nsloc as approximation
+            nsloc: contractNsloc.nsloc,
             functions: contract.functions.length,
             external_functions: extFuncs,
             public_functions: pubFuncs,
@@ -102,7 +108,7 @@ export const statsCommand = new Command('stats')
             modifiers: contract.modifiers.length,
             events: contract.events.length,
             errors: contract.errors.length,
-            assembly_lines: lineCounts.assemblyLines,
+            assembly_lines: contractNsloc.assemblyLines,
             inherits: contract.baseContracts,
           });
         }
@@ -126,11 +132,21 @@ export const statsCommand = new Command('stats')
         const flatAssemblyRanges = getAssemblyRanges(flattenedSource);
         const flatLineCounts = countNsloc(flattenedSource, flatCommentRanges, flatAssemblyRanges);
 
-        // Assign nsloc_with_deps to each contract in this file
+        // Assign nsloc_with_deps to each contract in this file using per-contract ranges
         const fileContracts = perContract.filter((c) => c.file === normalizePath(scopeFile));
         for (const entry of fileContracts) {
-          entry.nsloc_with_deps = flatLineCounts.nsloc;
-          totalNslocWithDeps += flatLineCounts.nsloc;
+          // Find the matching contract in the flattened parse to get its line range
+          const flatContract = flatParsed.contracts.find((c) => c.name === entry.contract);
+          if (flatContract) {
+            const flatContractNsloc = countNsloc(flattenedSource, flatCommentRanges, flatAssemblyRanges, {
+              start: flatContract.lineStart,
+              end: flatContract.lineEnd,
+            });
+            entry.nsloc_with_deps = flatContractNsloc.nsloc;
+          } else {
+            entry.nsloc_with_deps = flatLineCounts.nsloc;
+          }
+          totalNslocWithDeps += entry.nsloc_with_deps!;
           hasAnyFlattenedData = true;
 
           // Resolve inherited members
