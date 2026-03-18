@@ -193,20 +193,71 @@ export const initCommand = new Command('init')
       // Create CLAUDE.md for Claude Code skill discovery
       const claudeMdPath = path.join(projectDir, 'CLAUDE.md');
       if (!fs.existsSync(claudeMdPath)) {
-        const claudeMd = `# SolAudit Project
+        const claudeMd = `# SolAudit Project: ${config.project.name}
 
 This project is being audited with SolAudit.
 
-## Skills
-Audit skills are in \`.claude/skills/\` and auto-discovered by Claude Code as slash commands.
-Type \`/\` to see available skills (e.g., \`/init-audit\`, \`/generate-overview\`).
-
-## Output Directory
-All audit outputs are in \`${config.settings.output_dir}/\`.
+- **Chain:** ${config.project.chain}
+- **Solidity:** ${config.project.solidity_version}
+- **Commit:** \`${config.project.commit}\`${config.project.docs_url ? `\n- **Docs:** ${config.project.docs_url}` : ''}
+- **Config:** \`${config.settings.output_dir}/config.json\` — source of truth for all project metadata
 
 ## Scope
+
 The following files are in audit scope:
 ${uniqueScope.map((f) => `- \`${f}\``).join('\n')}
+
+## Output Directory (\`${config.settings.output_dir}/\`)
+
+All analysis outputs live here. Key files and what they answer:
+
+| File | Contains | Use when asked about... |
+|------|----------|------------------------|
+| \`config.json\` | Project config (scope, chain, docs URL, commit) | project setup, documentation, scope |
+| \`stats.json\` | nSLOC, contracts, functions, test coverage, dependencies | codebase size, complexity, coverage |
+| \`deps.json\` | Inheritance, imports, calls, clusters | contract relationships, dependency graph |
+| \`access-control.json\` | Roles, modifiers, function access | who can call what, privileged functions |
+| \`state-vars.json\` | State variables, types, visibility, read/write | storage, mutability, state layout |
+| \`external-calls.json\` | External calls, reentrancy guards, trust levels | external interactions, reentrancy risk |
+| \`overview.md\` | AI-generated protocol overview | what the protocol does, architecture |
+| \`invariants.md\` | Protocol invariants from docs and code | invariants, assumptions, properties |
+| \`spec-conformance.json\` | Spec vs code deviations | spec compliance, ERC conformance |
+| \`findings.json\` | Audit findings (canonical) | reported issues, vulnerabilities |
+| \`findings.md\` | Rendered findings report | human-readable report |
+| \`tracking.json\` | Finding status and duplicates | finding triage, status |
+| \`comparison.json\` | AI cross-check results | AI-found issues, novel findings |
+| \`progress.json\` | Audit progress tracking | what has been reviewed |
+| \`diagrams/\` | Mermaid architecture and flow diagrams | system diagrams, flows |
+
+Not all files exist initially — they are created as you run skills and CLI commands.
+
+## Skills (Slash Commands)
+
+Skills are in \`.claude/skills/\` and auto-discovered by Claude Code. Type \`/\` to list them.
+
+**Recommended workflow order:**
+
+1. \`/init-audit\` — Initialize project, audit dependencies, run analysis pipeline
+2. \`/generate-overview\` — Write protocol overview from analysis data
+3. \`/generate-diagram\` — Create Mermaid architecture diagram
+4. \`/generate-flows\` — Create Mermaid flow charts per user type
+5. \`/identify-invariants\` — Three-pass invariant identification (docs, code, comparison)
+6. \`/check-spec-conformance\` — Verify code matches docs, NatSpec, interfaces, ERCs
+7. \`/generate-poc\` — Validate an issue with a runnable proof-of-concept test
+8. \`/write-finding\` — Write a structured finding with severity and recommendation
+9. \`/conformance-to-findings\` — Batch-convert spec deviations into findings
+10. \`/compare-findings\` — Cross-check findings against AI agent results
+11. \`/validate-ai-finding\` — Independently verify a novel AI-found issue
+
+Each skill builds on previous outputs. Run them in order for best results.
+
+## CLI Commands
+
+- \`npx solaudit analyze\` — Run all deterministic analysis (stats, deps, access, state, calls)
+- \`npx solaudit context\` — Assemble full codebase context for AI prompts
+- \`npx solaudit context --target <Contract>\` — Focused context for a single contract
+- \`npx solaudit dashboard\` — Open browser dashboard at http://localhost:3000
+- \`npx solaudit render-findings\` — Regenerate findings.md from findings.json
 `;
         fs.writeFileSync(claudeMdPath, claudeMd, 'utf-8');
       }

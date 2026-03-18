@@ -1,6 +1,6 @@
 {
   "name": "solaudit",
-  "version": "0.1.16",
+  "version": "0.1.18",
   "description": "CLI toolkit for Solidity smart contract auditors",
   "type": "module",
   "bin": {

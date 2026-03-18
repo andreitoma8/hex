@@ -58,6 +58,8 @@ solaudit init --scope "src/core/**/*.sol,src/Vault.sol" --commit abc123 --chain 
 This creates a `.solaudit/` directory (configurable) inside the project with:
 - `config.json` with your audit scope
 
+It also generates a `CLAUDE.md` at the project root — a quick-reference that Claude Code auto-loads into every conversation. It contains project metadata (chain, Solidity version, docs URL), a table of all output files and what they answer, the recommended skill workflow order, and available CLI commands. This means Claude always knows where to find docs, scope, analysis data, and config without needing to be told.
+
 The scope defines which files you are responsible for auditing. All other project files remain available for context, compilation, and test execution.
 
 You can also run this interactively through Claude Code:
@@ -433,7 +435,7 @@ The dashboard runs locally at `http://localhost:3000` and auto-refreshes when ou
 | Functions | `/functions` | Aggregated function view with state/call cross-references |
 | Invariants | `/invariants` | Identified invariants and doc/code discrepancies |
 | Spec Conformance | `/conformance` | Code vs spec check results, deviations first |
-| Report | `/report` | Verified findings rendered as a markdown-style report |
+| Report | `/report` | Verified findings with copy-to-clipboard (HackMD markdown format) |
 | All Findings | `/all-findings` | Merged table of all findings + tracking data with filters |
 
 ---

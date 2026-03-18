@@ -100,7 +100,7 @@ Opens `http://localhost:3000` with live visualization of all outputs.
 
 Key pages:
 - `/progress` — Weighted progress bar, contract review checklist with nSLOC weighting, audit step indicators, findings KPI
-- `/report` — Card-per-finding layout with severity accent borders and horizontal severity bar chart
+- `/report` — Card-per-finding layout with severity accent borders, horizontal severity bar chart, and copy-to-clipboard button (HackMD markdown format)
 - `/all-findings` — Merged table with filter pills (severity, status) and expandable details
 - `/stats` — Segmented control: Summary (KPI cards + ERC badges), Per-Contract, Coverage, Dependencies
 - `/access` — Segmented control: All / State-Changing / Read-Only / Unprotected, with role cards below

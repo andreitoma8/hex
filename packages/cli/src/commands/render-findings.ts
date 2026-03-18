@@ -85,19 +85,20 @@ export const renderFindingsCommand = new Command('render-findings')
 function renderFinding(f: Finding): string {
   const lines: string[] = [];
 
-  // Title with severity
-  lines.push(`## **[${f.severity}] ${f.title}**`);
+  // Title with severity (### not ##, no bold)
+  lines.push(`### [${f.severity}] ${f.title}`);
   lines.push('');
 
-  // File locations
-  const files = f.root_cause.locations.map((loc) => `\`${loc.file}\``).join(', ');
-  if (files) {
-    lines.push(`**File(s):** ${files}`);
+  // File locations — deduplicated, linked format
+  const uniqueFiles = [...new Set(f.root_cause.locations.map((loc) => loc.file))];
+  if (uniqueFiles.length > 0) {
+    const fileLinks = uniqueFiles.map((file) => `[\`${file}\`]()`).join(', ');
+    lines.push(`**File(s)**: ${fileLinks}`);
     lines.push('');
   }
 
-  // Description
-  lines.push(`**Description:** ${f.description}`);
+  // Description (colon outside bold)
+  lines.push(`**Description**: ${f.description}`);
   lines.push('');
 
   // Root cause code with @audit-issue comments
@@ -110,12 +111,16 @@ function renderFinding(f: Finding): string {
     }
   }
 
-  // Recommendation
-  lines.push(`**Recommendation(s):** ${f.recommendation}`);
+  // Recommendation (colon outside bold)
+  lines.push(`**Recommendation(s)**: ${f.recommendation}`);
   lines.push('');
 
-  // Status
-  lines.push('**Status:** Unresolved');
+  // Status (colon outside bold)
+  lines.push('**Status**: Unresolved');
+  lines.push('');
+
+  // Update from the client (always present, empty)
+  lines.push('**Update from the client**:');
   lines.push('');
 
   return lines.join('\n');

@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { SeverityBadge } from '@/components/SeverityBadge';
 
 interface Finding {
@@ -16,6 +17,78 @@ interface Finding {
   references?: {
     external_links: string[];
   };
+}
+
+function findingToMarkdown(f: Finding): string {
+  const lines: string[] = [];
+
+  lines.push(`### [${f.severity}] ${f.title}`);
+  lines.push('');
+
+  // Deduplicated files in linked format
+  const uniqueFiles = [...new Set((f.root_cause?.locations ?? []).map((loc) => loc.file))];
+  if (uniqueFiles.length > 0) {
+    const fileLinks = uniqueFiles.map((file) => `[\`${file}\`]()`).join(', ');
+    lines.push(`**File(s)**: ${fileLinks}`);
+    lines.push('');
+  }
+
+  if (f.description) {
+    lines.push(`**Description**: ${f.description}`);
+    lines.push('');
+  }
+
+  for (const loc of f.root_cause?.locations ?? []) {
+    if (loc.snippet) {
+      lines.push('```solidity');
+      lines.push(loc.snippet);
+      lines.push('```');
+      lines.push('');
+    }
+  }
+
+  if (f.recommendation) {
+    lines.push(`**Recommendation(s)**: ${f.recommendation}`);
+    lines.push('');
+  }
+
+  lines.push('**Status**: Unresolved');
+  lines.push('');
+  lines.push('**Update from the client**:');
+  lines.push('');
+  lines.push('---');
+
+  return lines.join('\n');
+}
+
+function CopyButton({ finding }: { finding: Finding }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    const md = findingToMarkdown(finding);
+    await navigator.clipboard.writeText(md);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  return (
+    <button
+      onClick={handleCopy}
+      title="Copy as HackMD markdown"
+      className="ml-auto flex-shrink-0 rounded p-1 text-text-tertiary transition-colors hover:bg-surface-0 hover:text-text-secondary"
+    >
+      {copied ? (
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+      ) : (
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+          <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+        </svg>
+      )}
+    </button>
+  );
 }
 
 const SEVERITY_ORDER: Record<string, number> = { Critical: 0, High: 1, Medium: 2, Low: 3, Info: 4 };
@@ -46,6 +119,7 @@ export function ReportClient({ findings }: { findings: Finding[] }) {
           <div className="mb-sp-2 flex items-start gap-sp-3">
             <SeverityBadge severity={(finding.severity ?? 'Info') as 'Critical' | 'High' | 'Medium' | 'Low' | 'Info'} />
             <h3 className="text-heading font-medium text-text-primary">{finding.title}</h3>
+            <CopyButton finding={finding} />
           </div>
 
           {/* Description */}
