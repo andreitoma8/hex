@@ -30,6 +30,29 @@ Step-by-step demo of all SolAudit functionality using Claude Code.
 
 It will ask you for scope, commit, chain, etc. For solmate something like `--scope "src/**/*.sol"` works. This runs init + a single `solaudit analyze` command that executes all five analysis commands (stats, deps, access, state, calls) in sequence, continuing on failure and reporting results.
 
+### Open the Dashboard
+
+Once init and analysis complete, open a separate terminal and start the dashboard:
+```bash
+solaudit dashboard
+```
+Opens `http://localhost:3000` with live visualization of all outputs. Keep it open — every page fills in automatically as you progress through the audit.
+
+Key pages:
+- `/progress` — Weighted progress bar, contract review checklist with nSLOC weighting, audit step indicators, findings KPI
+- `/stats` — Segmented control: Summary (KPI cards + ERC badges), Per-Contract, Coverage, Dependencies
+- `/access` — Segmented control: All / State-Changing / Read-Only / Unprotected, with role cards below
+- `/calls` — External call surface with filter pills for Trust and Call Type
+- `/functions` — Aggregated function view with filter pills and compact 36px rows
+- `/diagram` + `/flows` — Full-bleed canvas with auto-fit zoom, floating controls, loading spinner, and legend overlay
+- `/invariants` — Tabbed layout (From Docs | From Code | Discrepancies | Assumptions) with segmented control
+- `/conformance` — Status filter pills for quick filtering (DEVIATES, PARTIAL, etc.)
+- `/ai-reports` — Per-tool AI audit results with tabs, severity summary, expandable findings with verify/reject buttons, consensus badges, and run status indicators
+- `/report` — Card-per-finding layout with severity accent borders, horizontal severity bar chart, and copy-to-clipboard button (HackMD markdown format)
+- `/all-findings` — Merged table with filter pills (severity, status, including unverified) and expandable details with verify/reject buttons
+
+The dashboard has a fixed sidebar with always-visible theme toggle (Light / Dark / System). Apple-inspired design with consistent spacing, typography scale, and semantic color system. Code reference modals support Escape key to close.
+
 ### Phase 2 — Understand the Protocol
 
 ```
@@ -40,7 +63,7 @@ Writes a protocol overview to `.solaudit/overview.md`.
 ```
 /generate-diagram
 ```
-Generates a color-coded Mermaid architecture diagram with semantic symbols (🏦 Vault, 💰 Token, 🔮 Oracle, etc.), zone groupings, interaction-typed edge labels (delegatecall, external call, access-controlled), overview header, and a visual legend. Max ~15 nodes per diagram — large protocols are split automatically.
+Generates a color-coded Mermaid architecture diagram with semantic symbols, zone groupings, interaction-typed edge labels (delegatecall, external call, access-controlled), overview header, and a visual legend. Max ~15 nodes per diagram — large protocols are split automatically.
 
 ```
 /generate-flows
@@ -78,43 +101,27 @@ Processes all DEVIATES and PARTIAL conformance items, validates each, and writes
 
 ### Phase 4 — AI Cross-check
 
-Drop any AI audit report into `.solaudit/ai-results/` (even a dummy JSON), then:
+Run all configured AI audit tools with a single command:
+```
+/run-ai-analysis
+```
+Starts with a tool selection prompt — choose which AI tools to run (or skip). Then runs preflight checks with type-aware auto-install: skill-file tools (solidity-auditor) clone and copy SKILL.md, MCP server tools (sc-auditor) clone/build/register in `.mcp.json`, manual tools (auditagent) print install instructions. Each enabled skill-based tool runs in its own subagent (isolating large outputs). After all subagents complete, the orchestrator normalizes findings into `.solaudit/ai-results/<tool>/findings.json` and adds them to tracking as `unverified`. Then `/compare-findings` runs automatically to deduplicate and assess novelty.
 
+To re-run deduplication manually after changes:
 ```
 /compare-findings
 ```
-Semantically deduplicates your findings against the AI results.
 
 For any novel finding it surfaces:
 ```
 /validate-ai-finding for <finding-id>
 ```
 
-### Dashboard
-
-At any point, run in a separate terminal:
-```bash
-solaudit dashboard
-```
-Opens `http://localhost:3000` with live visualization of all outputs.
-
-Key pages:
-- `/progress` — Weighted progress bar, contract review checklist with nSLOC weighting, audit step indicators, findings KPI
-- `/report` — Card-per-finding layout with severity accent borders, horizontal severity bar chart, and copy-to-clipboard button (HackMD markdown format)
-- `/all-findings` — Merged table with filter pills (severity, status) and expandable details
-- `/stats` — Segmented control: Summary (KPI cards + ERC badges), Per-Contract, Coverage, Dependencies
-- `/access` — Segmented control: All / State-Changing / Read-Only / Unprotected, with role cards below
-- `/calls` — External call surface with filter pills for Trust and Call Type
-- `/functions` — Aggregated function view with filter pills and compact 36px rows
-- `/invariants` — Tabbed layout (From Docs | From Code | Discrepancies | Assumptions) with segmented control
-- `/conformance` — Status filter pills for quick filtering (DEVIATES, PARTIAL, etc.)
-- `/diagram` + `/flows` — Full-bleed canvas with auto-fit zoom, floating controls, loading spinner, and legend overlay
-
-The dashboard has a fixed sidebar with always-visible theme toggle (Light / Dark / System). Apple-inspired design with consistent spacing, typography scale, and semantic color system. Code reference modals support Escape key to close.
-
 ## Key Points
 
 - `/init-audit` works as the very first thing in Claude Code (no chicken-and-egg problem)
+- Open the dashboard right after init — it updates live as you progress
 - Every skill builds on all previous analysis outputs — later skills have richer context
 - Skills are native slash commands, no need to "read the skill file and follow it"
+- `/run-ai-analysis` runs each AI tool in its own subagent to keep context clean
 - `solaudit update-skills` updates skills after a package upgrade (overwrites by default, use `--keep-custom` to preserve modifications)

@@ -1,4 +1,4 @@
-import { readJsonFile } from '@/lib/data';
+import { readJsonFile, listSubdirs, readNestedJsonFile } from '@/lib/data';
 import { NotYetGenerated } from '@/components/NotYetGenerated';
 import { AllFindingsClient } from './AllFindingsClient';
 
@@ -21,6 +21,7 @@ interface Finding {
 
 interface TrackingEntry {
   id: string;
+  finding_id?: string | null;
   title: string;
   severity: string;
   source: string;
@@ -35,11 +36,53 @@ interface FindingsData {
 }
 
 interface TrackingData {
-  findings: TrackingEntry[];
+  findings?: TrackingEntry[];
+  issues?: TrackingEntry[];
+}
+
+interface AiResultFinding {
+  id: string;
+  tool: string;
+  title: string;
+  severity: string;
+  description: string;
+  affected_code: { file: string; snippet?: string }[];
+  confidence?: string;
+  category?: string;
+}
+
+interface AiResultFile {
+  tool: string;
+  findings: AiResultFinding[];
+}
+
+interface ComparisonDuplicate {
+  ai_finding: string;
+  matches: string;
+  confidence?: string;
+  reasoning?: string;
+}
+
+interface ComparisonRejected {
+  id: string;
+  reason?: string;
+}
+
+interface ComparisonNovel {
+  id: string;
+  original_id?: string;
+  [key: string]: unknown;
+}
+
+interface ComparisonData {
+  duplicates?: ComparisonDuplicate[];
+  novel?: ComparisonNovel[];
+  rejected?: ComparisonRejected[];
 }
 
 export interface MergedFinding {
   id: string;
+  finding_id?: string | null;
   title: string;
   severity: string;
   category: string;
@@ -53,6 +96,7 @@ export interface MergedFinding {
 export default function AllFindingsPage() {
   const findingsData = readJsonFile<FindingsData>('findings.json');
   const trackingData = readJsonFile<TrackingData>('tracking.json');
+  const comparison = readJsonFile<ComparisonData>('comparison.json');
 
   if (!findingsData && !trackingData) {
     return (
@@ -63,36 +107,90 @@ export default function AllFindingsPage() {
     );
   }
 
+  // Build canonical findings map
   const findingsMap = new Map<string, Finding>();
   for (const f of findingsData?.findings ?? []) {
     findingsMap.set(f.id, f);
   }
 
-  const trackingMap = new Map<string, TrackingEntry>();
-  for (const t of trackingData?.findings ?? []) {
-    trackingMap.set(t.id, t);
+  // Build AI results map from all ai-results/<tool>/findings.json
+  const aiResultsMap = new Map<string, Finding>();
+  const toolDirs = listSubdirs('ai-results');
+  for (const dir of toolDirs) {
+    const results = readNestedJsonFile<AiResultFile>(`ai-results/${dir}/findings.json`);
+    if (!results) continue;
+    for (const af of results.findings) {
+      aiResultsMap.set(af.id, {
+        id: af.id,
+        title: af.title,
+        severity: af.severity,
+        category: af.category,
+        description: af.description,
+        root_cause: {
+          locations: af.affected_code.map((ac) => ({ file: ac.file, snippet: ac.snippet })),
+        },
+      });
+    }
+  }
+
+  // Build comparison.json lookup maps for Loop 3 fallback
+  const aiDuplicateOf = new Map<string, string>();
+  for (const d of comparison?.duplicates ?? []) {
+    aiDuplicateOf.set(d.ai_finding, d.matches);
+  }
+  const aiRejectedIds = new Set(
+    (comparison?.rejected ?? []).map((r) => r.id),
+  );
+
+  // Backward compat: old runs produced novel[] with synthetic IDs (AI-N001) and original_id.
+  // Map original AI ID → synthetic tracking ID so Loop 3 can skip already-tracked novels.
+  const novelOriginalToTrackingId = new Map<string, string>();
+  for (const n of comparison?.novel ?? []) {
+    if (n.original_id) novelOriginalToTrackingId.set(n.original_id, n.id);
+  }
+
+  const trackingEntries = trackingData?.findings ?? trackingData?.issues ?? [];
+
+  // Build canonical finding state map for duplicate inheritance
+  const canonicalState = new Map<string, { status: string; poc_status: string }>();
+  for (const t of trackingEntries) {
+    if (t.id === (t.finding_id ?? t.id)) {
+      canonicalState.set(t.id, { status: t.status, poc_status: t.poc_status });
+    }
+  }
+  // Fallback: findings.json entries not in tracking are implicitly verified
+  for (const f of findingsData?.findings ?? []) {
+    if (!canonicalState.has(f.id)) {
+      canonicalState.set(f.id, { status: 'verified', poc_status: f.poc?.status ?? 'not_started' });
+    }
   }
 
   const merged: MergedFinding[] = [];
   const seenIds = new Set<string>();
 
-  for (const t of trackingData?.findings ?? []) {
+  for (const t of trackingEntries) {
     seenIds.add(t.id);
+    // Look up finding: first try finding_id bridge, then own id, then AI results fallback
+    const lookupId = t.finding_id ?? t.id;
+    const finding = findingsMap.get(lookupId) ?? aiResultsMap.get(t.id);
+
     merged.push({
       id: t.id,
+      finding_id: t.finding_id,
       title: t.title,
       severity: t.severity,
-      category: findingsMap.get(t.id)?.category ?? '-',
-      source: t.source,
+      category: finding?.category ?? '-',
+      source: t.source === 'manual_annotation' ? 'manual' : t.source,
       status: t.status,
       poc_status: t.poc_status,
       duplicates: t.duplicates ?? [],
-      finding: findingsMap.get(t.id),
+      finding,
     });
   }
 
   for (const f of findingsData?.findings ?? []) {
     if (seenIds.has(f.id)) continue;
+    seenIds.add(f.id);
     merged.push({
       id: f.id,
       title: f.title,
@@ -106,7 +204,45 @@ export default function AllFindingsPage() {
     });
   }
 
-  // Summary stats
+  // Add AI findings not already present via tracking, using comparison.json as fallback
+  for (const dir of toolDirs) {
+    const results = readNestedJsonFile<AiResultFile>(`ai-results/${dir}/findings.json`);
+    if (!results) continue;
+    for (const af of results.findings) {
+      if (seenIds.has(af.id)) continue;
+      // Backward compat: skip if this AI finding was already tracked under a synthetic novel ID
+      const bridgedId = novelOriginalToTrackingId.get(af.id);
+      if (bridgedId && seenIds.has(bridgedId)) continue;
+      seenIds.add(af.id);
+
+      const matchedId = aiDuplicateOf.get(af.id);
+      const isRejected = aiRejectedIds.has(af.id);
+      const inherited = matchedId ? canonicalState.get(matchedId) : undefined;
+
+      merged.push({
+        id: af.id,
+        finding_id: matchedId ?? null,
+        title: af.title,
+        severity: af.severity,
+        category: af.category ?? '-',
+        source: dir,
+        status: isRejected ? 'rejected' : matchedId ? (inherited?.status ?? 'duplicate') : 'unverified',
+        poc_status: isRejected ? 'not_started' : matchedId ? (inherited?.poc_status ?? 'not_started') : 'not_started',
+        duplicates: [],
+        finding: aiResultsMap.get(af.id),
+      });
+    }
+  }
+
+  // Count duplicates/rejected for the toggle badge
+  const hiddenCount = merged.filter(
+    (m) =>
+      (m.finding_id != null && m.id !== m.finding_id) ||
+      m.status === 'duplicate' ||
+      m.status === 'rejected',
+  ).length;
+
+  // Summary stats (on visible findings only by default, but compute on all)
   const byStatus: Record<string, number> = {};
   for (const m of merged) {
     byStatus[m.status] = (byStatus[m.status] ?? 0) + 1;
@@ -133,7 +269,7 @@ export default function AllFindingsPage() {
         ))}
       </div>
 
-      <AllFindingsClient findings={merged} />
+      <AllFindingsClient findings={merged} hiddenCount={hiddenCount} />
     </div>
   );
 }

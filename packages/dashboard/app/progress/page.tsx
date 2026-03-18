@@ -28,6 +28,7 @@ interface Finding {
 
 interface TrackingEntry {
   id: string;
+  finding_id?: string | null;
   severity: string;
   status: string;
 }
@@ -73,8 +74,8 @@ export default function ProgressPage() {
 
   // Merge findings from both sources
   const allFindingIds = new Set<string>();
+  const trackedFindingIds = new Set<string>();
   const findingsBySeverity: Record<string, number> = {};
-  let trackedCount = 0;
 
   for (const f of findingsData?.findings ?? []) {
     allFindingIds.add(f.id);
@@ -82,14 +83,15 @@ export default function ProgressPage() {
   }
   const trackingEntries = trackingRaw?.issues ?? trackingRaw?.findings ?? [];
   for (const t of trackingEntries) {
-    if (!allFindingIds.has(t.id)) {
-      allFindingIds.add(t.id);
+    const dedupeId = t.finding_id ?? t.id;
+    if (t.status !== 'rejected' && !allFindingIds.has(dedupeId) && !allFindingIds.has(t.id)) {
+      allFindingIds.add(dedupeId);
       if (t.severity) {
         findingsBySeverity[t.severity] = (findingsBySeverity[t.severity] ?? 0) + 1;
       }
     }
     if (t.status === 'verified' || t.status === 'confirmed' || t.status === 'mitigated') {
-      trackedCount++;
+      trackedFindingIds.add(dedupeId);
     }
   }
 
@@ -98,12 +100,12 @@ export default function ProgressPage() {
       <h2 className="mb-sp-5 text-title font-semibold text-text-primary">Progress</h2>
       <ProgressClient
         contracts={stats.per_contract}
-        totalsNsloc={stats.totals.nsloc}
+        totalsNsloc={stats.per_contract.reduce((s, c) => s + c.nsloc, 0)}
         reviewedContracts={progress?.reviewed_contracts ?? {}}
         auditSteps={auditSteps}
         findingsTotal={allFindingIds.size}
         findingsBySeverity={findingsBySeverity}
-        findingsTracked={trackedCount}
+        findingsTracked={trackedFindingIds.size}
       />
     </div>
   );

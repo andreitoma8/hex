@@ -77,6 +77,13 @@ function IconFlows(p: React.SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+function IconRobot(p: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m3.75-1.5v1.5m-7.5 15V21M12 19.5V21m3.75-1.5V21M6.75 7.5h10.5a2.25 2.25 0 0 1 2.25 2.25v6a2.25 2.25 0 0 1-2.25 2.25H6.75a2.25 2.25 0 0 1-2.25-2.25v-6A2.25 2.25 0 0 1 6.75 7.5ZM9.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm5.25 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" />
+    </svg>
+  );
+}
 function IconReport(p: React.SVGProps<SVGSVGElement>) {
   return (
     <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
@@ -148,6 +155,12 @@ const NAV_GROUPS = [
     ],
   },
   {
+    label: 'AI Audit',
+    items: [
+      { href: '/ai-reports', label: 'AI Reports', icon: IconRobot },
+    ],
+  },
+  {
     label: 'Findings',
     items: [
       { href: '/report', label: 'Report', icon: IconReport },
@@ -202,7 +215,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         <div className="px-4 pb-2 pt-5">
           <h1 className="text-heading font-semibold text-text-primary">SolAudit</h1>
           <span className="mt-0.5 inline-block rounded-sm bg-accent-subtle px-1.5 py-0.5 text-caption text-accent">
-            v0.1.16
+            v0.2.0
           </span>
         </div>
 

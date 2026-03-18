@@ -25,11 +25,17 @@ Read:
 
 Select items from `spec-conformance.json` where `status` is `"DEVIATES"` or `"PARTIAL"`.
 
-### 2. Skip already-processed items
+### 2. Skip already-processed and duplicate items
 
-For each selected item, check if it already exists in `tracking.json` by cross-referencing the conformance item's `id` field. Look for tracking entries whose `notes` field references the conformance ID, or whose title closely matches the conformance finding text.
+For each selected conformance item, check **both** tracking.json and findings.json:
 
-If already tracked, skip it and note that it was skipped.
+**a) Already processed?** Check `tracking.json` for an entry that references this conformance ID in `notes`, or has `source: "spec-conformance"` with a closely matching title. If found → skip.
+
+**b) Already covered by existing finding?** Check `findings.json` — does any existing finding cover the same vulnerability? Match on: same affected contract/function AND same root cause (overlapping code location or semantically equivalent issue).
+
+If covered → **don't create a new finding**. Instead:
+1. Add a tracking entry with `finding_id` set to the matched finding's ID, `source: "spec-conformance"`, and `status`/`poc_status` inherited from the matched finding's tracking entry.
+2. Log: "Skipped SC-XXX — already covered by FYYY"
 
 ### 3. Validate each deviation
 

@@ -275,15 +275,20 @@ When the AI includes code snippets in a finding, it follows strict rules:
 
 After your manual review is complete, run external AI audit agents as a second pass to catch anything you might have missed.
 
-**Step 4.1 — Run external agents**
-
-Run agents from services like Nethermind AuditAgent, Zellic, or Claude Code audit skills. For now, this is a manual step — you run them separately and place their output files in `.solaudit/ai-results/`:
+**Step 4.1 — Run AI analysis**
 
 ```bash
-# Example: copy results from external agents
-cp nethermind-report.json .solaudit/ai-results/nethermind.json
-cp zellic-report.json .solaudit/ai-results/zellic.json
+claude
+> /run-ai-analysis
 ```
+
+This orchestrator skill:
+1. Reads your configured AI tools from `config.json` → `settings.ai_tools` (3 tools by default: solidity-auditor, sc-auditor, auditagent)
+2. Runs a preflight check for each tool — verifies env vars, skill installation, and system dependencies, then presents a summary table of any missing items
+3. Runs each skill-based tool sequentially, saving raw output and normalized findings to `ai-results/<tool>/`
+4. Starts long-running tools (auditagent) in the background
+5. Adds all AI findings to `tracking.json` with `status: "unverified"`
+6. Runs `/compare-findings` automatically and prints a coverage gap summary
 
 **Step 4.2 — Compare findings**
 
@@ -368,6 +373,7 @@ Skills are invoked through Claude Code. Each skill has a recommended model — s
 | `generate-poc` | 3.1 | Opus | Validates issue reasoning, then writes and runs PoC test |
 | `write-finding` | 3.2 | Sonnet | Writes structured finding to JSON + rendered markdown |
 | `conformance-to-findings` | 3.3 | Sonnet | Batch-converts spec conformance deviations into validated findings |
+| `run-ai-analysis` | 4.1 | Opus | Orchestrates all configured AI audit tools with preflight checks |
 | `compare-findings` | 4.2 | Sonnet | Semantic dedup of your findings vs AI agent findings |
 | `validate-ai-finding` | 4.3 | Opus | Independently verifies a novel AI agent finding |
 
@@ -386,6 +392,7 @@ Skills use Claude Code's native skill format, stored in `.claude/skills/<name>/S
 ├── generate-poc/SKILL.md
 ├── write-finding/SKILL.md
 ├── conformance-to-findings/SKILL.md
+├── run-ai-analysis/SKILL.md
 ├── compare-findings/SKILL.md
 └── validate-ai-finding/SKILL.md
 ```
@@ -435,6 +442,7 @@ The dashboard runs locally at `http://localhost:3000` and auto-refreshes when ou
 | Functions | `/functions` | Aggregated function view with state/call cross-references |
 | Invariants | `/invariants` | Identified invariants and doc/code discrepancies |
 | Spec Conformance | `/conformance` | Code vs spec check results, deviations first |
+| AI Reports | `/ai-reports` | Per-tool AI audit results with verify/reject actions |
 | Report | `/report` | Verified findings with copy-to-clipboard (HackMD markdown format) |
 | All Findings | `/all-findings` | Merged table of all findings + tracking data with filters |
 
@@ -479,9 +487,20 @@ All SolAudit outputs live in a single directory inside the project (default: `.s
 ├── validations/             # Issue validation memos
 │   ├── A001_memo.md
 │   └── A003_memo.md
-├── ai-results/              # External AI agent outputs
-│   ├── nethermind.json
-│   └── zellic.json
+├── ai-results/              # AI audit tool outputs (per-tool subdirectories)
+│   ├── solidity-auditor/
+│   │   ├── raw-output.md    # Original tool output
+│   │   ├── findings.json    # Normalized findings
+│   │   └── metadata.json    # Run metadata
+│   ├── sc-auditor/
+│   │   ├── raw-output.md
+│   │   ├── findings.json
+│   │   └── metadata.json
+│   └── auditagent/
+│       ├── raw-output.md
+│       ├── findings.json
+│       └── metadata.json
+├── ai-status.json           # AI tool run status tracker
 ├── comparison.json          # Finding dedup results
 └── tracking.json            # Master tracking table
 ```

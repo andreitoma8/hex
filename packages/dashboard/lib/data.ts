@@ -68,3 +68,31 @@ export function fileExists(filename: string): boolean {
 export function getOutputDirPath(): string {
   return getOutputDir();
 }
+
+/**
+ * List subdirectory names within a directory relative to the output dir.
+ */
+export function listSubdirs(dir: string): string[] {
+  try {
+    const fullPath = path.join(getOutputDir(), dir);
+    if (!fs.existsSync(fullPath)) return [];
+    return fs.readdirSync(fullPath, { withFileTypes: true })
+      .filter((d) => d.isDirectory())
+      .map((d) => d.name);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Read a JSON file from a nested path within the output directory.
+ */
+export function readNestedJsonFile<T>(nestedPath: string): T | null {
+  try {
+    const filePath = path.join(getOutputDir(), nestedPath);
+    const content = fs.readFileSync(filePath, 'utf-8');
+    return JSON.parse(content) as T;
+  } catch {
+    return null;
+  }
+}

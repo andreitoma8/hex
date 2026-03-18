@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { ConfigSchema } from './schema.js';
 import { normalizePath, getOutputDir } from './paths.js';
 import { readJsonFile, writeJsonOutput } from './output.js';
+import { DEFAULT_AI_TOOLS } from './ai-tools.js';
 
 export type Config = z.infer<typeof ConfigSchema>;
 
@@ -87,6 +88,7 @@ export function createConfig(options: CreateConfigOptions): Config {
       output_dir: options.outputDir ?? '.solaudit',
       ai_model: 'claude-sonnet-4-20250514',
       finding_template: 'default',
+      ai_tools: DEFAULT_AI_TOOLS,
     },
   };
 

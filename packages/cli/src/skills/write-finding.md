@@ -23,7 +23,11 @@ Before writing a finding, verify the issue has been validated.
 
 Match the issue by title or description. Then act based on status:
 
-### 2. Act based on status
+### 2. Duplicate check
+
+Before writing, scan `findings.json` for any finding that covers the same vulnerability (same affected contract/function, same or overlapping root cause). If a match is found, **warn the auditor**: "This appears to duplicate FXXX: <title>. Proceed anyway?" Only continue if confirmed.
+
+### 3. Act based on status
 
 **No tracking entry (new/manual finding) or `status: "pending_validation"`:**
 
@@ -45,7 +49,7 @@ Then:
 
 Proceed to write the finding.
 
-### 3. PoC status handling
+### 4. PoC status handling
 
 Record whatever the current `poc_status` is in the finding's `poc` field. **Never auto-trigger PoC generation.** If `poc_status` is `"not_started"` or absent, set `poc.status: "not_started"` and `poc.file: null` in the finding.
 
@@ -137,3 +141,9 @@ All inserted audit comments must be full sentences starting with a capital lette
 1. Append the finding to the `findings` array inside `<output_dir>/findings.json`. The file structure is `{ "findings": [...] }`. If the file doesn't exist, create it with this wrapper.
 2. Regenerate markdown: `npx solaudit render-findings`
 3. Update `<output_dir>/tracking.json` with the new finding entry
+4. **Annotate source files.** For each entry in `root_cause.locations[]`:
+   - Open the source file at the path in `file`.
+   - Find the first significant line of the `snippet` in the file (skip blank lines and `// ....` placeholders).
+   - If an existing `// @audit-issue ...` comment is on the line directly above, **replace** it with `// @audit-issue-verified F<NNN> <short title>`.
+   - Otherwise, **insert** `// @audit-issue-verified F<NNN> <short title>` on a new line directly above the matched line, using the same indentation.
+   - `<NNN>` is the finding ID (e.g., `F001`) and `<short title>` is the finding's `title` field.

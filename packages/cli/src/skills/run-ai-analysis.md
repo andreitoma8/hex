@@ -1,0 +1,249 @@
+---
+description: "Orchestrate all configured AI audit tools with preflight checks and result normalization"
+---
+
+# Skill: Run AI Analysis
+
+**Recommended model:** Opus
+
+## Context Assembly
+
+Read these files from the output directory:
+- `config.json` — project config including `settings.ai_tools` array
+- `tracking.json` — current tracking state (if exists)
+- `findings.json` — existing findings (if exists)
+
+## Task
+
+### Phase 0 — Tool Selection
+
+1. Read `config.json` → `settings.ai_tools` for the list of AI tools.
+   - **If `ai_tools` is missing** (pre-v0.2.0 config): use these defaults and offer to write them into `config.json`:
+     ```json
+     [
+       { "name": "auditagent", "type": "cli", "invocation": "aa findings", "install_type": "manual", "output_format": "stdout", "enabled": true, "long_running": false, "requires_env": ["AUDIT_AGENT_API_KEY"], "dependencies": [{ "binary": "aa", "install_cmd": "pip install git+ssh://git@github.com/NethermindEth/auditagent-cli.git", "required": true }], "description": "Nethermind auditagent SaaS — links to an existing scan and pulls findings" },
+       { "name": "solidity-auditor", "type": "skill", "invocation": "/solidity-auditor deep", "install_url": "https://github.com/pashov/skills", "install_type": "skill-file", "skill_path": "solidity-auditor", "output_format": "markdown", "enabled": true, "long_running": false, "description": "Pashov solidity-auditor Claude Code skill" },
+       { "name": "sc-auditor", "type": "skill", "invocation": "/security-auditor src/", "install_url": "https://github.com/Archethect/sc-auditor", "install_type": "mcp-server", "output_format": "markdown", "enabled": true, "long_running": false, "requires_env": ["SOLODIT_API_KEY"], "dependencies": [{ "binary": "slither", "install_cmd": "pip install slither-analyzer", "required": false }, { "binary": "aderyn", "install_cmd": "cargo install aderyn", "required": false }, { "binary": "forge", "install_cmd": "curl -L https://foundry.paradigm.xyz | bash && foundryup", "required": false }], "description": "Archethect sc-auditor MCP server with Solodit integration" }
+     ]
+     ```
+
+2. Use the **AskUserQuestion** tool to ask which tools to run. List each tool with its description, then ask which ones to skip (or confirm all). Example question:
+   ```
+   Which AI tools do you want to run?
+
+   • solidity-auditor — Pashov solidity-auditor Claude Code skill
+   • sc-auditor — Archethect sc-auditor MCP server with Solodit integration
+   • auditagent — Nethermind auditagent SaaS (links to an existing scan and pulls findings)
+
+   Reply with the names of tools to skip (comma-separated), or "all" to run everything.
+   ```
+
+3. Mark skipped tools as `enabled: false` for this run only (do not persist to config.json).
+
+4. Only proceed to Phase A for the tools the user selected.
+
+**Important:** Always use **AskUserQuestion** when you need user input — never just print a question as text and move on.
+
+### Phase A — Preflight: dependency & environment checks
+
+1. Create `ai-results/<tool>/` subdirectories for each selected tool if they don't exist.
+
+2. For each selected tool, run a preflight check based on its `install_type`:
+
+   #### `install_type: "skill-file"` (e.g. solidity-auditor)
+
+   Check if `.claude/skills/<tool-name>/SKILL.md` exists. If missing and the tool has an `install_url`:
+   ```bash
+   git clone <install_url> /tmp/<tool-name>-install
+   mkdir -p .claude/skills/<tool-name>
+   cp /tmp/<tool-name>-install/<skill_path>/SKILL.md .claude/skills/<tool-name>/SKILL.md
+   rm -rf /tmp/<tool-name>-install
+   ```
+   - `skill_path` is the subdirectory within the repo containing the SKILL.md file (e.g. `solidity-auditor` for pashov/skills)
+   - If auto-install fails, fall back to printing manual install instructions
+
+   #### `install_type: "mcp-server"` (e.g. sc-auditor)
+
+   Check if `.claude/tools/<tool-name>/` exists and is built. If missing and the tool has an `install_url`:
+   ```bash
+   git clone <install_url> .claude/tools/<tool-name>
+   cd .claude/tools/<tool-name> && npm install && npm run build
+   ```
+   Then register the MCP server in the project's `.mcp.json` (create or merge):
+   ```json
+   {
+     "mcpServers": {
+       "<tool-name>": {
+         "type": "stdio",
+         "command": "node",
+         "args": [".claude/tools/<tool-name>/dist/mcp/main.js"]
+       }
+     }
+   }
+   ```
+   - Requires Node.js >= 22. Check `node --version` before attempting install
+   - If `.mcp.json` already exists, merge the new server entry (don't overwrite existing servers)
+   - If auto-install fails, fall back to printing manual install instructions
+
+   #### `install_type: "manual"` (e.g. auditagent)
+
+   Do NOT attempt auto-install. Print manual install instructions:
+   ```
+   auditagent requires manual installation:
+     pip install git+ssh://git@github.com/NethermindEth/auditagent-cli.git
+   ```
+
+3. For all selected tools, also check:
+   - **Env vars**: check `requires_env` vars exist (e.g. `SOLODIT_API_KEY`, `AUDIT_AGENT_API_KEY`). Print how to obtain & set them if missing.
+   - **System dependencies**: for each entry in `dependencies` array:
+     - Check if binary exists via `which <binary>` (e.g. `slither`, `aderyn`, `forge`, `aa`)
+     - If missing and `required: true`, mark tool as blocked
+     - If missing and `required: false`, note it as degraded but still runnable
+
+4. Collect all issues into a summary table. Separate auto-resolved items from items requiring user action:
+
+```
+Auto-installed:
+  ✓ solidity-auditor skill — cloned from pashov/skills, copied SKILL.md
+  ✓ sc-auditor MCP server — cloned, built, registered in .mcp.json
+
+Requires user action:
+┌─────────────────────┬──────────────┬──────────────────────────────────────┐
+│ Tool                │ Issue        │ Resolution                           │
+├─────────────────────┼──────────────┼──────────────────────────────────────┤
+│ sc-auditor          │ Missing env  │ export SOLODIT_API_KEY=<key>         │
+│ sc-auditor          │ No slither   │ pip install slither-analyzer         │
+│ auditagent          │ No aa binary │ pip install git+ssh://...            │
+└─────────────────────┴──────────────┴──────────────────────────────────────┘
+```
+
+5. **Pause** — if there are unresolved issues, present the summary and use **AskUserQuestion** to ask the user whether they've fixed the issues or which tools to skip. If all checks pass (including auto-installs), proceed immediately.
+
+### Phase B — Run tools
+
+6. First, run `npx solaudit context` once to generate codebase context (shared by all tools).
+
+7. Read `config.json` → `project.scope` to get the list of in-scope files. This is the authoritative scope — every tool must be constrained to these files.
+
+8. **Strip `@audit` comments** to prevent AI tools from being biased by the auditor's own notes.
+   - If `<output_dir>/ai-results/_audit-comments-backup.json` already exists (interrupted previous run), restore those comments first, then re-strip.
+   - Grep all in-scope files for lines containing `@audit` (this catches all variants: `// @audit`, `//@audit`, `// @audit-issue`, `// @audit-issue-verified`, etc.)
+   - Save every matched line to `<output_dir>/ai-results/_audit-comments-backup.json`:
+     ```json
+     [
+       { "file": "src/Vault.sol", "line": 42, "content": "    uint256 shares = amount / totalSupply; // @audit rounding down" },
+       { "file": "src/Vault.sol", "line": 55, "content": "    // @audit-issue This calculation is vulnerable to rounding errors." }
+     ]
+     ```
+     `content` is the **full original line** including indentation.
+   - For each matched line:
+     - If the line is **only** a comment (nothing but whitespace + `//` + `@audit...`), remove the entire line
+     - If the line has code before the comment (e.g. `uint x = 1; // @audit rounding`), remove only the `// @audit...` portion, keeping the code
+   - Print: "Stripped N @audit comments from M files (backed up to ai-results/_audit-comments-backup.json)"
+
+9. **auditagent — link & pull findings.** If auditagent is enabled and passed preflight:
+   - Use **AskUserQuestion** to ask:
+     ```
+     Do you have an auditagent scan to link? Paste the scan URL or ID, or "skip" to skip auditagent.
+     ```
+   - If the user provides a URL or ID:
+     a. Run `aa link <scan_id_or_url>` to link the CLI to the scan
+     b. Run `aa findings` and capture stdout
+     c. Save raw output to `<output_dir>/ai-results/auditagent/raw-output.md`
+     d. Normalize findings into `<output_dir>/ai-results/auditagent/findings.json` using the `AiResultFile` format (see step 10 for schema)
+     e. Write `<output_dir>/ai-results/auditagent/metadata.json`
+     f. Add each finding to `tracking.json` with `status: "unverified"` and `source: "auditagent"`
+     g. Update `<output_dir>/ai-status.json` with tool status: `"completed"` and findings count
+   - If the user replies "skip", mark auditagent as skipped and continue
+
+10. For each enabled `type: "skill"` tool that passed preflight, **spawn a subagent** using the Agent tool. Each skill runs in its own subagent to isolate its large output from the orchestrator context:
+    - **Record per-tool timing:** set `tool_start = Date.now()` BEFORE launching each subagent. After the subagent completes, set `tool_end = Date.now()` and compute `duration_seconds = Math.round((tool_end - tool_start) / 1000)`. Do NOT use a shared start time across tools — each tool must have its own independent start/end timestamps.
+    - Give the subagent a clear prompt that **includes the scope**:
+      ```
+      You are running the <tool-name> AI audit tool.
+
+      SCOPE — only audit these files:
+      <list each file from config.json → project.scope>
+
+      Read and follow the instructions in .claude/skills/<skill-name>/SKILL.md
+      Focus your analysis exclusively on the in-scope files listed above.
+      Ignore findings that only affect out-of-scope code (tests, mocks, dependencies).
+      Save raw output to <output_dir>/ai-results/<tool-name>/raw-output.md when done.
+      ```
+    - Run skill subagents **sequentially** (not in parallel) — they share the filesystem and may both write to tracking.json
+    - After each subagent completes, **in the orchestrator context**:
+      a. Read `<output_dir>/ai-results/<tool-name>/raw-output.md`
+      b. Parse and normalize findings into `<output_dir>/ai-results/<tool-name>/findings.json` using the `AiResultFile` format (use the per-tool `duration_seconds` computed above):
+         ```json
+         {
+           "tool": "<tool-name>",
+           "ran_at": "<ISO timestamp>",
+           "duration_seconds": <seconds>,
+           "total_findings": <count>,
+           "findings": [
+             {
+               "id": "<tool-name>-001",
+               "tool": "<tool-name>",
+               "title": "...",
+               "severity": "Critical|High|Medium|Low|Info",
+               "description": "...",
+               "affected_code": [{ "file": "...", "snippet": "..." }],
+               "confidence": "high|medium|low",
+               "category": "...",
+               "raw_category": "..."
+             }
+           ]
+         }
+         ```
+      c. Write `<output_dir>/ai-results/<tool-name>/metadata.json`:
+         ```json
+         { "ran_at": "<ISO timestamp>", "duration_seconds": <seconds> }
+         ```
+      d. Add each finding to `tracking.json` with `status: "unverified"` and `source: "<tool-name>"`
+      e. Update `<output_dir>/ai-status.json` with tool status: `"completed"` and findings count
+
+11. For each `type: "cli"` tool with `long_running: false` that passed preflight:
+    - Run CLI command via bash, passing the scope files as arguments where the invocation template supports it
+    - Same normalization flow as step 10
+
+### Phase C — Post-processing
+
+12. **Restore `@audit` comments.** Read `<output_dir>/ai-results/_audit-comments-backup.json` and restore every original line at its exact file:line location. Verify the count matches, then delete the backup file. Print: "Restored N @audit comments to M files"
+
+13. After all immediate tools complete, run `/compare-findings` to:
+    - Deduplicate AI findings against each other and against manual findings
+    - Assess novelty of unique findings
+    - Update `comparison.json`
+
+14. Print a coverage gap summary:
+    - "AI tools found N novel issues you didn't catch (M likely valid, K needs review)"
+    - "You found X issues no AI tool caught"
+    - Per-tool breakdown of findings by severity
+
+15. Print final summary:
+    - Total findings per tool
+    - Duplicates detected
+    - Novel findings requiring review
+    - Any tools that were skipped
+
+## Why Subagents?
+
+Each AI audit skill (solidity-auditor, sc-auditor) generates tens of thousands of tokens of output. Running them all in the orchestrator's context would:
+- Fill the context window, degrading quality of later steps
+- Mix tool outputs, making normalization harder
+- Risk losing context for the post-processing phase (compare-findings, gap analysis)
+
+By isolating each tool in a subagent, the orchestrator only sees the final raw-output.md file — a clean handoff point.
+
+## Severity Mapping
+
+When normalizing findings, map tool-specific severity labels:
+- "Critical", "High risk" → Critical
+- "High", "Major" → High
+- "Medium", "Moderate" → Medium
+- "Low", "Minor", "Warning" → Low
+- "Informational", "Info", "Gas", "Optimization" → Info
+
+## ID Format
+
+AI finding IDs follow the pattern: `<tool-name>-<NNN>` (e.g., `solidity-auditor-001`, `sc-auditor-012`, `auditagent-003`)

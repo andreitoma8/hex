@@ -11,6 +11,8 @@ export const EvidenceSchema = z.object({
 
 export const ConfidenceSchema = z.enum(['high', 'medium', 'low']);
 
+export const SeveritySchema = z.enum(['Critical', 'High', 'Medium', 'Low', 'Info']);
+
 export const DerivedFromSchema = z.enum([
   'solc-ast',
   'slither',
@@ -39,6 +41,7 @@ export const ConfigSchema = z.object({
     output_dir: z.string().default('.solaudit'),
     ai_model: z.string().default('claude-sonnet-4-20250514'),
     finding_template: z.string().default('default'),
+    ai_tools: z.array(z.lazy(() => AiToolSchema)).optional(),
   }),
 });
 
@@ -235,7 +238,7 @@ export const FindingLocationSchema = z.object({
 export const FindingSchema = z.object({
   id: z.string(),
   title: z.string(),
-  severity: z.enum(['Critical', 'High', 'Medium', 'Low', 'Info']),
+  severity: SeveritySchema,
   category: z.string(),
   description: z.string(),
   root_cause: z.object({
@@ -262,9 +265,9 @@ export const FindingsSchema = z.object({
 export const TrackingEntrySchema = z.object({
   id: z.string(),
   title: z.string(),
-  severity: z.enum(['Critical', 'High', 'Medium', 'Low', 'Info']),
+  severity: SeveritySchema,
   source: z.string(),
-  status: z.enum(['verified', 'pending_validation', 'rejected', 'duplicate']),
+  status: z.enum(['verified', 'pending_validation', 'rejected', 'duplicate', 'unverified']),
   poc_status: z.enum(['passing', 'failing', 'not_started']),
   poc_file: z.string().nullable(),
   duplicates: z.array(z.string()),
@@ -335,4 +338,68 @@ export const SpecConformanceSchema = z.object({
     undocumented: z.number().int(),
   }),
   items: z.array(SpecItemSchema),
+});
+
+// ─── AI Tool Configuration ─────────────────────────────────────────
+
+export const AiToolDependencySchema = z.object({
+  binary: z.string(),
+  install_cmd: z.string(),
+  required: z.boolean().default(false),
+});
+
+export const AiToolSchema = z.object({
+  name: z.string(),
+  type: z.enum(['skill', 'cli']),
+  invocation: z.string(),
+  install_url: z.string().optional(),
+  install_type: z.enum(['skill-file', 'mcp-server', 'manual']).optional(),
+  skill_path: z.string().optional(),
+  output_format: z.enum(['markdown', 'json', 'stdout']),
+  enabled: z.boolean().default(true),
+  requires_env: z.array(z.string()).optional(),
+  dependencies: z.array(AiToolDependencySchema).optional(),
+  long_running: z.boolean().default(false),
+  description: z.string().optional(),
+});
+
+// ─── AI Result Findings ────────────────────────────────────────────
+
+export const AiResultFindingSchema = z.object({
+  id: z.string(),
+  tool: z.string(),
+  title: z.string(),
+  severity: SeveritySchema,
+  description: z.string(),
+  affected_code: z.array(z.object({
+    file: z.string(),
+    snippet: z.string().optional(),
+  })),
+  confidence: ConfidenceSchema.optional(),
+  category: z.string().optional(),
+  raw_category: z.string().optional(),
+  ai_consensus: z.number().int().optional(),
+});
+
+export const AiResultFileSchema = z.object({
+  tool: z.string(),
+  ran_at: z.string(),
+  duration_seconds: z.number().optional(),
+  total_findings: z.number(),
+  findings: z.array(AiResultFindingSchema),
+});
+
+// ─── AI Run Status ─────────────────────────────────────────────────
+
+export const AiToolStatusSchema = z.object({
+  status: z.enum(['completed', 'running', 'failed', 'not_started']),
+  ran_at: z.string().optional(),
+  started_at: z.string().optional(),
+  pid: z.number().optional(),
+  findings_count: z.number().optional(),
+  error: z.string().optional(),
+});
+
+export const AiStatusSchema = z.object({
+  tools: z.record(z.string(), AiToolStatusSchema),
 });

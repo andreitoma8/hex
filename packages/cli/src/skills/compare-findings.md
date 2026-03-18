@@ -62,17 +62,6 @@ Write to `<output_dir>/comparison.json`:
       "reasoning": "Both describe the same share inflation attack in Vault.deposit"
     }
   ],
-  "novel": [
-    {
-      "id": "AI-N001",
-      "source": "<agent name>",
-      "original_id": "<original finding id>",
-      "title": "...",
-      "validity": "likely_valid|needs_review|likely_false_positive",
-      "reasoning": "...",
-      "priority": 1
-    }
-  ],
   "rejected": [
     {
       "id": "<source>-<id>",
@@ -82,9 +71,26 @@ Write to `<output_dir>/comparison.json`:
 }
 ```
 
+Novel findings (everything not in `duplicates` or `rejected`) are implicit — do NOT include a `novel` array.
+
 Update `<output_dir>/tracking.json` with all entries:
-- Duplicates: add to existing finding's `duplicates` array
-- Novel findings: add as new entries with `status: "pending_validation"`
-- Rejected findings: do not add to tracking
+
+**Duplicates:** For each duplicate pair:
+1. Add the AI finding ID to the canonical finding's `duplicates` array in tracking
+2. **Create a tracking entry** for the AI finding with:
+   - `id`: the AI finding's original ID (e.g., `solidity-auditor-001`)
+   - `finding_id`: the canonical finding ID (e.g., `F009`)
+   - `title`: the AI finding's title
+   - `severity`: the AI finding's severity
+   - `source`: the AI tool name (e.g., `solidity-auditor`)
+   - `status`: inherited from the canonical finding's tracking entry (e.g., if canonical is `verified`, set `verified`)
+   - `poc_status`: inherited from the canonical finding's tracking entry
+   - If a tracking entry for this AI finding already exists, update it rather than creating a duplicate
+
+This ensures every AI finding has a tracking entry the dashboard can find.
+
+**Novel findings** (not duplicates, not rejected): add as new entries using their **original AI ID** (e.g., `solidity-auditor-005`) as the tracking `id`, with `status: "pending_validation"`, no `finding_id`.
+
+**Rejected findings:** do not add to tracking.
 
 Report a summary: X duplicates found, Y novel findings to review, Z rejected.

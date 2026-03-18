@@ -8,6 +8,7 @@ import { normalizePath, makeRelative, getOutputDir, splitLines } from '../core/p
 import { runForge, detectTools } from '../core/external-tools.js';
 import { parseSolidity, extractSolidityVersion } from '../parsers/solidity-parser.js';
 import { copySkillsToClaudeFormat, getClaudeSkillsDir } from '../core/skills.js';
+import { DEFAULT_AI_TOOLS } from '../core/ai-tools.js';
 
 export const initCommand = new Command('init')
   .description('Initialize a new audit project')
@@ -178,6 +179,14 @@ export const initCommand = new Command('init')
         }
       }
 
+      // Create per-tool ai-results subdirectories
+      for (const tool of DEFAULT_AI_TOOLS) {
+        const toolDir = path.join(outputDir, 'ai-results', tool.name);
+        if (!fs.existsSync(toolDir)) {
+          fs.mkdirSync(toolDir, { recursive: true });
+        }
+      }
+
       // Optionally verify compilation
       if (opts.verify !== false && isFoundry) {
         spin.text = 'Verifying compilation...';
@@ -246,8 +255,9 @@ Skills are in \`.claude/skills/\` and auto-discovered by Claude Code. Type \`/\`
 7. \`/generate-poc\` — Validate an issue with a runnable proof-of-concept test
 8. \`/write-finding\` — Write a structured finding with severity and recommendation
 9. \`/conformance-to-findings\` — Batch-convert spec deviations into findings
-10. \`/compare-findings\` — Cross-check findings against AI agent results
-11. \`/validate-ai-finding\` — Independently verify a novel AI-found issue
+10. \`/run-ai-analysis\` — Orchestrate all AI audit tools with preflight checks
+11. \`/compare-findings\` — Cross-check findings against AI agent results
+12. \`/validate-ai-finding\` — Independently verify a novel AI-found issue
 
 Each skill builds on previous outputs. Run them in order for best results.
 
