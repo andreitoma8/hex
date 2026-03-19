@@ -47,9 +47,9 @@ Key pages:
 - `/diagram` + `/flows` — Full-bleed canvas with auto-fit zoom, floating controls, loading spinner, and legend overlay
 - `/invariants` — Tabbed layout (From Docs | From Code | Discrepancies | Assumptions) with segmented control
 - `/conformance` — Status filter pills for quick filtering (DEVIATES, PARTIAL, etc.)
-- `/ai-reports` — Per-tool AI audit results with tabs, severity summary, expandable findings with verify/reject buttons, consensus badges, and run status indicators
+- `/ai-reports` — Per-tool AI audit results with tabs, severity summary, expandable findings, consensus badges, and run status indicators
 - `/report` — Card-per-finding layout with severity accent borders, horizontal severity bar chart, and copy-to-clipboard button (HackMD markdown format)
-- `/all-findings` — Merged table with filter pills (severity, status, including unverified) and expandable details with verify/reject buttons
+- `/all-findings` — Merged table with filter pills (severity, status, including unverified) and expandable details
 
 The dashboard has a fixed sidebar with always-visible theme toggle (Light / Dark / System). Apple-inspired design with consistent spacing, typography scale, and semantic color system. Code reference modals support Escape key to close.
 
@@ -105,14 +105,14 @@ Run all configured AI audit tools with a single command:
 ```
 /run-ai-analysis
 ```
-Starts with a tool selection prompt — choose which AI tools to run (or skip). Then runs preflight checks with type-aware auto-install: skill-file tools (solidity-auditor) clone and copy SKILL.md, MCP server tools (sc-auditor) clone/build/register in `.mcp.json`, manual tools (auditagent) print install instructions. Each enabled skill-based tool runs in its own subagent (isolating large outputs). After all subagents complete, the orchestrator normalizes findings into `.solaudit/ai-results/<tool>/findings.json` and adds them to tracking as `unverified`. Then `/compare-findings` runs automatically to deduplicate and assess novelty.
+Starts with a checkbox-style tool selection prompt — pick which AI tools to run. Then runs preflight checks with type-aware auto-install: skill-file tools (solidity-auditor) clone and copy SKILL.md, MCP server tools (sc-auditor) clone/build/register in `.mcp.json`, manual tools (auditagent) print install instructions. For auditagent, asks directly for the scan URL/ID (scans must be started from the webapp for full-repo context). Each enabled skill-based tool runs in its own subagent (isolating large outputs). After all subagents complete, the orchestrator normalizes findings into `.solaudit/ai-results/<tool>/findings.json` and adds them to tracking as `unverified`. Then `/compare-findings` runs automatically to deduplicate and assess novelty.
 
 To re-run deduplication manually after changes:
 ```
 /compare-findings
 ```
 
-For any novel finding it surfaces:
+For any novel finding it surfaces, validate interactively (asks whether you want a PoC or rational verification, and offers severity adjustment after writing):
 ```
 /validate-ai-finding for <finding-id>
 ```

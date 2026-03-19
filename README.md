@@ -254,9 +254,7 @@ Claude reads the issue description, the validation memo, the PoC, and the releva
 - PoC reference
 - Concrete recommendation
 
-It also regenerates `.solaudit/findings.md` from the JSON for human reading.
-
-Findings data is stored in two files: `findings.json` is the canonical source of truth (used for deduplication, severity stats, and future report generation), and `findings.md` is a rendered view you can read.
+Findings data is stored in `findings.json`, the canonical source of truth (used for deduplication, severity stats, and the dashboard report view).
 
 *Recommended model: Sonnet*
 
@@ -283,10 +281,10 @@ claude
 ```
 
 This orchestrator skill:
-1. Reads your configured AI tools from `config.json` → `settings.ai_tools` (3 tools by default: solidity-auditor, sc-auditor, auditagent)
+1. Presents a checkbox-style tool selection prompt (pick which AI tools to run)
 2. Runs a preflight check for each tool — verifies env vars, skill installation, and system dependencies, then presents a summary table of any missing items
-3. Runs each skill-based tool sequentially, saving raw output and normalized findings to `ai-results/<tool>/`
-4. Starts long-running tools (auditagent) in the background
+3. For auditagent, asks for the scan URL/ID directly (scans must be started from the webapp for full-repo context)
+4. Runs each skill-based tool sequentially, saving raw output and normalized findings to `ai-results/<tool>/`
 5. Adds all AI findings to `tracking.json` with `status: "unverified"`
 6. Runs `/compare-findings` automatically and prints a coverage gap summary
 
@@ -349,7 +347,6 @@ All commands are run from within the project directory (or with `--project /path
 | `solaudit context` | Assemble optimized AI context from codebase |
 | `solaudit context --target Vault` | Context for a specific contract and its dependencies |
 | `solaudit context --estimate` | Show token count without generating context |
-| `solaudit render-findings` | Regenerate `findings.md` from `findings.json` |
 | `solaudit dashboard` | Start local dashboard and open in browser |
 | `solaudit dashboard --port 8080` | Start dashboard on a custom port |
 | `solaudit claude` | Copy skills to `.claude/skills/` for Claude Code discovery |
@@ -375,7 +372,7 @@ Skills are invoked through Claude Code. Each skill has a recommended model — s
 | `conformance-to-findings` | 3.3 | Sonnet | Batch-converts spec conformance deviations into validated findings |
 | `run-ai-analysis` | 4.1 | Opus | Orchestrates all configured AI audit tools with preflight checks |
 | `compare-findings` | 4.2 | Sonnet | Semantic dedup of your findings vs AI agent findings |
-| `validate-ai-finding` | 4.3 | Opus | Independently verifies a novel AI agent finding |
+| `validate-ai-finding` | 4.3 | Opus | Interactively verifies a novel AI finding (PoC vs rational, severity adjustment) |
 
 ### Where Skills Live
 
@@ -442,7 +439,7 @@ The dashboard runs locally at `http://localhost:3000` and auto-refreshes when ou
 | Functions | `/functions` | Aggregated function view with state/call cross-references |
 | Invariants | `/invariants` | Identified invariants and doc/code discrepancies |
 | Spec Conformance | `/conformance` | Code vs spec check results, deviations first |
-| AI Reports | `/ai-reports` | Per-tool AI audit results with verify/reject actions |
+| AI Reports | `/ai-reports` | Per-tool AI audit results with consensus badges |
 | Report | `/report` | Verified findings with copy-to-clipboard (HackMD markdown format) |
 | All Findings | `/all-findings` | Merged table of all findings + tracking data with filters |
 
@@ -483,7 +480,6 @@ All SolAudit outputs live in a single directory inside the project (default: `.s
 │   └── flow-*.mmd           # Flow charts (one per flow)
 ├── progress.json            # Audit progress tracking (contract review state)
 ├── findings.json            # Canonical finding data (source of truth)
-├── findings.md              # Rendered findings (generated from JSON)
 ├── validations/             # Issue validation memos
 │   ├── A001_memo.md
 │   └── A003_memo.md

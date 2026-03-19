@@ -27,18 +27,18 @@ Read these files from the output directory:
      ]
      ```
 
-2. Use the **AskUserQuestion** tool to ask which tools to run. List each tool with its description, then ask which ones to skip (or confirm all). Example question:
+2. Use the **AskUserQuestion** tool to ask which tools to run. List each tool with a checkbox-style selection prompt. Example question:
    ```
    Which AI tools do you want to run?
 
-   • solidity-auditor — Pashov solidity-auditor Claude Code skill
-   • sc-auditor — Archethect sc-auditor MCP server with Solodit integration
-   • auditagent — Nethermind auditagent SaaS (links to an existing scan and pulls findings)
+   [ ] auditagent — Nethermind auditagent SaaS (pulls findings from an existing scan)
+   [ ] solidity-auditor — Pashov solidity-auditor Claude Code skill
+   [ ] sc-auditor — Archethect sc-auditor MCP server with Solodit integration
 
-   Reply with the names of tools to skip (comma-separated), or "all" to run everything.
+   Reply with the tool names you want to run (comma-separated), or "all" to run everything.
    ```
 
-3. Mark skipped tools as `enabled: false` for this run only (do not persist to config.json).
+3. Mark tools the user did NOT select as `enabled: false` for this run only (do not persist to config.json).
 
 4. Only proceed to Phase A for the tools the user selected.
 
@@ -121,11 +121,37 @@ Requires user action:
 
 ### Phase B — Run tools
 
-6. First, run `npx solaudit context` once to generate codebase context (shared by all tools).
+Determine which categories of tools were selected:
+- **External tools**: `type: "cli"` tools that pull from remote services (e.g. auditagent). These need NO local preparation — no context generation, no comment stripping, no scope files.
+- **Local tools**: `type: "skill"` or `type: "mcp-server"` tools that analyze the local codebase (e.g. solidity-auditor, sc-auditor). These need context, scope, and comment stripping.
 
-7. Read `config.json` → `project.scope` to get the list of in-scope files. This is the authoritative scope — every tool must be constrained to these files.
+#### Step 6 — Run external tools first (no prep needed)
 
-8. **Strip `@audit` comments** to prevent AI tools from being biased by the auditor's own notes.
+**auditagent** (and any other external CLI tools). If auditagent is enabled and passed preflight:
+   - Use **AskUserQuestion** to ask:
+     ```
+     Paste the auditagent scan URL or ID.
+     If you haven't started a scan yet, go to the auditagent webapp to create one for the full repository, then paste the URL here.
+     ```
+     Do NOT offer to start a scan via the CLI — per-contract scanning loses cross-contract context. The user must create the scan from the auditagent webapp.
+   - When the user provides a URL or ID:
+     a. Run `aa link <scan_id_or_url>` to link the CLI to the scan
+     b. Run `aa findings` and capture stdout
+     c. Save raw output to `<output_dir>/ai-results/auditagent/raw-output.md`
+     d. Normalize findings into `<output_dir>/ai-results/auditagent/findings.json` using the `AiResultFile` format (see step 9 for schema)
+     e. Write `<output_dir>/ai-results/auditagent/metadata.json`
+     f. Add each finding to `tracking.json` with `status: "unverified"` and `source: "auditagent"`
+     g. Update `<output_dir>/ai-status.json` with tool status: `"completed"` and findings count
+
+**If no local tools are selected**, skip directly to Phase C (post-processing). Steps 7–10 are not needed.
+
+#### Step 7 — Local tool preparation (only if local tools are selected)
+
+7a. Run `npx solaudit context` once to generate codebase context (shared by all local tools).
+
+7b. Read `config.json` → `project.scope` to get the list of in-scope files. This is the authoritative scope — every local tool must be constrained to these files.
+
+7c. **Strip `@audit` comments** to prevent AI tools from being biased by the auditor's own notes.
    - If `<output_dir>/ai-results/_audit-comments-backup.json` already exists (interrupted previous run), restore those comments first, then re-strip.
    - Grep all in-scope files for lines containing `@audit` (this catches all variants: `// @audit`, `//@audit`, `// @audit-issue`, `// @audit-issue-verified`, etc.)
    - Save every matched line to `<output_dir>/ai-results/_audit-comments-backup.json`:
@@ -141,22 +167,15 @@ Requires user action:
      - If the line has code before the comment (e.g. `uint x = 1; // @audit rounding`), remove only the `// @audit...` portion, keeping the code
    - Print: "Stripped N @audit comments from M files (backed up to ai-results/_audit-comments-backup.json)"
 
-9. **auditagent — link & pull findings.** If auditagent is enabled and passed preflight:
-   - Use **AskUserQuestion** to ask:
-     ```
-     Do you have an auditagent scan to link? Paste the scan URL or ID, or "skip" to skip auditagent.
-     ```
-   - If the user provides a URL or ID:
-     a. Run `aa link <scan_id_or_url>` to link the CLI to the scan
-     b. Run `aa findings` and capture stdout
-     c. Save raw output to `<output_dir>/ai-results/auditagent/raw-output.md`
-     d. Normalize findings into `<output_dir>/ai-results/auditagent/findings.json` using the `AiResultFile` format (see step 10 for schema)
-     e. Write `<output_dir>/ai-results/auditagent/metadata.json`
-     f. Add each finding to `tracking.json` with `status: "unverified"` and `source: "auditagent"`
-     g. Update `<output_dir>/ai-status.json` with tool status: `"completed"` and findings count
-   - If the user replies "skip", mark auditagent as skipped and continue
+#### Step 8 — Run local CLI tools
 
-10. For each enabled `type: "skill"` tool that passed preflight, **spawn a subagent** using the Agent tool. Each skill runs in its own subagent to isolate its large output from the orchestrator context:
+For each enabled `type: "cli"` local tool with `long_running: false` that passed preflight:
+   - Run CLI command via bash, passing the scope files as arguments where the invocation template supports it
+   - Same normalization flow as step 9
+
+#### Step 9 — Run skill tools
+
+For each enabled `type: "skill"` tool that passed preflight, **spawn a subagent** using the Agent tool. Each skill runs in its own subagent to isolate its large output from the orchestrator context:
     - **Record per-tool timing:** set `tool_start = Date.now()` BEFORE launching each subagent. After the subagent completes, set `tool_end = Date.now()` and compute `duration_seconds = Math.round((tool_end - tool_start) / 1000)`. Do NOT use a shared start time across tools — each tool must have its own independent start/end timestamps.
     - Give the subagent a clear prompt that **includes the scope**:
       ```
@@ -202,25 +221,23 @@ Requires user action:
       d. Add each finding to `tracking.json` with `status: "unverified"` and `source: "<tool-name>"`
       e. Update `<output_dir>/ai-status.json` with tool status: `"completed"` and findings count
 
-11. For each `type: "cli"` tool with `long_running: false` that passed preflight:
-    - Run CLI command via bash, passing the scope files as arguments where the invocation template supports it
-    - Same normalization flow as step 10
+#### Step 10 — Restore comments (only if step 7c ran)
+
+**Restore `@audit` comments.** Read `<output_dir>/ai-results/_audit-comments-backup.json` and restore every original line at its exact file:line location. Verify the count matches, then delete the backup file. Print: "Restored N @audit comments to M files"
 
 ### Phase C — Post-processing
 
-12. **Restore `@audit` comments.** Read `<output_dir>/ai-results/_audit-comments-backup.json` and restore every original line at its exact file:line location. Verify the count matches, then delete the backup file. Print: "Restored N @audit comments to M files"
-
-13. After all immediate tools complete, run `/compare-findings` to:
+11. After all tools complete, run `/compare-findings` to:
     - Deduplicate AI findings against each other and against manual findings
     - Assess novelty of unique findings
     - Update `comparison.json`
 
-14. Print a coverage gap summary:
+12. Print a coverage gap summary:
     - "AI tools found N novel issues you didn't catch (M likely valid, K needs review)"
     - "You found X issues no AI tool caught"
     - Per-tool breakdown of findings by severity
 
-15. Print final summary:
+13. Print final summary:
     - Total findings per tool
     - Duplicates detected
     - Novel findings requiring review

@@ -59,7 +59,6 @@ Use the `write-finding` template to create the finding:
 **Actions:**
 1. Append finding to `findings.json`
 2. Add tracking entry with `status: "verified"`, `source: "spec-conformance"`, `poc_status: "not_started"`
-3. Run `npx solaudit render-findings`
 
 ### 4b. If invalid — reject
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { FilterableTable, type FilterableColumn } from '@/components/FilterableTable';
 import { SeverityBadge } from '@/components/SeverityBadge';
 import type { MergedFinding } from './page';
@@ -88,56 +88,7 @@ const columns: FilterableColumn<MergedFinding>[] = [
   },
 ];
 
-function VerifyRejectButtons({ findingId, currentStatus, onUpdate }: {
-  findingId: string;
-  currentStatus: string;
-  onUpdate: (id: string, newStatus: string) => void;
-}) {
-  const [loading, setLoading] = useState(false);
-
-  const handleAction = async (action: 'verify' | 'reject') => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/findings/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ finding_id: findingId, action }),
-      });
-      if (res.ok) {
-        onUpdate(findingId, action === 'verify' ? 'verified' : 'rejected');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (currentStatus !== 'unverified' && currentStatus !== 'pending_validation') {
-    return null;
-  }
-
-  return (
-    <div className="flex gap-2">
-      <button
-        type="button"
-        disabled={loading}
-        onClick={() => handleAction('verify')}
-        className="rounded-md border border-[var(--success)] bg-[var(--success)]/10 px-3 py-1 text-caption font-medium text-[var(--success)] hover:bg-[var(--success)]/20 disabled:opacity-50"
-      >
-        Verify
-      </button>
-      <button
-        type="button"
-        disabled={loading}
-        onClick={() => handleAction('reject')}
-        className="rounded-md border border-[var(--critical)] bg-[var(--critical)]/10 px-3 py-1 text-caption font-medium text-[var(--critical)] hover:bg-[var(--critical)]/20 disabled:opacity-50"
-      >
-        Reject
-      </button>
-    </div>
-  );
-}
-
-function FindingDetail({ item, onStatusUpdate }: { item: MergedFinding; onStatusUpdate: (id: string, newStatus: string) => void }) {
+function FindingDetail({ item }: { item: MergedFinding }) {
   const finding = item.finding;
   if (!finding) {
     return (
@@ -146,11 +97,6 @@ function FindingDetail({ item, onStatusUpdate }: { item: MergedFinding; onStatus
         {item.duplicates.length > 0 && (
           <p className="mt-2">Duplicates: {item.duplicates.join(', ')}</p>
         )}
-        <VerifyRejectButtons
-          findingId={item.id}
-          currentStatus={item.status}
-          onUpdate={onStatusUpdate}
-        />
       </div>
     );
   }
@@ -204,39 +150,17 @@ function FindingDetail({ item, onStatusUpdate }: { item: MergedFinding; onStatus
         </div>
       )}
 
-      <VerifyRejectButtons
-        findingId={item.id}
-        currentStatus={item.status}
-        onUpdate={onStatusUpdate}
-      />
     </div>
   );
 }
 
 export function AllFindingsClient({ findings, hiddenCount }: { findings: MergedFinding[]; hiddenCount: number }) {
   const [showDuplicates, setShowDuplicates] = useState(false);
-  const [statuses, setStatuses] = useState<Record<string, string>>(() => {
-    const map: Record<string, string> = {};
-    for (const f of findings) {
-      map[f.id] = f.status;
-    }
-    return map;
-  });
-
-  const handleStatusUpdate = useCallback((id: string, newStatus: string) => {
-    setStatuses((prev) => ({ ...prev, [id]: newStatus }));
-  }, []);
-
-  // Apply live status overrides and filter duplicates
+  // Filter duplicates
   const liveFindings = useMemo(() => {
-    const withStatus = findings.map((f) => ({
-      ...f,
-      status: statuses[f.id] ?? f.status,
-    }));
+    if (showDuplicates) return findings;
 
-    if (showDuplicates) return withStatus;
-
-    return withStatus.filter((f) => {
+    return findings.filter((f) => {
       const status = f.status;
       // Hide rejected and duplicate entries
       if (status === 'duplicate' || status === 'rejected') return false;
@@ -244,7 +168,7 @@ export function AllFindingsClient({ findings, hiddenCount }: { findings: MergedF
       if (f.finding_id != null && f.id !== f.finding_id) return false;
       return true;
     });
-  }, [findings, statuses, showDuplicates]);
+  }, [findings, showDuplicates]);
 
   return (
     <div>
@@ -267,7 +191,7 @@ export function AllFindingsClient({ findings, hiddenCount }: { findings: MergedF
         columns={columns}
         data={liveFindings}
         defaultOpen={true}
-        expandedRow={(item) => <FindingDetail item={item} onStatusUpdate={handleStatusUpdate} />}
+        expandedRow={(item) => <FindingDetail item={item} />}
       />
     </div>
   );

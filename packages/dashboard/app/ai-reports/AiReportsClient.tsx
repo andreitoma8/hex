@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { FilterableTable, type FilterableColumn } from '@/components/FilterableTable';
 import { SeverityBadge } from '@/components/SeverityBadge';
 
@@ -148,57 +148,7 @@ function ComparisonTable({ rows, toolMetas }: { rows: SourceRow[]; toolMetas: To
   );
 }
 
-function VerifyRejectButtons({ findingId, currentStatus, onUpdate }: {
-  findingId: string;
-  currentStatus: string;
-  onUpdate: (id: string, newStatus: string) => void;
-}) {
-  const [loading, setLoading] = useState(false);
-
-  const handleAction = async (action: 'verify' | 'reject') => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/findings/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ finding_id: findingId, action }),
-      });
-      if (res.ok) {
-        onUpdate(findingId, action === 'verify' ? 'verified' : 'rejected');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // No buttons for duplicate findings or already verified/rejected
-  if (currentStatus === 'duplicate' || currentStatus === 'verified' || currentStatus === 'rejected') {
-    return null;
-  }
-
-  return (
-    <div className="flex gap-2">
-      <button
-        type="button"
-        disabled={loading}
-        onClick={() => handleAction('verify')}
-        className="rounded-md border border-[var(--success)] bg-[var(--success)]/10 px-3 py-1 text-caption font-medium text-[var(--success)] hover:bg-[var(--success)]/20 disabled:opacity-50"
-      >
-        Verify
-      </button>
-      <button
-        type="button"
-        disabled={loading}
-        onClick={() => handleAction('reject')}
-        className="rounded-md border border-[var(--critical)] bg-[var(--critical)]/10 px-3 py-1 text-caption font-medium text-[var(--critical)] hover:bg-[var(--critical)]/20 disabled:opacity-50"
-      >
-        Reject
-      </button>
-    </div>
-  );
-}
-
-function FindingDetail({ item, onStatusUpdate }: { item: AiFlatFinding; onStatusUpdate: (id: string, newStatus: string) => void }) {
+function FindingDetail({ item }: { item: AiFlatFinding }) {
   return (
     <div className="space-y-sp-3 text-body">
       <div>
@@ -243,11 +193,6 @@ function FindingDetail({ item, onStatusUpdate }: { item: AiFlatFinding; onStatus
         )}
       </div>
 
-      <VerifyRejectButtons
-        findingId={item.id}
-        currentStatus={item.tracking_status}
-        onUpdate={onStatusUpdate}
-      />
     </div>
   );
 }
@@ -258,17 +203,6 @@ export function AiReportsClient({ findings, sourceRows, toolMetas }: {
   toolMetas: ToolMeta[];
 }) {
   const [showDuplicates, setShowDuplicates] = useState(false);
-  const [statuses, setStatuses] = useState<Record<string, string>>(() => {
-    const map: Record<string, string> = {};
-    for (const f of findings) {
-      map[f.id] = f.tracking_status;
-    }
-    return map;
-  });
-
-  const handleUpdate = useCallback((id: string, newStatus: string) => {
-    setStatuses((prev) => ({ ...prev, [id]: newStatus }));
-  }, []);
 
   const duplicateCount = findings.filter((f) => f.is_duplicate || f.tracking_status === 'duplicate' || f.tracking_status === 'rejected').length;
 
@@ -319,7 +253,7 @@ export function AiReportsClient({ findings, sourceRows, toolMetas }: {
       header: 'Status',
       accessorKey: 'tracking_status',
       enableColumnFilter: true,
-      cell: (row: AiFlatFinding) => <StatusBadge status={statuses[row.id] ?? row.tracking_status} />,
+      cell: (row: AiFlatFinding) => <StatusBadge status={row.tracking_status} />,
     },
     {
       id: 'confidence',
@@ -329,14 +263,11 @@ export function AiReportsClient({ findings, sourceRows, toolMetas }: {
         <span className="text-caption text-text-secondary">{row.confidence ?? '-'}</span>
       ),
     },
-  ], [statuses]);
+  ], []);
 
   // Filter and sort findings
   const visibleFindings = useMemo(() => {
-    let filtered = findings.map((f) => ({
-      ...f,
-      tracking_status: statuses[f.id] ?? f.tracking_status,
-    }));
+    let filtered = [...findings];
 
     if (!showDuplicates) {
       filtered = filtered.filter((f) => {
@@ -355,7 +286,7 @@ export function AiReportsClient({ findings, sourceRows, toolMetas }: {
     });
 
     return filtered;
-  }, [findings, statuses, showDuplicates]);
+  }, [findings, showDuplicates]);
 
   return (
     <div>
@@ -381,7 +312,7 @@ export function AiReportsClient({ findings, sourceRows, toolMetas }: {
         columns={columns}
         data={visibleFindings}
         defaultOpen={true}
-        expandedRow={(item) => <FindingDetail item={item} onStatusUpdate={handleUpdate} />}
+        expandedRow={(item) => <FindingDetail item={item} />}
       />
     </div>
   );

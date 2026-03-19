@@ -232,7 +232,6 @@ All analysis outputs live here. Key files and what they answer:
 | \`invariants.md\` | Protocol invariants from docs and code | invariants, assumptions, properties |
 | \`spec-conformance.json\` | Spec vs code deviations | spec compliance, ERC conformance |
 | \`findings.json\` | Audit findings (canonical) | reported issues, vulnerabilities |
-| \`findings.md\` | Rendered findings report | human-readable report |
 | \`tracking.json\` | Finding status and duplicates | finding triage, status |
 | \`comparison.json\` | AI cross-check results | AI-found issues, novel findings |
 | \`progress.json\` | Audit progress tracking | what has been reviewed |
@@ -267,7 +266,6 @@ Each skill builds on previous outputs. Run them in order for best results.
 - \`npx solaudit context\` — Assemble full codebase context for AI prompts
 - \`npx solaudit context --target <Contract>\` — Focused context for a single contract
 - \`npx solaudit dashboard\` — Open browser dashboard at http://localhost:3000
-- \`npx solaudit render-findings\` — Regenerate findings.md from findings.json
 `;
         fs.writeFileSync(claudeMdPath, claudeMd, 'utf-8');
       }

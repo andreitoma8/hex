@@ -37,9 +37,33 @@ In the actual code:
 ### 3. Evaluate
 
 **If Valid:**
-- Follow the `generate-poc` skill to create a PoC
-- Follow the `write-finding` skill to write the finding
-- Update tracking: `status: "verified"`
+
+1. Use the **AskUserQuestion** tool to ask:
+   > The finding appears **VALID**. How would you like to proceed?
+   >
+   > 1. Generate a full PoC test, then write the finding
+   > 2. Accept with rational verification only (no PoC — just validation memo + finding)
+   >
+   > Reply **1** or **2**.
+
+2. **If the user chooses 1 (PoC):**
+   - Follow the `generate-poc` skill to create a PoC
+   - Follow the `write-finding` skill to write the finding
+
+3. **If the user chooses 2 (rational verification only):**
+   - Write the validation memo (see Output section below)
+   - Follow the `write-finding` skill to write the finding with `poc.status: "not_started"` and `poc.file: null`
+
+4. Update tracking: `status: "verified"`
+
+5. **After the finding has been written**, use the **AskUserQuestion** tool to ask:
+   > Finding written as **F\<NNN\>** with severity: **\<current severity\>**.
+   >
+   > Would you like to change the severity? Reply with the new severity (Critical / High / Medium / Low / Info), or **no** to keep it.
+
+6. If the user provides a new severity:
+   - Update the finding in `<output_dir>/findings.json`
+   - Update `<output_dir>/tracking.json` if it has a severity field for this entry
 
 **If Invalid:**
 - Explain exactly why:
