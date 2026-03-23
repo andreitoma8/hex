@@ -47,4 +47,18 @@ export const DEFAULT_AI_TOOLS: AiTool[] = [
     ],
     description: 'Archethect sc-auditor MCP server with Solodit integration',
   },
+  {
+    name: 'plamen',
+    type: 'skill',
+    invocation: '/plamen core',
+    install_type: 'manual',
+    output_format: 'markdown',
+    enabled: true,
+    long_running: true,
+    requires_env: [],
+    dependencies: [
+      { binary: 'python3', install_cmd: 'Install Python 3.11-3.12 from https://python.org', required: true },
+    ],
+    description: 'Plamen autonomous security auditor — multi-agent analysis across 8 audit phases',
+  },
 ];

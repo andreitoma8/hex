@@ -105,7 +105,7 @@ Run all configured AI audit tools with a single command:
 ```
 /run-ai-analysis
 ```
-Starts with a checkbox-style tool selection prompt — pick which AI tools to run. Then runs preflight checks with type-aware auto-install: skill-file tools (solidity-auditor) clone and copy SKILL.md, MCP server tools (sc-auditor) clone/build/register in `.mcp.json`, manual tools (auditagent) print install instructions. For auditagent, asks directly for the scan URL/ID (scans must be started from the webapp for full-repo context). Each enabled skill-based tool runs in its own subagent (isolating large outputs). After all subagents complete, the orchestrator normalizes findings into `.solaudit/ai-results/<tool>/findings.json` and adds them to tracking as `unverified`. Then `/compare-findings` runs automatically to deduplicate and assess novelty.
+Starts with a checkbox-style tool selection prompt — pick which AI tools to run (auditagent, solidity-auditor, sc-auditor, plamen). Then runs preflight checks with type-aware auto-install: skill-file tools (solidity-auditor) clone and copy SKILL.md, MCP server tools (sc-auditor) clone/build/register in `.mcp.json`, plamen offers auto-install if not found (clones repo + runs installer), manual tools (auditagent) print install instructions. For auditagent, asks directly for the scan URL/ID (scans must be started from the webapp for full-repo context). Each enabled skill-based tool runs in its own subagent (isolating large outputs). After all subagents complete, the orchestrator normalizes findings into `.solaudit/ai-results/<tool>/findings.json` and adds them to tracking as `unverified`. Then `/compare-findings` runs automatically to deduplicate and assess novelty.
 
 To re-run deduplication manually after changes:
 ```

@@ -281,8 +281,8 @@ claude
 ```
 
 This orchestrator skill:
-1. Presents a checkbox-style tool selection prompt (pick which AI tools to run)
-2. Runs a preflight check for each tool — verifies env vars, skill installation, and system dependencies, then presents a summary table of any missing items
+1. Presents a checkbox-style tool selection prompt (pick which AI tools to run — auditagent, solidity-auditor, sc-auditor, plamen)
+2. Runs a preflight check for each tool — verifies env vars, skill installation, and system dependencies, then presents a summary table of any missing items. For plamen, offers auto-install if not found.
 3. For auditagent, asks for the scan URL/ID directly (scans must be started from the webapp for full-repo context)
 4. Runs each skill-based tool sequentially, saving raw output and normalized findings to `ai-results/<tool>/`
 5. Adds all AI findings to `tracking.json` with `status: "unverified"`
@@ -492,6 +492,11 @@ All SolAudit outputs live in a single directory inside the project (default: `.s
 │   │   ├── raw-output.md
 │   │   ├── findings.json
 │   │   └── metadata.json
+│   ├── plamen/
+│   │   ├── raw-output.md
+│   │   ├── findings.json
+│   │   ├── metadata.json
+│   │   └── _scope.txt       # Generated scope file for plamen
 │   └── auditagent/
 │       ├── raw-output.md
 │       ├── findings.json
