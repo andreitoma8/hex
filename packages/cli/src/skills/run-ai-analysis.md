@@ -98,31 +98,45 @@ Read these files from the output directory:
      pip install git+ssh://git@github.com/NethermindEth/auditagent-cli.git
    ```
 
-   **plamen:** Check if Plamen is installed, and offer auto-install if missing:
-   1. Check if `~/.plamen/` directory exists (repo cloned) AND `~/.claude/commands/plamen.md` exists (installer ran successfully)
+   **plamen:** Check if Plamen is installed, and auto-install if missing.
+   The interactive installer (`plamen.py install`) uses InquirerPy menus that require a TTY — it cannot run in Claude Code's bash. Instead, replicate the install manually by copying files.
+
+   1. Check if `~/.plamen/` directory exists (repo cloned) AND `~/.claude/commands/plamen.md` exists (files copied)
    2. If **both exist**: Plamen is installed — proceed
-   3. If `~/.plamen/` **is missing**: use **AskUserQuestion** to ask:
-      ```
-      Plamen is not installed. Would you like me to install it?
-      This will clone the repo to ~/.plamen and run the installer (creates symlinks in ~/.claude/, builds RAG database).
-      Reply "yes" to install, or "no" to skip plamen for this run.
-      ```
-      If user says yes, run:
+   3. If `~/.plamen/` **is missing**: use **AskUserQuestion** to ask if the user wants to install. If yes:
       ```bash
       git clone https://github.com/PlamenTSV/plamen.git ~/.plamen
-      cd ~/.plamen && python3 plamen.py install
+      cd ~/.plamen && git submodule update --init --recursive
       ```
-   4. If `~/.plamen/` **exists** but `~/.claude/commands/plamen.md` **is missing** (cloned but installer not run): use **AskUserQuestion** to ask:
-      ```
-      Plamen repository found at ~/.plamen but the installer hasn't been run.
-      Would you like me to run the installer now?
-      Reply "yes" to install, or "no" to skip plamen for this run.
-      ```
-      If user says yes, run:
+      Then continue to step 4.
+   4. If `~/.claude/commands/plamen.md` **is missing** (repo exists but files not copied): copy plamen files into `~/.claude/`:
       ```bash
-      cd ~/.plamen && python3 plamen.py install
+      # Detect Python: use python3 if available, fall back to python (Windows Store stub for python3 returns exit 49)
+      python3 --version 2>/dev/null && PY=python3 || PY=python
+      $PY -m pip install -r ~/.plamen/requirements.txt
+
+      # Agent definitions
+      mkdir -p ~/.claude/agents
+      cp ~/.plamen/agents/*.md ~/.claude/agents/
+
+      # Agent skills (directory tree)
+      cp -r ~/.plamen/agents/skills ~/.claude/agents/skills
+
+      # Slash command
+      mkdir -p ~/.claude/commands
+      cp ~/.plamen/commands/plamen.md ~/.claude/commands/plamen.md
+
+      # Rules
+      mkdir -p ~/.claude/rules
+      cp ~/.plamen/rules/*.md ~/.claude/rules/
+
+      # Prompts (directory tree)
+      cp -r ~/.plamen/prompts ~/.claude/prompts
       ```
-   5. If user says no (or auto-install fails), skip plamen for this run
+      Verify `~/.claude/commands/plamen.md` exists after copy. Print: "Plamen installed (agents, commands, rules, prompts, skills copied to ~/.claude/)"
+   5. If user declines install or copy fails, skip plamen for this run
+
+   > **Note:** This minimal install skips config merges (settings.json, mcp.json, CLAUDE.md), RAG database, and toolchain deps. For full setup including RAG and MCP servers, the user can run the interactive installer themselves: `! cd ~/.plamen && python3 plamen.py install`
 
 3. For all selected tools, also check:
    - **Env vars**: check `requires_env` vars exist (e.g. `SOLODIT_API_KEY`, `AUDIT_AGENT_API_KEY`). Print how to obtain & set them if missing.
@@ -219,29 +233,15 @@ For each enabled `type: "skill"` tool that passed preflight, **spawn a subagent*
       Save raw output to <output_dir>/ai-results/<tool-name>/raw-output.md when done.
       ```
 
-    - **plamen-specific subagent prompt** — Plamen is invoked as a slash command (`/plamen`), not via a SKILL.md file. Use this prompt instead of the generic one above:
-      ```
-      You are running the plamen AI audit tool.
+    - **plamen — run in orchestrator, NOT a subagent.** Slash commands from `~/.claude/commands/` are only available at the top-level conversation, not inside Agent-spawned subagents. So plamen must run directly in the orchestrator context:
 
-      SCOPE — only audit these files:
-      <list each file from config.json → project.scope>
-
-      STEP 1: Create a scope file at <output_dir>/ai-results/plamen/_scope.txt
-      Write one file path per line (relative to project root), listing all in-scope files above.
-
-      STEP 2: Run the Plamen audit
-      Invoke: /plamen core --scope <output_dir>/ai-results/plamen/_scope.txt
-
-      IMPORTANT:
-      - Plamen spawns multiple sub-agents (25-45 in core mode). This is expected and will take time.
-      - Do NOT interrupt or timeout the audit — let all phases complete.
-      - Focus exclusively on the in-scope files listed above.
-
-      STEP 3: Save the final report
-      After Plamen finishes, copy its final audit report to:
-        <output_dir>/ai-results/plamen/raw-output.md
-      Look for AUDIT_REPORT.md or the final consolidated report in the project root or .plamen/scratchpad/.
-      ```
+      1. Create a scope file at `<output_dir>/ai-results/plamen/_scope.txt` with one in-scope file path per line (relative to project root).
+      2. Invoke plamen directly via the **Skill tool**:
+         ```
+         Skill(skill="plamen", args="core <project-path> wrapper-launch scope: <output_dir>/ai-results/plamen/_scope.txt")
+         ```
+         The `wrapper-launch` flag skips all confirmation prompts. Plamen spawns its own sub-agents (25-45 in core mode) — these run in isolated contexts and don't pollute the orchestrator.
+      3. After plamen completes, copy its final audit report to `<output_dir>/ai-results/plamen/raw-output.md`. Look for `AUDIT_REPORT.md` or the final consolidated report in the project root or `.plamen/scratchpad/`.
 
     - Run skill subagents **sequentially** (not in parallel) — they share the filesystem and may both write to tracking.json
     - After each subagent completes, **in the orchestrator context**:
