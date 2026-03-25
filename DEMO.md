@@ -28,7 +28,7 @@ Step-by-step demo of all SolAudit functionality using Claude Code.
 /init-audit
 ```
 
-It will ask you for scope, commit, chain, etc. For solmate something like `--scope "src/**/*.sol"` works. This runs init + a single `solaudit analyze` command that executes all five analysis commands (stats, deps, access, state, calls) in sequence, continuing on failure and reporting results.
+It will ask you for scope, commit, chain, etc. For solmate something like `--scope "src/**/*.sol"` works. This runs init + a single `solaudit analyze` command that executes all eight analysis commands (stats, deps, access, state, calls, patterns, constraints, surface) in sequence, continuing on failure and reporting results.
 
 ### Open the Dashboard
 
@@ -105,7 +105,7 @@ Run all configured AI audit tools with a single command:
 ```
 /run-ai-analysis
 ```
-Starts with a checkbox-style tool selection prompt — pick which AI tools to run (auditagent, solidity-auditor, sc-auditor, plamen). Then runs preflight checks with type-aware auto-install: skill-file tools (solidity-auditor) clone and copy SKILL.md, MCP server tools (sc-auditor) clone/build/register in `.mcp.json`, plamen offers auto-install if not found (clones repo + runs installer), manual tools (auditagent) print install instructions. For auditagent, asks directly for the scan URL/ID (scans must be started from the webapp for full-repo context). Each enabled skill-based tool runs in its own subagent (isolating large outputs). After all subagents complete, the orchestrator normalizes findings into `.solaudit/ai-results/<tool>/findings.json` and adds them to tracking as `unverified`. Then `/compare-findings` runs automatically to deduplicate and assess novelty.
+Starts with a checkbox-style tool selection prompt — pick which AI tools to run (solidity-auditor, sc-auditor, plamen). Then runs preflight checks with type-aware auto-install: skill-file tools (solidity-auditor) clone and copy SKILL.md, MCP server tools (sc-auditor) clone/build/register in `.mcp.json`, plamen offers auto-install if not found (clones repo + copies files to `~/.claude/`). Non-plamen skill tools (solidity-auditor, sc-auditor) launch **in parallel** as separate subagents, isolating their large outputs from the orchestrator. Plamen runs after the parallel tools complete (it needs the orchestrator context for slash commands). The dashboard shows live "running" status with a pulsing indicator while tools execute, and progressive results appear as each tool finishes. After all tools complete, the orchestrator normalizes findings into `.solaudit/ai-results/<tool>/findings.json` and batch-writes them to tracking as `unverified`. Then `/compare-findings` runs automatically to deduplicate and assess novelty.
 
 To re-run deduplication manually after changes:
 ```

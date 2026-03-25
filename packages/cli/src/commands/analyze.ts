@@ -5,6 +5,9 @@ import { depsCommand } from './deps.js';
 import { accessCommand } from './access.js';
 import { stateCommand } from './state.js';
 import { callsCommand } from './calls.js';
+import { patternsCommand } from './patterns.js';
+import { constraintsCommand } from './constraints.js';
+import { surfaceCommand } from './surface.js';
 
 interface StepResult {
   name: string;
@@ -13,7 +16,7 @@ interface StepResult {
 }
 
 export const analyzeCommand = new Command('analyze')
-  .description('Run all deterministic analysis commands (stats, deps, access, state, calls)')
+  .description('Run all deterministic analysis commands (stats, deps, access, state, calls, patterns, constraints, surface)')
   .option('--project <dir>', 'Project directory')
   .option('--no-coverage', 'Skip test coverage (passed to stats)')
   .action(async (opts) => {
@@ -23,6 +26,9 @@ export const analyzeCommand = new Command('analyze')
       { name: 'access', command: accessCommand },
       { name: 'state', command: stateCommand },
       { name: 'calls', command: callsCommand },
+      { name: 'patterns', command: patternsCommand },
+      { name: 'constraints', command: constraintsCommand },
+      { name: 'surface', command: surfaceCommand },
     ];
 
     const results: StepResult[] = [];

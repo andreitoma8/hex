@@ -21,19 +21,18 @@ Read these files from the output directory:
    - **If `ai_tools` is missing** (pre-v0.2.0 config): use these defaults and offer to write them into `config.json`:
      ```json
      [
-       { "name": "auditagent", "type": "cli", "invocation": "aa findings", "install_type": "manual", "output_format": "stdout", "enabled": true, "long_running": false, "requires_env": ["AUDIT_AGENT_API_KEY"], "dependencies": [{ "binary": "aa", "install_cmd": "pip install git+ssh://git@github.com/NethermindEth/auditagent-cli.git", "required": true }], "description": "Nethermind auditagent SaaS — links to an existing scan and pulls findings" },
        { "name": "solidity-auditor", "type": "skill", "invocation": "/solidity-auditor deep", "install_url": "https://github.com/pashov/skills", "install_type": "skill-file", "skill_path": "solidity-auditor", "output_format": "markdown", "enabled": true, "long_running": false, "description": "Pashov solidity-auditor Claude Code skill" },
        { "name": "sc-auditor", "type": "skill", "invocation": "/security-auditor src/", "install_url": "https://github.com/Archethect/sc-auditor", "install_type": "mcp-server", "output_format": "markdown", "enabled": true, "long_running": false, "requires_env": ["SOLODIT_API_KEY"], "dependencies": [{ "binary": "slither", "install_cmd": "pip install slither-analyzer", "required": false }, { "binary": "aderyn", "install_cmd": "cargo install aderyn", "required": false }, { "binary": "forge", "install_cmd": "curl -L https://foundry.paradigm.xyz | bash && foundryup", "required": false }], "description": "Archethect sc-auditor MCP server with Solodit integration" },
        { "name": "plamen", "type": "skill", "invocation": "/plamen core", "install_type": "manual", "output_format": "markdown", "enabled": true, "long_running": true, "dependencies": [{ "binary": "python3", "install_cmd": "Install Python 3.11-3.12 from https://python.org", "required": true }], "description": "Plamen autonomous security auditor — multi-agent analysis across 8 audit phases" }
      ]
      ```
    - **If `ai_tools` exists**: check for missing default tools. Compare tool names in config against the built-in defaults above. For any default tool NOT present in config by name, append it with `enabled: true`. If new tools were added, print: "Added N new default tool(s) to your config: <names>" and persist the updated list to `config.json`.
+   - **Legacy cleanup**: if `ai_tools` contains an entry named `auditagent`, remove it and persist the updated list to `config.json`. Print: "Removed auditagent (no longer supported)".
 
 2. Use the **AskUserQuestion** tool to ask which tools to run. List each tool with a checkbox-style selection prompt. Example question:
    ```
    Which AI tools do you want to run?
 
-   [ ] auditagent — Nethermind auditagent SaaS (pulls findings from an existing scan)
    [ ] solidity-auditor — Pashov solidity-auditor Claude Code skill
    [ ] sc-auditor — Archethect sc-auditor MCP server with Solodit integration
    [ ] plamen — Plamen autonomous security auditor (deploys 25-45 agents in core mode)
@@ -88,15 +87,7 @@ Read these files from the output directory:
    - If `.mcp.json` already exists, merge the new server entry (don't overwrite existing servers)
    - If auto-install fails, fall back to printing manual install instructions
 
-   #### `install_type: "manual"` (e.g. auditagent, plamen)
-
-   Handle each manual tool individually:
-
-   **auditagent:** Print manual install instructions (no auto-install):
-   ```
-   auditagent requires manual installation:
-     pip install git+ssh://git@github.com/NethermindEth/auditagent-cli.git
-   ```
+   #### `install_type: "manual"` (e.g. plamen)
 
    **plamen:** Check if Plamen is installed, and auto-install if missing.
    The interactive installer (`plamen.py install`) uses InquirerPy menus that require a TTY — it cannot run in Claude Code's bash. Instead, replicate the install manually by copying files.
@@ -139,9 +130,9 @@ Read these files from the output directory:
    > **Note:** This minimal install skips config merges (settings.json, mcp.json, CLAUDE.md), RAG database, and toolchain deps. For full setup including RAG and MCP servers, the user can run the interactive installer themselves: `! cd ~/.plamen && python3 plamen.py install`
 
 3. For all selected tools, also check:
-   - **Env vars**: check `requires_env` vars exist (e.g. `SOLODIT_API_KEY`, `AUDIT_AGENT_API_KEY`). Print how to obtain & set them if missing.
+   - **Env vars**: check `requires_env` vars exist (e.g. `SOLODIT_API_KEY`). Print how to obtain & set them if missing.
    - **System dependencies**: for each entry in `dependencies` array:
-     - Check if binary exists via `which <binary>` (e.g. `slither`, `aderyn`, `forge`, `aa`)
+     - Check if binary exists via `which <binary>` (e.g. `slither`, `aderyn`, `forge`)
      - If missing and `required: true`, mark tool as blocked
      - If missing and `required: false`, note it as degraded but still runnable
 
@@ -158,7 +149,6 @@ Requires user action:
 ├─────────────────────┼──────────────┼──────────────────────────────────────┤
 │ sc-auditor          │ Missing env  │ export SOLODIT_API_KEY=<key>         │
 │ sc-auditor          │ No slither   │ pip install slither-analyzer         │
-│ auditagent          │ No aa binary │ pip install git+ssh://...            │
 └─────────────────────┴──────────────┴──────────────────────────────────────┘
 ```
 
@@ -166,37 +156,15 @@ Requires user action:
 
 ### Phase B — Run tools
 
-Determine which categories of tools were selected:
-- **External tools**: `type: "cli"` tools that pull from remote services (e.g. auditagent). These need NO local preparation — no context generation, no comment stripping, no scope files.
-- **Local tools**: `type: "skill"` or `type: "mcp-server"` tools that analyze the local codebase (e.g. solidity-auditor, sc-auditor). These need context, scope, and comment stripping.
+All tools analyze the local codebase and need context generation and comment stripping before they run.
 
-#### Step 6 — Run external tools first (no prep needed)
+#### Step 6 — Tool preparation
 
-**auditagent** (and any other external CLI tools). If auditagent is enabled and passed preflight:
-   - Use **AskUserQuestion** to ask:
-     ```
-     Paste the auditagent scan URL or ID.
-     If you haven't started a scan yet, go to the auditagent webapp to create one for the full repository, then paste the URL here.
-     ```
-     Do NOT offer to start a scan via the CLI — per-contract scanning loses cross-contract context. The user must create the scan from the auditagent webapp.
-   - When the user provides a URL or ID:
-     a. Run `aa link <scan_id_or_url>` to link the CLI to the scan
-     b. Run `aa findings` and capture stdout
-     c. Save raw output to `<output_dir>/ai-results/auditagent/raw-output.md`
-     d. Normalize findings into `<output_dir>/ai-results/auditagent/findings.json` using the `AiResultFile` format (see step 9 for schema)
-     e. Write `<output_dir>/ai-results/auditagent/metadata.json`
-     f. Add each finding to `tracking.json` with `status: "unverified"` and `source: "auditagent"`
-     g. Update `<output_dir>/ai-status.json` with tool status: `"completed"` and findings count
+6a. Run `npx solaudit context` once to generate codebase context (shared by all tools).
 
-**If no local tools are selected**, skip directly to Phase C (post-processing). Steps 7–10 are not needed.
+6b. Read `config.json` → `project.scope` to get the list of in-scope files. This is the authoritative scope — every tool must be constrained to these files.
 
-#### Step 7 — Local tool preparation (only if local tools are selected)
-
-7a. Run `npx solaudit context` once to generate codebase context (shared by all local tools).
-
-7b. Read `config.json` → `project.scope` to get the list of in-scope files. This is the authoritative scope — every local tool must be constrained to these files.
-
-7c. **Strip `@audit` comments** to prevent AI tools from being biased by the auditor's own notes.
+6c. **Strip `@audit` comments** to prevent AI tools from being biased by the auditor's own notes.
    - Check if in-scope files have uncommitted changes: `git status --porcelain -- <scope-files>`
    - If there are uncommitted changes, commit them as a snapshot so they can be restored later:
      ```bash
@@ -210,101 +178,129 @@ Determine which categories of tools were selected:
      - If the line has code before the comment (e.g. `uint x = 1; // @audit rounding`), remove only the `// @audit...` portion, keeping the code
    - Print: "Stripped N @audit comments from M files (will restore via git checkout)"
 
-#### Step 8 — Run local CLI tools
+#### Step 7 — Run local CLI tools
 
-For each enabled `type: "cli"` local tool with `long_running: false` that passed preflight:
+For each enabled `type: "cli"` tool with `long_running: false` that passed preflight:
    - Run CLI command via bash, passing the scope files as arguments where the invocation template supports it
-   - Same normalization flow as step 9
+   - Same normalization flow as step 8
 
-#### Step 9 — Run skill tools
+#### Step 8 — Run skill tools
 
-For each enabled `type: "skill"` tool that passed preflight, **spawn a subagent** using the Agent tool. Each skill runs in its own subagent to isolate its large output from the orchestrator context:
-    - **Record per-tool timing:** set `tool_start = Date.now()` BEFORE launching each subagent. After the subagent completes, set `tool_end = Date.now()` and compute `duration_seconds = Math.round((tool_end - tool_start) / 1000)`. Do NOT use a shared start time across tools — each tool must have its own independent start/end timestamps.
-    - Give the subagent a clear prompt that **includes the scope**:
-      ```
-      You are running the <tool-name> AI audit tool.
+Skill tools run in **two phases**: fast tools in parallel first, then long-running tools (plamen). This maximizes parallelism while respecting the constraint that plamen must run in the orchestrator context.
 
-      SCOPE — only audit these files:
-      <list each file from config.json → project.scope>
+##### Step 8a — Launch non-plamen skills IN PARALLEL
 
-      Read and follow the instructions in .claude/skills/<skill-name>/SKILL.md
-      Focus your analysis exclusively on the in-scope files listed above.
-      Ignore findings that only affect out-of-scope code (tests, mocks, dependencies).
-      Save raw output to <output_dir>/ai-results/<tool-name>/raw-output.md when done.
-      ```
+Group all enabled `type: "skill"` tools with `long_running: false` that passed preflight (e.g. solidity-auditor, sc-auditor).
 
-    - **plamen — run in orchestrator, NOT a subagent.** Slash commands from `~/.claude/commands/` are only available at the top-level conversation, not inside Agent-spawned subagents. So plamen must run directly in the orchestrator context:
+For each tool in the group:
+- Record `tool_start = Date.now()`
+- Update `<output_dir>/ai-status.json` setting this tool's status to `"running"` with `started_at` set to the current ISO timestamp
 
-      1. Create a scope file at `<output_dir>/ai-results/plamen/_scope.txt` with one in-scope file path per line (relative to project root).
-      2. Invoke plamen directly via the **Skill tool**:
-         ```
-         Skill(skill="plamen", args="core <project-path> wrapper-launch scope: <output_dir>/ai-results/plamen/_scope.txt")
-         ```
-         The `wrapper-launch` flag skips all confirmation prompts. Plamen spawns its own sub-agents (25-45 in core mode) — these run in isolated contexts and don't pollute the orchestrator.
-      3. After plamen completes, copy its final audit report to `<output_dir>/ai-results/plamen/raw-output.md`. Look for `AUDIT_REPORT.md` or the final consolidated report in the project root or `.plamen/scratchpad/`.
+Launch ALL grouped tools as **parallel Agent calls in a single message**. Each skill runs in its own subagent to isolate its large output from the orchestrator context. Give each subagent a clear prompt that **includes the scope**:
+```
+You are running the <tool-name> AI audit tool.
 
-    - Run skill subagents **sequentially** (not in parallel) — they share the filesystem and may both write to tracking.json
-    - After each subagent completes, **in the orchestrator context**:
-      a. Read `<output_dir>/ai-results/<tool-name>/raw-output.md`
-      b. Parse and normalize findings into `<output_dir>/ai-results/<tool-name>/findings.json` using the `AiResultFile` format (use the per-tool `duration_seconds` computed above):
-         ```json
+SCOPE — only audit these files:
+<list each file from config.json → project.scope>
+
+Read and follow the instructions in .claude/skills/<skill-name>/SKILL.md
+Focus your analysis exclusively on the in-scope files listed above.
+Ignore findings that only affect out-of-scope code (tests, mocks, dependencies).
+Save raw output to <output_dir>/ai-results/<tool-name>/raw-output.md when done.
+```
+
+Wait for ALL parallel subagents to complete. Record `tool_end = Date.now()` and compute `duration_seconds = Math.round((tool_end - tool_start) / 1000)` for each.
+
+##### Step 8b — Normalize non-plamen results
+
+For each completed tool from step 8a, **in the orchestrator context**:
+  a. Read `<output_dir>/ai-results/<tool-name>/raw-output.md`
+  b. Parse and normalize findings into `<output_dir>/ai-results/<tool-name>/findings.json` using the `AiResultFile` format:
+     ```json
+     {
+       "tool": "<tool-name>",
+       "ran_at": "<ISO timestamp>",
+       "duration_seconds": <seconds>,
+       "total_findings": <count>,
+       "findings": [
          {
+           "id": "<tool-name>-001",
            "tool": "<tool-name>",
-           "ran_at": "<ISO timestamp>",
-           "duration_seconds": <seconds>,
-           "total_findings": <count>,
-           "findings": [
-             {
-               "id": "<tool-name>-001",
-               "tool": "<tool-name>",
-               "title": "...",
-               "severity": "Critical|High|Medium|Low|Info",
-               "description": "...",
-               "affected_code": [{ "file": "...", "snippet": "..." }],
-               "confidence": "high|medium|low",
-               "category": "...",
-               "raw_category": "..."
-             }
-           ]
+           "title": "...",
+           "severity": "Critical|High|Medium|Low|Info",
+           "description": "...",
+           "affected_code": [{ "file": "...", "snippet": "..." }],
+           "confidence": "high|medium|low",
+           "category": "...",
+           "raw_category": "..."
          }
-         ```
-      c. Write `<output_dir>/ai-results/<tool-name>/metadata.json`:
-         ```json
-         { "ran_at": "<ISO timestamp>", "duration_seconds": <seconds> }
-         ```
-      d. Add each finding to `tracking.json` with `status: "unverified"` and `source: "<tool-name>"`
-      e. Update `<output_dir>/ai-status.json` with tool status: `"completed"` and findings count
+       ]
+     }
+     ```
+  c. Write `<output_dir>/ai-results/<tool-name>/metadata.json`:
+     ```json
+     { "ran_at": "<ISO timestamp>", "duration_seconds": <seconds> }
+     ```
+  d. Update `<output_dir>/ai-status.json` setting this tool's status to `"completed"` with findings count
 
-#### Step 10 — Restore comments (only if step 7c ran)
+##### Step 8c — Run plamen (if selected)
+
+**plamen runs in the orchestrator, NOT a subagent.** Slash commands from `~/.claude/commands/` are only available at the top-level conversation, not inside Agent-spawned subagents. So plamen must run directly in the orchestrator context:
+
+1. Record `tool_start = Date.now()`
+2. Update `<output_dir>/ai-status.json` setting plamen's status to `"running"` with `started_at` set to the current ISO timestamp
+3. Create a scope file at `<output_dir>/ai-results/plamen/_scope.txt` with one in-scope file path per line (relative to project root).
+4. Invoke plamen directly via the **Skill tool**:
+   ```
+   Skill(skill="plamen", args="core <project-path> wrapper-launch scope: <output_dir>/ai-results/plamen/_scope.txt")
+   ```
+   The `wrapper-launch` flag skips all confirmation prompts. Plamen spawns its own sub-agents (25-45 in core mode) — these run in isolated contexts and don't pollute the orchestrator.
+5. After plamen completes, record `tool_end = Date.now()` and compute `duration_seconds`.
+6. Copy its final audit report to `<output_dir>/ai-results/plamen/raw-output.md`. Look for `AUDIT_REPORT.md` or the final consolidated report in the project root or `.plamen/scratchpad/`.
+7. Normalize findings into `<output_dir>/ai-results/plamen/findings.json` using the same `AiResultFile` format as step 8b.
+8. Write `<output_dir>/ai-results/plamen/metadata.json`.
+9. Update `<output_dir>/ai-status.json` setting plamen's status to `"completed"` with findings count.
+
+##### Step 8d — Batch tracking update
+
+After ALL tools have completed and been normalized, write all findings to `tracking.json` in one operation:
+- For each tool's `findings.json`, add each finding to `tracking.json` with `status: "unverified"` and `source: "<tool-name>"`
+- This single batch write avoids any race conditions and keeps the tracking file consistent
+
+#### Step 9 — Restore comments (only if step 6c ran)
 
 **Restore `@audit` comments.** Run `git checkout -- <scope-files>` to restore all in-scope files to their last committed state (which includes the `@audit` comments from the snapshot commit). Print: "Restored @audit comments via git checkout"
 
 ### Phase C — Post-processing
 
-11. After all tools complete, run `/compare-findings` to:
+10. After all tools complete, run `/compare-findings` to:
     - Deduplicate AI findings against each other and against manual findings
     - Assess novelty of unique findings
     - Update `comparison.json`
 
-12. Print a coverage gap summary:
+11. Print a coverage gap summary:
     - "AI tools found N novel issues you didn't catch (M likely valid, K needs review)"
     - "You found X issues no AI tool caught"
     - Per-tool breakdown of findings by severity
 
-13. Print final summary:
+12. Print final summary:
     - Total findings per tool
     - Duplicates detected
     - Novel findings requiring review
     - Any tools that were skipped
 
-## Why Subagents?
+## Why Subagents & Parallel Execution?
 
-Each AI audit skill (solidity-auditor, sc-auditor, plamen) generates tens of thousands of tokens of output. Running them all in the orchestrator's context would:
+Each AI audit skill (solidity-auditor, sc-auditor) generates tens of thousands of tokens of output. Running them all in the orchestrator's context would:
 - Fill the context window, degrading quality of later steps
 - Mix tool outputs, making normalization harder
 - Risk losing context for the post-processing phase (compare-findings, gap analysis)
 
 By isolating each tool in a subagent, the orchestrator only sees the final raw-output.md file — a clean handoff point.
+
+**Parallel execution is safe** because each subagent writes only to its own `ai-results/<tool>/` directory. Source files are read-only during analysis. `tracking.json` and `ai-status.json` are written exclusively by the orchestrator after subagents complete — there are no shared-write conflicts.
+
+**Plamen is the exception** — it must run in the orchestrator context because it uses slash commands (`/plamen`) which are only available at the top level. Non-plamen skills run first in parallel so their results appear in the dashboard while plamen is still running.
 
 ## Severity Mapping
 
@@ -317,4 +313,4 @@ When normalizing findings, map tool-specific severity labels:
 
 ## ID Format
 
-AI finding IDs follow the pattern: `<tool-name>-<NNN>` (e.g., `solidity-auditor-001`, `sc-auditor-012`, `auditagent-003`, `plamen-007`)
+AI finding IDs follow the pattern: `<tool-name>-<NNN>` (e.g., `solidity-auditor-001`, `sc-auditor-012`, `plamen-007`)

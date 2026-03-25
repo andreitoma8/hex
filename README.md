@@ -77,6 +77,9 @@ solaudit deps         # contract dependency graph and clusters
 solaudit access       # role → function mapping with confidence levels
 solaudit state        # state variable inventory (readers, writers, mutability)
 solaudit calls        # external call surface with trust classification
+solaudit patterns     # security pattern flags (ORACLE, FLASH_LOAN, TEMPORAL, etc.)
+solaudit constraints  # setter validation and event emission analysis
+solaudit surface      # attack surface summary cross-referencing all data
 ```
 
 Or run everything at once through the `init-audit` skill, which executes all commands in sequence and gives you a summary.
@@ -281,11 +284,11 @@ claude
 ```
 
 This orchestrator skill:
-1. Presents a checkbox-style tool selection prompt (pick which AI tools to run — auditagent, solidity-auditor, sc-auditor, plamen)
+1. Presents a checkbox-style tool selection prompt (pick which AI tools to run — solidity-auditor, sc-auditor, plamen)
 2. Runs a preflight check for each tool — verifies env vars, skill installation, and system dependencies, then presents a summary table of any missing items. For plamen, offers auto-install if not found.
-3. For auditagent, asks for the scan URL/ID directly (scans must be started from the webapp for full-repo context)
-4. Runs each skill-based tool sequentially, saving raw output and normalized findings to `ai-results/<tool>/`
-5. Adds all AI findings to `tracking.json` with `status: "unverified"`
+3. Launches non-plamen skills (solidity-auditor, sc-auditor) **in parallel** as separate subagents, with live "running" status in the dashboard
+4. Runs plamen after parallel tools complete (needs orchestrator context for slash commands)
+5. Normalizes all findings and batch-writes them to `tracking.json` with `status: "unverified"`
 6. Runs `/compare-findings` automatically and prints a coverage gap summary
 
 **Step 4.2 — Compare findings**
@@ -338,12 +341,15 @@ All commands are run from within the project directory (or with `--project /path
 | Command | What it does |
 |---------|-------------|
 | `solaudit init` | Initialize audit config — scope, commit, chain, docs URL |
-| `solaudit analyze` | Run all analysis commands in sequence (stats → deps → access → state → calls) |
+| `solaudit analyze` | Run all analysis commands in sequence (stats → deps → access → state → calls → patterns → constraints → surface) |
 | `solaudit stats` | Generate codebase statistics and test coverage |
 | `solaudit deps` | Build contract dependency graph |
 | `solaudit access` | Extract access control mapping (roles → functions, including inherited) |
 | `solaudit state` | Generate state variable inventory |
 | `solaudit calls` | Map external call surface (AST-based, Slither optional) |
+| `solaudit patterns` | Detect security-relevant patterns (ORACLE, FLASH_LOAN, TEMPORAL, etc.) |
+| `solaudit constraints` | Extract setter validation status and missing event emission |
+| `solaudit surface` | Build attack surface summary cross-referencing all analysis |
 | `solaudit context` | Assemble optimized AI context from codebase |
 | `solaudit context --target Vault` | Context for a specific contract and its dependencies |
 | `solaudit context --estimate` | Show token count without generating context |
@@ -472,6 +478,9 @@ All SolAudit outputs live in a single directory inside the project (default: `.s
 ├── access-control.json      # Role → function mapping
 ├── state-vars.json          # State variable inventory
 ├── external-calls.json      # External call surface
+├── patterns.json            # Security pattern flags (ORACLE, TEMPORAL, etc.)
+├── constraints.json         # Setter validation and event analysis
+├── attack-surface.json      # Attack surface summary
 ├── invariants.md            # Identified invariants
 ├── spec-conformance.json    # Spec vs code conformance checks
 ├── spec-conformance.md      # Rendered conformance report
@@ -497,7 +506,7 @@ All SolAudit outputs live in a single directory inside the project (default: `.s
 │   │   ├── findings.json
 │   │   ├── metadata.json
 │   │   └── _scope.txt       # Generated scope file for plamen
-│   └── auditagent/
+│   └── <other-tool>/      # Additional tools write here
 │       ├── raw-output.md
 │       ├── findings.json
 │       └── metadata.json

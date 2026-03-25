@@ -5,20 +5,6 @@ export type AiTool = z.infer<typeof AiToolSchema>;
 
 export const DEFAULT_AI_TOOLS: AiTool[] = [
   {
-    name: 'auditagent',
-    type: 'cli',
-    invocation: 'aa findings',
-    install_type: 'manual',
-    output_format: 'stdout',
-    enabled: true,
-    requires_env: ['AUDIT_AGENT_API_KEY'],
-    dependencies: [
-      { binary: 'aa', install_cmd: 'pip install git+ssh://git@github.com/NethermindEth/auditagent-cli.git', required: true },
-    ],
-    long_running: false,
-    description: 'Nethermind auditagent SaaS — links to an existing scan and pulls findings',
-  },
-  {
     name: 'solidity-auditor',
     type: 'skill',
     invocation: '/solidity-auditor deep',
