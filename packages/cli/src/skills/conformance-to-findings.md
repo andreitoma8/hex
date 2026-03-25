@@ -57,13 +57,13 @@ Use the `write-finding` template to create the finding:
 - In `root_cause.locations`, use the `code_location` from the conformance item
 
 **Actions:**
-1. Append finding to `findings.json`
-2. Add tracking entry with `status: "verified"`, `source: "spec-conformance"`, `poc_status: "not_started"`
+1. Append finding to the `findings` array in `findings.json`. The file structure is `{ "findings": [...] }`. If the file doesn't exist, create it with this wrapper. **Never write a bare array.**
+2. Add tracking entry to the `findings` array in `tracking.json`. The file structure is `{ "findings": [...] }`. Each tracking entry MUST include: `id` (same as finding_id), `finding_id`, `title`, `severity`, `source: "spec-conformance"`, `status: "verified"`, `poc_status: "not_started"`. **Never write a bare array.**
 
 ### 4b. If invalid — reject
 
 - Write a brief validation memo to `<output_dir>/validations/<conformance_id>_memo.md` explaining why the deviation does not warrant a finding
-- Add tracking entry with `status: "rejected"`, `source: "spec-conformance"`, `notes: "Conformance item <id>: <reason>"`
+- Add tracking entry to `tracking.json` with `id: "<conformance-id>"` (e.g. `"SC-009"`), `finding_id: null`, `title: "<brief description of the conformance item>"`, `severity: "<normalized severity_hint>"`, `status: "rejected"`, `source: "spec-conformance"`, `poc_status: "not_applicable"`, `notes: "Conformance item <id>: <reason>"`
 - **Do not write a finding**
 
 ### 5. Summary
@@ -76,6 +76,8 @@ After processing all items, report:
 
 ## Important
 
+- **File format**: Both `findings.json` and `tracking.json` use `{ "findings": [...] }` wrapper — **never bare arrays**. The dashboard cannot read bare arrays.
+- **Severity normalization**: Before writing any severity value, normalize it. Map `"Informational"` → `"Info"`. The only valid values are: `Critical`, `High`, `Medium`, `Low`, `Info`.
 - **Never auto-trigger PoC generation.** Set `poc.status: "not_started"` and `poc.file: null`.
 - **Recommendation must be prose only.** No code in the recommendation field.
 - Use the highest existing finding ID from **either** `findings.json` or `tracking.json` and increment sequentially.

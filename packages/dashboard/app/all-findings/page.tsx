@@ -169,6 +169,7 @@ export default function AllFindingsPage() {
   const seenIds = new Set<string>();
 
   for (const t of trackingEntries) {
+    if (!t.id) continue; // Skip malformed entries without an id
     seenIds.add(t.id);
     // Look up finding: first try finding_id bridge, then own id, then AI results fallback
     const lookupId = t.finding_id ?? t.id;
