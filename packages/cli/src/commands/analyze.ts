@@ -15,65 +15,79 @@ interface StepResult {
   error?: string;
 }
 
+async function runStep(
+  name: string,
+  command: Command,
+  args: string[],
+): Promise<StepResult> {
+  // Each step gets its own process.exit trap to avoid shared-state issues in parallel
+  const originalExit = process.exit;
+  let exitCalled = false;
+
+  process.exit = ((code?: number) => {
+    exitCalled = true;
+    throw new Error(`Command exited with code ${code ?? 1}`);
+  }) as never;
+
+  try {
+    await command.parseAsync(args, { from: 'user' });
+    if (exitCalled) {
+      return { name, success: false, error: 'Command exited with non-zero code' };
+    }
+    return { name, success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { name, success: false, error: message };
+  } finally {
+    process.exit = originalExit;
+  }
+}
+
 export const analyzeCommand = new Command('analyze')
   .description('Run all deterministic analysis commands (stats, deps, access, state, calls, patterns, constraints, surface)')
   .option('--project <dir>', 'Project directory')
   .option('--no-coverage', 'Skip test coverage (passed to stats)')
   .action(async (opts) => {
-    const steps: Array<{ name: string; command: Command }> = [
-      { name: 'stats', command: statsCommand },
-      { name: 'deps', command: depsCommand },
-      { name: 'access', command: accessCommand },
-      { name: 'state', command: stateCommand },
-      { name: 'calls', command: callsCommand },
-      { name: 'patterns', command: patternsCommand },
-      { name: 'constraints', command: constraintsCommand },
-      { name: 'surface', command: surfaceCommand },
-    ];
-
-    const results: StepResult[] = [];
-    logger.info('Running full analysis pipeline...\n');
-
-    // Prevent sub-commands from calling process.exit on failure
-    const originalExit = process.exit;
-    let exitCalled = false;
-
-    for (const step of steps) {
-      logger.info(`── ${step.name} ──`);
-
-      // Build args to forward
-      const args: string[] = [];
-      if (opts.project) {
-        args.push('--project', opts.project);
-      }
-      if (step.name === 'stats' && opts.coverage === false) {
-        args.push('--no-coverage');
-      }
-
-      exitCalled = false;
-      process.exit = ((code?: number) => {
-        exitCalled = true;
-        throw new Error(`Command exited with code ${code ?? 1}`);
-      }) as never;
-
-      try {
-        await step.command.parseAsync(args, { from: 'user' });
-
-        if (exitCalled) {
-          results.push({ name: step.name, success: false, error: 'Command exited with non-zero code' });
-        } else {
-          results.push({ name: step.name, success: true });
-        }
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        results.push({ name: step.name, success: false, error: message });
-      }
-
-      console.log(); // blank line between steps
+    const baseArgs: string[] = [];
+    if (opts.project) {
+      baseArgs.push('--project', opts.project);
     }
 
-    // Restore process.exit
-    process.exit = originalExit;
+    const statsArgs = [...baseArgs];
+    if (opts.coverage === false) {
+      statsArgs.push('--no-coverage');
+    }
+
+    // Phase 1: Run independent commands in parallel
+    // All commands gracefully handle missing cross-command data (null guards).
+    // surface is excluded — it requires all other outputs as input.
+    const phase1Steps: Array<{ name: string; command: Command; args: string[] }> = [
+      { name: 'stats', command: statsCommand, args: statsArgs },
+      { name: 'deps', command: depsCommand, args: baseArgs },
+      { name: 'access', command: accessCommand, args: baseArgs },
+      { name: 'state', command: stateCommand, args: baseArgs },
+      { name: 'calls', command: callsCommand, args: baseArgs },
+      { name: 'patterns', command: patternsCommand, args: baseArgs },
+      { name: 'constraints', command: constraintsCommand, args: baseArgs },
+    ];
+
+    logger.info('Running analysis pipeline (7 commands in parallel, then surface)...\n');
+
+    const phase1Promises = phase1Steps.map((step) => runStep(step.name, step.command, step.args));
+    const phase1Results = await Promise.allSettled(phase1Promises);
+
+    const results: StepResult[] = phase1Results.map((settled, i) => {
+      if (settled.status === 'fulfilled') {
+        return settled.value;
+      }
+      return { name: phase1Steps[i].name, success: false, error: String(settled.reason) };
+    });
+
+    // Phase 2: surface needs all other outputs
+    logger.info('\n── surface ──');
+    const surfaceResult = await runStep('surface', surfaceCommand, baseArgs);
+    results.push(surfaceResult);
+    console.log();
 
     // Summary
     const succeeded = results.filter((r) => r.success).length;

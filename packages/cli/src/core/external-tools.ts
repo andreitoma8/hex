@@ -1,4 +1,6 @@
 import { spawn } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
 import { logger } from './logger.js';
 
 export interface ToolInfo {
@@ -112,6 +114,45 @@ export async function runSlither(
 }
 
 /**
+ * Get Slither function-summary output with file-based caching.
+ * access.ts and state.ts both run the identical `slither . --print function-summary --json -`
+ * command. This cache ensures it only runs once per analysis session.
+ */
+export async function getSlitherFunctionSummary(
+  projectDir: string,
+  outputDir: string,
+): Promise<ExecResult> {
+  const cacheDir = path.join(outputDir, '.cache');
+  const cachePath = path.join(cacheDir, 'slither-function-summary.json');
+
+  // Use cache if it exists and is less than 5 minutes old
+  try {
+    const stat = fs.statSync(cachePath);
+    if (Date.now() - stat.mtimeMs < 5 * 60 * 1000) {
+      const cached = JSON.parse(fs.readFileSync(cachePath, 'utf-8')) as ExecResult;
+      logger.dim('Using cached Slither function-summary');
+      return cached;
+    }
+  } catch {
+    // Cache miss — run Slither
+  }
+
+  const result = await runSlither(projectDir, ['.', '--print', 'function-summary', '--json', '-']);
+
+  // Cache the result on success
+  if (result.exitCode === 0) {
+    try {
+      fs.mkdirSync(cacheDir, { recursive: true });
+      fs.writeFileSync(cachePath, JSON.stringify(result));
+    } catch {
+      // Non-fatal — caching is best-effort
+    }
+  }
+
+  return result;
+}
+
+/**
  * Run Forge (Foundry).
  */
 export async function runForge(
@@ -124,15 +165,26 @@ export async function runForge(
 
 /**
  * Flatten a Solidity file using forge flatten.
+ * Results are cached in-memory so repeated calls (e.g., from stats + access
+ * during `solaudit analyze`) skip the subprocess.
  */
+const flattenCache = new Map<string, string | null>();
+
 export async function flattenFile(projectDir: string, filePath: string): Promise<string | null> {
+  const key = `${projectDir}:${filePath}`;
+  if (flattenCache.has(key)) {
+    return flattenCache.get(key)!;
+  }
+
   try {
     const result = await runForge(projectDir, ['flatten', filePath]);
-    if (result.exitCode === 0 && result.stdout.trim().length > 0) {
-      return result.stdout;
-    }
-    return null;
+    const value = result.exitCode === 0 && result.stdout.trim().length > 0
+      ? result.stdout
+      : null;
+    flattenCache.set(key, value);
+    return value;
   } catch {
+    flattenCache.set(key, null);
     return null;
   }
 }

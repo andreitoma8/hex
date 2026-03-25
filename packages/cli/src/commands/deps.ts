@@ -5,7 +5,7 @@ import { logger } from '../core/logger.js';
 import { loadConfig } from '../core/config.js';
 import { getOutputDir, normalizePath } from '../core/paths.js';
 import { writeJsonOutput, readJsonFile } from '../core/output.js';
-import { parseSolidity } from '../parsers/solidity-parser.js';
+import { parseSolidity, parseSolidityCached } from '../parsers/solidity-parser.js';
 import {
   buildDependencyGraph,
   loadRemappings,
@@ -46,7 +46,7 @@ export const depsCommand = new Command('deps')
         if (!fs.existsSync(filePath)) continue;
 
         const source = fs.readFileSync(filePath, 'utf-8');
-        const parsed = parseSolidity(source, scopeFile);
+        const parsed = parseSolidityCached(source, scopeFile);
 
         // Resolve import paths
         const resolvedImports = parsed.imports.map((imp) => ({

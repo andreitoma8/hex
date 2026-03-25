@@ -5,11 +5,11 @@ import { logger } from '../core/logger.js';
 import { loadConfig } from '../core/config.js';
 import { getOutputDir, normalizePath } from '../core/paths.js';
 import { writeJsonOutput } from '../core/output.js';
-import { parseSolidity } from '../parsers/solidity-parser.js';
+import { parseSolidity, parseSolidityCached } from '../parsers/solidity-parser.js';
 import { parseFunctionSummary } from '../parsers/slither.js';
 import { parseStorageLayout } from '../parsers/solc.js';
 import { extractStateVariables } from '../analysis/state-variables.js';
-import { runSlither, runSolc } from '../core/external-tools.js';
+import { getSlitherFunctionSummary, runSolc } from '../core/external-tools.js';
 import type { StateVars } from '../types/index.js';
 
 export const stateCommand = new Command('state')
@@ -33,7 +33,7 @@ export const stateCommand = new Command('state')
         if (!fs.existsSync(filePath)) continue;
 
         const source = fs.readFileSync(filePath, 'utf-8');
-        const parsed = parseSolidity(source, scopeFile);
+        const parsed = parseSolidityCached(source, scopeFile);
 
         for (const contract of parsed.contracts) {
           allContracts.push(contract);
@@ -45,11 +45,7 @@ export const stateCommand = new Command('state')
       spin.text = 'Running Slither data dependency analysis...';
       let slitherSummary = null;
       try {
-        const result = await runSlither(config.project.project_dir, [
-          '.',
-          '--print', 'function-summary',
-          '--json', '-',
-        ]);
+        const result = await getSlitherFunctionSummary(config.project.project_dir, outputDir);
         if (result.exitCode === 0 && result.stdout) {
           slitherSummary = parseFunctionSummary(JSON.parse(result.stdout));
         }

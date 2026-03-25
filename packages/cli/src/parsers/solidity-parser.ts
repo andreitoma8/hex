@@ -92,6 +92,21 @@ export function parseSolidity(source: string, filePath?: string): ParseResult {
   return { contracts, imports, pragmas, comments };
 }
 
+/**
+ * Cache for parseSolidity results, keyed by filePath.
+ * Persists within a single Node process (e.g., during `solaudit analyze`),
+ * saving redundant re-parses when multiple commands process the same files.
+ */
+const parseCache = new Map<string, ParseResult>();
+
+export function parseSolidityCached(source: string, filePath: string): ParseResult {
+  const cached = parseCache.get(filePath);
+  if (cached) return cached;
+  const result = parseSolidity(source, filePath);
+  parseCache.set(filePath, result);
+  return result;
+}
+
 function parseContract(node: ASTNode & { type: 'ContractDefinition' }): ParsedContract {
   const isAbstract = node.kind === 'abstract';
   let type: ParsedContract['type'];

@@ -5,10 +5,10 @@ import { logger } from '../core/logger.js';
 import { loadConfig } from '../core/config.js';
 import { getOutputDir, normalizePath } from '../core/paths.js';
 import { writeJsonOutput } from '../core/output.js';
-import { parseSolidity } from '../parsers/solidity-parser.js';
+import { parseSolidity, parseSolidityCached } from '../parsers/solidity-parser.js';
 import { parseFunctionSummary } from '../parsers/slither.js';
 import { extractFunctionFacts, mergeInheritedFunctions, mergeInheritedFromFlatten, interpretRoles } from '../analysis/access-control.js';
-import { runSlither, flattenFile } from '../core/external-tools.js';
+import { getSlitherFunctionSummary, flattenFile } from '../core/external-tools.js';
 import type { AccessControl } from '../types/index.js';
 
 export const accessCommand = new Command('access')
@@ -32,7 +32,7 @@ export const accessCommand = new Command('access')
         if (!fs.existsSync(filePath)) continue;
 
         const source = fs.readFileSync(filePath, 'utf-8');
-        const parsed = parseSolidity(source, scopeFile);
+        const parsed = parseSolidityCached(source, scopeFile);
 
         for (const contract of parsed.contracts) {
           allContracts.push(contract);
@@ -47,11 +47,7 @@ export const accessCommand = new Command('access')
       spin.text = 'Running Slither analysis (Tier 2)...';
       let slitherSummary = null;
       try {
-        const result = await runSlither(config.project.project_dir, [
-          '.',
-          '--print', 'function-summary',
-          '--json', '-',
-        ]);
+        const result = await getSlitherFunctionSummary(config.project.project_dir, outputDir);
         if (result.exitCode === 0 && result.stdout) {
           const json = JSON.parse(result.stdout);
           slitherSummary = parseFunctionSummary(json);

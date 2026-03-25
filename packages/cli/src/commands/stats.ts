@@ -5,7 +5,7 @@ import { logger } from '../core/logger.js';
 import { loadConfig } from '../core/config.js';
 import { getOutputDir, normalizePath } from '../core/paths.js';
 import { writeJsonOutput } from '../core/output.js';
-import { parseSolidity, type ParsedContract, type ParsedFunction } from '../parsers/solidity-parser.js';
+import { parseSolidity, parseSolidityCached, type ParsedContract, type ParsedFunction } from '../parsers/solidity-parser.js';
 import { countNsloc, getCommentRanges, getAssemblyRanges } from '../analysis/nsloc.js';
 import { detectErcs } from '../analysis/erc-detection.js';
 import { parseLcov, coveragePct } from '../parsers/lcov.js';
@@ -50,7 +50,7 @@ export const statsCommand = new Command('stats')
 
         totalFiles++;
         const source = fs.readFileSync(filePath, 'utf-8');
-        const parsed = parseSolidity(source, scopeFile);
+        const parsed = parseSolidityCached(source, scopeFile);
 
         // Count lines
         const commentRanges = getCommentRanges(parsed.comments);
