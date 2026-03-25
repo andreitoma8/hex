@@ -28,7 +28,7 @@ Step-by-step demo of all SolAudit functionality using Claude Code.
 /init-audit
 ```
 
-It will ask you for scope, commit, chain, etc. For solmate something like `--scope "src/**/*.sol"` works. This runs init + a single `solaudit analyze` command that executes all eight analysis commands (stats, deps, access, state, calls, patterns, constraints, surface) in sequence, continuing on failure and reporting results.
+It will ask you for scope, commit, chain, etc. For solmate something like `--scope "src/**/*.sol"` works. This runs init + a single `solaudit analyze` command that executes seven analysis commands (stats, deps, access, state, calls, patterns, constraints) **in parallel**, then runs surface after all complete. Slither and forge flatten results are cached across commands to avoid redundant work.
 
 ### Open the Dashboard
 

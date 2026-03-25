@@ -82,7 +82,7 @@ solaudit constraints  # setter validation and event emission analysis
 solaudit surface      # attack surface summary cross-referencing all data
 ```
 
-Or run everything at once through the `init-audit` skill, which executes all commands in sequence and gives you a summary.
+Or run everything at once through the `init-audit` skill, which runs all commands in parallel (with surface last) and gives you a summary.
 
 ### 4. Start the dashboard
 
@@ -341,7 +341,7 @@ All commands are run from within the project directory (or with `--project /path
 | Command | What it does |
 |---------|-------------|
 | `solaudit init` | Initialize audit config — scope, commit, chain, docs URL |
-| `solaudit analyze` | Run all analysis commands in sequence (stats → deps → access → state → calls → patterns → constraints → surface) |
+| `solaudit analyze` | Run all analysis commands in parallel (stats, deps, access, state, calls, patterns, constraints), then surface |
 | `solaudit stats` | Generate codebase statistics and test coverage |
 | `solaudit deps` | Build contract dependency graph |
 | `solaudit access` | Extract access control mapping (roles → functions, including inherited) |
@@ -367,7 +367,7 @@ Skills are invoked through Claude Code. Each skill has a recommended model — s
 
 | Skill | Phase | Recommended Model | What it does |
 |-------|-------|-------------------|-------------|
-| `init-audit` | Setup | Sonnet | Runs all init + analysis tools in sequence |
+| `init-audit` | Setup | Sonnet | Runs init + analysis tools (parallel where possible) |
 | `generate-overview` | 1.1 | Sonnet | Writes 2-3 paragraph protocol overview |
 | `generate-diagram` | 1.3 | Sonnet | Creates Mermaid system architecture diagram |
 | `generate-flows` | 1.4 | Opus | Creates Mermaid flow charts by user type and value paths |
