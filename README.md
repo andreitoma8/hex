@@ -286,8 +286,8 @@ claude
 This orchestrator skill:
 1. Presents a checkbox-style tool selection prompt (pick which AI tools to run — solidity-auditor, sc-auditor, plamen)
 2. Runs a preflight check for each tool — verifies env vars, skill installation, and system dependencies, then presents a summary table of any missing items. For plamen, offers auto-install if not found.
-3. Launches non-plamen skills (solidity-auditor, sc-auditor) **in parallel** as separate subagents, with live "running" status in the dashboard
-4. Runs plamen after parallel tools complete (needs orchestrator context for slash commands)
+3. Runs non-plamen skills (solidity-auditor, sc-auditor) **sequentially** in the orchestrator context with type-aware instructions (skill-file tools follow their SKILL.md methodology; MCP-server tools discover and use their MCP tools)
+4. Runs plamen after non-plamen tools complete
 5. Normalizes all findings and batch-writes them to `tracking.json` with `status: "unverified"`
 6. Runs `/compare-findings` automatically and prints a coverage gap summary
 

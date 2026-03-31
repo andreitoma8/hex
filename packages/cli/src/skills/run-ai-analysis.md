@@ -186,66 +186,82 @@ For each enabled `type: "cli"` tool with `long_running: false` that passed prefl
 
 #### Step 8 — Run skill tools
 
-Skill tools run in **two phases**: fast tools in parallel first, then long-running tools (plamen). This maximizes parallelism while respecting the constraint that plamen must run in the orchestrator context.
+Skill tools run in **two phases**: non-plamen tools first (sequentially), then long-running tools (plamen). All tools run directly in the orchestrator context so they have full access to permissions, MCP tools, and slash commands.
 
-##### Step 8a — Launch non-plamen skills IN PARALLEL
+##### Step 8a — Run non-plamen skills SEQUENTIALLY in orchestrator
 
 Group all enabled `type: "skill"` tools with `long_running: false` that passed preflight (e.g. solidity-auditor, sc-auditor).
 
-For each tool in the group:
-- Record `tool_start = Date.now()`
-- Update `<output_dir>/ai-status.json` setting this tool's status to `"running"` with `started_at` set to the current ISO timestamp
+For each tool in the group, run it **directly in this context** (NOT as a subagent). Subagents cannot surface permission prompts to the user, so Write and MCP tool calls silently fail in subagent contexts.
 
-Launch ALL grouped tools as **parallel Agent calls in a single message**. Each skill runs in its own subagent to isolate its large output from the orchestrator context. Give each subagent a clear prompt that **includes the scope**:
-```
-You are running the <tool-name> AI audit tool.
+1. Record `tool_start = Date.now()`
+2. Update `<output_dir>/ai-status.json` setting this tool's status to `"running"` with `started_at` set to the current ISO timestamp
 
-SCOPE — only audit these files:
-<list each file from config.json → project.scope>
+3. Execute the tool based on its `install_type`:
 
-Read and follow the instructions in .claude/skills/<skill-name>/SKILL.md
-Focus your analysis exclusively on the in-scope files listed above.
-Ignore findings that only affect out-of-scope code (tests, mocks, dependencies).
-Save raw output to <output_dir>/ai-results/<tool-name>/raw-output.md when done.
-```
+   **For `install_type: "skill-file"`** (e.g. solidity-auditor):
+   - Read `.claude/skills/<skill_path>/SKILL.md` in full before doing anything else
+   - Read EVERY in-scope file from `config.json` → `project.scope` (do not skip or skim)
+   - Follow the SKILL.md methodology completely: execute every phase/pass sequentially
+   - Do not skip, merge, or abbreviate any phases
+   - After completing each phase, write a brief checkpoint: "Phase N complete — found X issues"
+   - For each finding, cite the specific file, function, and line range
+   - A thorough audit should take 15-30 minutes. If finished in under 10 minutes, phases were likely skipped
+   - Save the complete analysis to `<output_dir>/ai-results/<tool-name>/raw-output.md`
 
-Wait for ALL parallel subagents to complete. Record `tool_end = Date.now()` and compute `duration_seconds = Math.round((tool_end - tool_start) / 1000)` for each.
+   **For `install_type: "mcp-server"`** (e.g. sc-auditor):
+   - This tool is an MCP server. It does NOT have a SKILL.md file. Do NOT look for `.claude/skills/<tool-name>/SKILL.md`
+   - Discover available MCP tools by searching for tools matching `mcp__<tool-name>__*` (e.g. use ToolSearch)
+   - Read any README at `.claude/tools/<tool-name>/README.md` if it exists
+   - Use the discovered MCP tools systematically on EVERY in-scope file:
+     - Run static analysis tools (slither, aderyn) if available via MCP
+     - Search for known vulnerability patterns (solodit) if available via MCP
+     - Run the main audit/analyze function on each in-scope file
+   - Do NOT fall back to manual code review. If an MCP tool call fails, log the error and try the next tool
+   - Each finding must reference which MCP tool produced it
+   - Aggregate all MCP tool outputs and save to `<output_dir>/ai-results/<tool-name>/raw-output.md`
 
-##### Step 8b — Normalize non-plamen results
+   **For other `install_type` values** (fallback):
+   - Follow the tool's `invocation` command/pattern
+   - Save output to `<output_dir>/ai-results/<tool-name>/raw-output.md`
 
-For each completed tool from step 8a, **in the orchestrator context**:
-  a. Read `<output_dir>/ai-results/<tool-name>/raw-output.md`
-  b. Parse and normalize findings into `<output_dir>/ai-results/<tool-name>/findings.json` using the `AiResultFile` format:
-     ```json
-     {
-       "tool": "<tool-name>",
-       "ran_at": "<ISO timestamp>",
-       "duration_seconds": <seconds>,
-       "total_findings": <count>,
-       "findings": [
-         {
-           "id": "<tool-name>-001",
-           "tool": "<tool-name>",
-           "title": "...",
-           "severity": "Critical|High|Medium|Low|Info",
-           "description": "...",
-           "affected_code": [{ "file": "...", "snippet": "..." }],
-           "confidence": "high|medium|low",
-           "category": "...",
-           "raw_category": "..."
-         }
-       ]
-     }
-     ```
-  c. Write `<output_dir>/ai-results/<tool-name>/metadata.json`:
-     ```json
-     { "ran_at": "<ISO timestamp>", "duration_seconds": <seconds> }
-     ```
-  d. Update `<output_dir>/ai-status.json` setting this tool's status to `"completed"` with findings count
+4. Record `tool_end = Date.now()` and compute `duration_seconds = Math.round((tool_end - tool_start) / 1000)`
 
-##### Step 8c — Run plamen (if selected)
+5. **Normalize immediately** after this tool completes (before moving to the next tool):
+   a. Read `<output_dir>/ai-results/<tool-name>/raw-output.md`
+   b. Parse and normalize findings into `<output_dir>/ai-results/<tool-name>/findings.json` using the `AiResultFile` format:
+      ```json
+      {
+        "tool": "<tool-name>",
+        "ran_at": "<ISO timestamp>",
+        "duration_seconds": <seconds>,
+        "total_findings": <count>,
+        "findings": [
+          {
+            "id": "<tool-name>-001",
+            "tool": "<tool-name>",
+            "title": "...",
+            "severity": "Critical|High|Medium|Low|Info",
+            "description": "...",
+            "affected_code": [{ "file": "...", "snippet": "..." }],
+            "confidence": "high|medium|low",
+            "category": "...",
+            "raw_category": "..."
+          }
+        ]
+      }
+      ```
+   c. Write `<output_dir>/ai-results/<tool-name>/metadata.json`:
+      ```json
+      { "ran_at": "<ISO timestamp>", "duration_seconds": <seconds> }
+      ```
+   d. Update `<output_dir>/ai-status.json` setting this tool's status to `"completed"` with findings count
 
-**plamen runs in the orchestrator, NOT a subagent.** Slash commands from `~/.claude/commands/` are only available at the top-level conversation, not inside Agent-spawned subagents. So plamen must run directly in the orchestrator context:
+6. Print: "Completed <tool-name> — N findings in Xs" and proceed to the next tool.
+
+##### Step 8b — Run plamen (if selected)
+
+**plamen runs directly in the orchestrator context**, like all other tools. Invoke it via the Skill tool:
 
 1. Record `tool_start = Date.now()`
 2. Update `<output_dir>/ai-status.json` setting plamen's status to `"running"` with `started_at` set to the current ISO timestamp
@@ -257,19 +273,25 @@ For each completed tool from step 8a, **in the orchestrator context**:
    The `wrapper-launch` flag skips all confirmation prompts. Plamen spawns its own sub-agents (25-45 in core mode) — these run in isolated contexts and don't pollute the orchestrator.
 5. After plamen completes, record `tool_end = Date.now()` and compute `duration_seconds`.
 6. Copy its final audit report to `<output_dir>/ai-results/plamen/raw-output.md`. Look for `AUDIT_REPORT.md` or the final consolidated report in the project root or `.plamen/scratchpad/`.
-7. Normalize findings into `<output_dir>/ai-results/plamen/findings.json` using the same `AiResultFile` format as step 8b.
+7. Normalize findings into `<output_dir>/ai-results/plamen/findings.json` using the same `AiResultFile` format as step 8a.
 8. Write `<output_dir>/ai-results/plamen/metadata.json`.
 9. Update `<output_dir>/ai-status.json` setting plamen's status to `"completed"` with findings count.
 
-##### Step 8d — Batch tracking update
+##### Step 8c — Batch tracking update
 
 After ALL tools have completed and been normalized, write all findings to `tracking.json` in one operation:
 - For each tool's `findings.json`, add each finding to `tracking.json` with `status: "unverified"` and `source: "<tool-name>"`
 - This single batch write avoids any race conditions and keeps the tracking file consistent
 
-#### Step 9 — Restore comments (only if step 6c ran)
+#### Step 9 — Restore comments and undo snapshot commit (only if step 6c ran)
 
-**Restore `@audit` comments.** Run `git checkout -- <scope-files>` to restore all in-scope files to their last committed state (which includes the `@audit` comments from the snapshot commit). Print: "Restored @audit comments via git checkout"
+1. **Restore `@audit` comments.** Run `git checkout -- <scope-files>` to restore all in-scope files to their last committed state (which includes the `@audit` comments from the snapshot commit). Print: "Restored @audit comments via git checkout"
+
+2. **Undo the snapshot commit.** If step 6c created a snapshot commit, remove it while keeping the files as they are:
+   ```bash
+   git reset --soft HEAD~1
+   ```
+   This removes the `chore: snapshot before AI analysis` commit but keeps all file contents (including the restored @audit comments) staged. The user's branch ends up exactly where it was before the analysis. Print: "Removed snapshot commit — working tree restored to pre-analysis state"
 
 ### Phase C — Post-processing
 
@@ -289,18 +311,11 @@ After ALL tools have completed and been normalized, write all findings to `track
     - Novel findings requiring review
     - Any tools that were skipped
 
-## Why Subagents & Parallel Execution?
+## Why Sequential Execution?
 
-Each AI audit skill (solidity-auditor, sc-auditor) generates tens of thousands of tokens of output. Running them all in the orchestrator's context would:
-- Fill the context window, degrading quality of later steps
-- Mix tool outputs, making normalization harder
-- Risk losing context for the post-processing phase (compare-findings, gap analysis)
+All tools run directly in the orchestrator context rather than in subagents. Subagents cannot surface permission prompts to the user, so Write, MCP, and other tool calls that need approval silently fail. This caused tools to produce shallow results (5-minute runs instead of 15-30 minute thorough analyses).
 
-By isolating each tool in a subagent, the orchestrator only sees the final raw-output.md file — a clean handoff point.
-
-**Parallel execution is safe** because each subagent writes only to its own `ai-results/<tool>/` directory. Source files are read-only during analysis. `tracking.json` and `ai-status.json` are written exclusively by the orchestrator after subagents complete — there are no shared-write conflicts.
-
-**Plamen is the exception** — it must run in the orchestrator context because it uses slash commands (`/plamen`) which are only available at the top level. Non-plamen skills run first in parallel so their results appear in the dashboard while plamen is still running.
+Sequential execution means tools run one at a time, but each tool has full access to permissions, MCP tools, and slash commands. After each tool completes, its output is normalized and saved to disk. The conversation compressor handles context window pressure between tools. Post-processing (compare-findings, gap analysis) only needs the normalized `findings.json` files, not the raw tool outputs still in context.
 
 ## Severity Mapping
 

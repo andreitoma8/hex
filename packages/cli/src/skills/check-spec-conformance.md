@@ -46,7 +46,14 @@ For every interface the contract implements (explicit `is IVault` or implicit):
 - Are there functions that SHOULD be part of the interface but aren't?
 
 ### Source 4: ERC/EIP Standard Compliance
-For each ERC/EIP listed in `stats.json`:
+
+For each ERC/EIP listed in `stats.json`, **fetch the canonical spec first**:
+- Use **WebFetch** to retrieve the EIP from `https://eips.ethereum.org/EIPS/eip-<number>` (e.g. `https://eips.ethereum.org/EIPS/eip-20` for ERC-20)
+- Extract the Specification section, focusing on MUST/SHOULD/MAY requirements
+- Use this fetched spec text as the authoritative reference for all conformance checks below — do not rely on training data alone
+- If the fetch fails, fall back to training knowledge but note `"spec_fetched": false` in the output
+
+Then for each standard, verify:
 - Does the implementation conform to the standard's MUST/SHOULD/MAY requirements?
 - Are required events emitted in the correct circumstances?
 - Are required error conditions handled?
@@ -77,7 +84,7 @@ Write to `<output_dir>/spec-conformance.json`:
     "external_docs": true/false,
     "natspec": true,
     "interfaces": true,
-    "erc_eip": ["ERC-20", "ERC-4626"]
+    "erc_eip": [{ "standard": "ERC-20", "spec_fetched": true }, { "standard": "ERC-4626", "spec_fetched": true }]
   },
   "summary": {
     "total_checks": 0,
@@ -92,6 +99,7 @@ Write to `<output_dir>/spec-conformance.json`:
       "id": "SC-001",
       "source": "natspec|erc_eip|external_docs|interface",
       "spec_text": "...",
+      "spec_url": "https://eips.ethereum.org/EIPS/eip-20 (for erc_eip source, null otherwise)",
       "spec_location": {},
       "status": "CONFORMS|DEVIATES|PARTIAL|UNVERIFIABLE|UNDOCUMENTED",
       "finding": "...",

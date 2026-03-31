@@ -21,7 +21,7 @@ const program = new Command();
 program
   .name('solaudit')
   .description('CLI toolkit for Solidity smart contract auditors')
-  .version('0.2.3');
+  .version('0.2.5');
 
 program.addCommand(initCommand);
 program.addCommand(statsCommand);
