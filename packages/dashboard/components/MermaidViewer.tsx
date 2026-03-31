@@ -2,30 +2,17 @@
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 
-/* ── Loading spinner (reusable) ── */
-export function LoadingSpinner({ label = 'Loading...' }: { label?: string }) {
+/* ── Terminal loading indicator (reusable) ── */
+export function LoadingSpinner({ label = 'loading...' }: { label?: string }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 py-sp-8">
-      <svg
-        className="h-8 w-8 animate-spin text-accent"
-        viewBox="0 0 24 24"
-        fill="none"
-      >
-        <circle
-          className="opacity-25"
-          cx="12"
-          cy="12"
-          r="10"
-          stroke="currentColor"
-          strokeWidth="3"
-        />
-        <path
-          className="opacity-75"
-          fill="currentColor"
-          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-        />
-      </svg>
-      <span className="text-body text-text-secondary">{label}</span>
+    <div className="flex flex-col items-center justify-center gap-2 py-sp-8 font-mono">
+      <style>{`
+        @keyframes hex-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+        .hex-cursor { animation: hex-blink 1s step-end infinite; }
+      `}</style>
+      <span className="text-body text-accent">
+        {'> '}{label}<span className="hex-cursor">_</span>
+      </span>
     </div>
   );
 }
@@ -88,9 +75,33 @@ export function MermaidViewer({ syntax }: MermaidViewerProps) {
         const mermaid = (await import('mermaid')).default;
         mermaid.initialize({
           startOnLoad: false,
-          theme: 'dark',
+          theme: 'base',
+          themeVariables: {
+            background: '#080808',
+            mainBkg: '#0d1a0d',
+            primaryColor: '#0d1a0d',
+            primaryBorderColor: 'rgba(0,204,51,0.40)',
+            primaryTextColor: '#00cc33',
+            lineColor: 'rgba(0,204,51,0.55)',
+            secondaryColor: '#181818',
+            tertiaryColor: '#222222',
+            clusterBkg: '#0a100a',
+            clusterBorder: 'rgba(0,204,51,0.20)',
+            edgeLabelBackground: '#080808',
+            titleColor: '#aaaaaa',
+            fontFamily: '"JetBrains Mono", ui-monospace, monospace',
+            fontSize: '12px',
+            labelTextColor: '#00cc33',
+            nodeBorder: 'rgba(0,204,51,0.40)',
+            actorBkg: '#0d1a0d',
+            actorBorder: 'rgba(0,204,51,0.40)',
+            actorTextColor: '#00cc33',
+            actorLineColor: 'rgba(0,204,51,0.30)',
+            signalColor: 'rgba(0,204,51,0.55)',
+            signalTextColor: '#aaaaaa',
+          },
           securityLevel: 'loose',
-          fontFamily: 'ui-sans-serif, system-ui, sans-serif',
+          fontFamily: '"JetBrains Mono", ui-monospace, monospace',
         });
 
         const id = `mermaid-${Date.now()}`;
@@ -185,10 +196,10 @@ export function MermaidViewer({ syntax }: MermaidViewerProps) {
 
       {/* Full-bleed canvas */}
       <div className="relative rounded-md border border-border-default bg-surface-1">
-        {/* Rendering spinner overlay */}
+        {/* Rendering overlay */}
         {rendering && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center bg-surface-1/80 backdrop-blur-sm">
-            <LoadingSpinner label="Rendering diagram..." />
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-surface-1">
+            <LoadingSpinner label="rendering diagram" />
           </div>
         )}
 

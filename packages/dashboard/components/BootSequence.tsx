@@ -4,12 +4,12 @@ import { useEffect, useState } from 'react';
 
 const BOOT_LINES = [
   { text: '> hex v0.3.0',                   delay: 0    },
-  { text: '> initializing audit dashboard...', delay: 500  },
-  { text: '> loading analysis data',         delay: 1000 },
-  { text: '> mapping contract graph',        delay: 1500 },
-  { text: '> scanning attack surface',       delay: 2000 },
-  { text: '> cross-referencing findings',    delay: 2500 },
-  { text: '> system ready',                  delay: 3000 },
+  { text: '> initializing audit dashboard...', delay: 180  },
+  { text: '> loading analysis data',         delay: 380 },
+  { text: '> mapping contract graph',        delay: 560 },
+  { text: '> scanning attack surface',       delay: 740 },
+  { text: '> cross-referencing findings',    delay: 920 },
+  { text: '> system ready',                  delay: 1200 },
 ];
 
 export function BootSequence() {
@@ -33,9 +33,9 @@ export function BootSequence() {
       }, line.delay));
     });
 
-    // Fade out at 3.5s, remove at 4s
-    timers.push(setTimeout(() => setFading(true), 3500));
-    timers.push(setTimeout(() => setDone(true), 4000));
+    // Fade out at 1.5s, remove at 1.9s
+    timers.push(setTimeout(() => setFading(true), 1500));
+    timers.push(setTimeout(() => setDone(true), 1900));
 
     return () => timers.forEach(clearTimeout);
   }, []);
