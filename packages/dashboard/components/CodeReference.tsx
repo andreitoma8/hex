@@ -52,7 +52,8 @@ export function CodeReference({ file, lineStart, lineEnd, snippet }: CodeReferen
       {modalOpen && (
         <ModalOverlay onClose={() => setModalOpen(false)}>
           <div
-            className="relative max-h-[80vh] w-full max-w-3xl overflow-auto rounded-lg border border-border-emphasis bg-surface-1 shadow-2xl"
+            className="relative max-h-[80vh] w-full max-w-3xl overflow-auto border border-border-emphasis bg-surface-1 shadow-2xl"
+            style={{ borderRadius: 'var(--radius-md)', boxShadow: '0 0 40px rgba(0,204,51,0.08)' }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -81,7 +82,7 @@ export function CodeReference({ file, lineStart, lineEnd, snippet }: CodeReferen
                     return (
                       <div
                         key={i}
-                        className={isHighlighted ? 'bg-severity-medium/10' : ''}
+                        className={isHighlighted ? 'bg-accent/10 border-l-2 border-l-accent pl-1' : ''}
                       >
                         <span className="mr-4 inline-block w-10 select-none text-right text-text-tertiary">
                           {lineNum}

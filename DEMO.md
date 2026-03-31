@@ -1,6 +1,6 @@
-# SolAudit Demo Guide
+# Hex Demo Guide
 
-Step-by-step demo of all SolAudit functionality using Claude Code.
+Step-by-step demo of all Hex functionality using Claude Code.
 
 ## Setup
 
@@ -12,7 +12,7 @@ Step-by-step demo of all SolAudit functionality using Claude Code.
 
 2. Install skills (works before init — no config required):
    ```bash
-   solaudit claude
+   hex claude
    ```
 
 3. Open Claude Code:
@@ -28,13 +28,13 @@ Step-by-step demo of all SolAudit functionality using Claude Code.
 /init-audit
 ```
 
-It will ask you for scope, commit, chain, etc. For solmate something like `--scope "src/**/*.sol"` works. This runs init + a single `solaudit analyze` command that executes seven analysis commands (stats, deps, access, state, calls, patterns, constraints) **in parallel**, then runs surface after all complete. Slither and forge flatten results are cached across commands to avoid redundant work.
+It will ask you for scope, commit, chain, etc. For solmate something like `--scope "src/**/*.sol"` works. This runs init + a single `hex analyze` command that executes seven analysis commands (stats, deps, access, state, calls, patterns, constraints) **in parallel**, then runs surface after all complete. Slither and forge flatten results are cached across commands to avoid redundant work.
 
 ### Open the Dashboard
 
 Once init and analysis complete, open a separate terminal and start the dashboard:
 ```bash
-solaudit dashboard
+hex dashboard
 ```
 Opens `http://localhost:3000` with live visualization of all outputs. Keep it open — every page fills in automatically as you progress through the audit.
 
@@ -58,7 +58,7 @@ The dashboard has a fixed sidebar with always-visible theme toggle (Light / Dark
 ```
 /generate-overview
 ```
-Writes a protocol overview to `.solaudit/overview.md`.
+Writes a protocol overview to `.hex/overview.md`.
 
 ```
 /generate-diagram
@@ -73,7 +73,7 @@ Generates Mermaid flow charts with distinct node shapes (stadium for start/end, 
 ```
 /identify-invariants
 ```
-Three-pass analysis: docs, code, comparison. Outputs to `.solaudit/invariants.md`.
+Three-pass analysis: docs, code, comparison. Outputs to `.hex/invariants.md`.
 
 ```
 /check-spec-conformance
@@ -105,7 +105,7 @@ Run all configured AI audit tools with a single command:
 ```
 /run-ai-analysis
 ```
-Starts with a checkbox-style tool selection prompt — pick which AI tools to run (solidity-auditor, sc-auditor, plamen). Then runs preflight checks with type-aware auto-install: skill-file tools (solidity-auditor) clone and copy SKILL.md, MCP server tools (sc-auditor) clone/build/register in `.mcp.json`, plamen offers auto-install if not found (clones repo + copies files to `~/.claude/`). All tools run **sequentially in the orchestrator context** with type-aware instructions: skill-file tools follow their SKILL.md methodology phase by phase, MCP-server tools discover and call their MCP tools on every in-scope file. The dashboard shows live "running" status with a pulsing indicator while tools execute, and progressive results appear as each tool finishes. After all tools complete, the orchestrator normalizes findings into `.solaudit/ai-results/<tool>/findings.json` and batch-writes them to tracking as `unverified`. Then `/compare-findings` runs automatically to deduplicate and assess novelty.
+Starts with a checkbox-style tool selection prompt — pick which AI tools to run (solidity-auditor, sc-auditor, plamen). Then runs preflight checks with type-aware auto-install: skill-file tools (solidity-auditor) clone and copy SKILL.md, MCP server tools (sc-auditor) clone/build/register in `.mcp.json`, plamen offers auto-install if not found (clones repo + copies files to `~/.claude/`). All tools run **sequentially in the orchestrator context** with type-aware instructions: skill-file tools follow their SKILL.md methodology phase by phase, MCP-server tools discover and call their MCP tools on every in-scope file. The dashboard shows live "running" status with a pulsing indicator while tools execute, and progressive results appear as each tool finishes. After all tools complete, the orchestrator normalizes findings into `.hex/ai-results/<tool>/findings.json` and batch-writes them to tracking as `unverified`. Then `/compare-findings` runs automatically to deduplicate and assess novelty.
 
 To re-run deduplication manually after changes:
 ```
@@ -124,4 +124,4 @@ For any novel finding it surfaces, validate interactively (asks whether you want
 - Every skill builds on all previous analysis outputs — later skills have richer context
 - Skills are native slash commands, no need to "read the skill file and follow it"
 - `/run-ai-analysis` runs each AI tool in its own subagent to keep context clean
-- `solaudit update-skills` updates skills after a package upgrade (overwrites by default, use `--keep-custom` to preserve modifications)
+- `hex update-skills` updates skills after a package upgrade (overwrites by default, use `--keep-custom` to preserve modifications)

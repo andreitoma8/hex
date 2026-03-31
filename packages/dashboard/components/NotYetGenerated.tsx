@@ -4,7 +4,7 @@ interface NotYetGeneratedProps {
 
 export function NotYetGenerated({ command }: NotYetGeneratedProps) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-md border border-dashed border-border-emphasis bg-surface-1 px-sp-5 py-sp-8 text-center">
+    <div className="flex flex-col items-center justify-center border border-dashed border-border-default bg-surface-1 px-sp-5 py-sp-8 text-center" style={{ borderRadius: 'var(--radius-sm)' }}>
       <svg
         className="mb-4 h-12 w-12 text-text-tertiary"
         fill="none"
@@ -24,7 +24,7 @@ export function NotYetGenerated({ command }: NotYetGeneratedProps) {
       <p className="mb-4 text-body text-text-secondary">
         Run the following command to generate this data:
       </p>
-      <code className="rounded-md bg-surface-0 px-sp-4 py-sp-2 font-mono text-body text-accent">
+      <code className="border border-border-default bg-surface-0 px-sp-4 py-sp-2 font-mono text-body text-accent" style={{ borderRadius: 'var(--radius-sm)' }}>
         {command}
       </code>
     </div>

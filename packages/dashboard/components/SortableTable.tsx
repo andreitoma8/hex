@@ -28,7 +28,7 @@ export function SortableTable<T>({ columns, data }: SortableTableProps<T>) {
   });
 
   return (
-    <div className="overflow-x-auto rounded-md border border-border-default">
+    <div className="overflow-x-auto border border-border-default" style={{ borderRadius: 'var(--radius-sm)' }}>
       <table className="w-full text-left text-body">
         <thead className="border-b border-border-default bg-surface-2 text-caption font-medium uppercase tracking-wider text-text-tertiary">
           {table.getHeaderGroups().map((headerGroup) => (
@@ -78,7 +78,7 @@ export function SortableTable<T>({ columns, data }: SortableTableProps<T>) {
             table.getRowModel().rows.map((row) => (
               <tr
                 key={row.id}
-                className="h-9 bg-surface-1 hover:bg-surface-3"
+                className="hex-glow h-9 bg-surface-1 hover:bg-surface-3"
               >
                 {row.getVisibleCells().map((cell) => (
                   <td key={cell.id} className="px-sp-4 py-sp-2 text-text-secondary">

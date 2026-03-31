@@ -20,7 +20,7 @@ export const dashboardCommand = new Command('dashboard')
       loadConfig(projectDir);
     } catch {
       logger.error(
-        `No SolAudit project found in ${projectDir}. Run 'solaudit init' first.`,
+        `No Hex project found in ${projectDir}. Run 'hex init' first.`,
       );
       process.exit(1);
     }
@@ -29,7 +29,7 @@ export const dashboardCommand = new Command('dashboard')
     const dashboardDir = resolveDashboardDir();
     if (!dashboardDir) {
       logger.error(
-        'Could not find the dashboard package. Make sure solaudit is installed correctly.',
+        'Could not find the dashboard package. Make sure hex-audit is installed correctly.',
       );
       process.exit(1);
     }
@@ -47,6 +47,7 @@ export const dashboardCommand = new Command('dashboard')
       shell: true,
       env: {
         ...process.env,
+        HEX_PROJECT_DIR: projectDir,
         SOLAUDIT_PROJECT_DIR: projectDir,
         PORT: port,
       },
@@ -89,7 +90,7 @@ function resolveDashboardDir(): string | null {
   // Strategy 2: installed as node_modules dependency
   try {
     const require = createRequire(import.meta.url);
-    const resolved = require.resolve('solaudit-dashboard/package.json');
+    const resolved = require.resolve('hex-dashboard/package.json');
     return path.dirname(resolved);
   } catch {
     // not found

@@ -15,7 +15,7 @@ Read these files from the output directory:
 - `access-control.json` — for role restrictions
 - `deps.json` — for contract relationships
 
-Run: `npx solaudit context` to get the full codebase.
+Run: `npx hex context` to get the full codebase.
 
 If `config.json` has a `docs_url`, fetch and read the full documentation.
 

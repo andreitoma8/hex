@@ -13,7 +13,7 @@ Read these files from the output directory:
 - `stats.json` — for ERC/EIP usage list
 - `invariants.md` — for cross-reference with invariant analysis (if available)
 
-Run: `npx solaudit context` to get the full codebase.
+Run: `npx hex context` to get the full codebase.
 
 If `config.json` has a `docs_url`, fetch and read the full documentation.
 

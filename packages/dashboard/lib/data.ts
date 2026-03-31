@@ -2,19 +2,23 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 function getProjectDir(): string {
-  return process.env.SOLAUDIT_PROJECT_DIR ?? process.cwd();
+  return process.env.HEX_PROJECT_DIR ?? process.env.SOLAUDIT_PROJECT_DIR ?? process.cwd();
 }
 
 function getOutputDir(): string {
   const projectDir = getProjectDir();
-  // Try to read config to get output dir
+  // Try .hex/ first, fall back to .solaudit/ for backwards compat
   try {
-    const configPath = path.join(projectDir, '.solaudit', 'config.json');
-    if (fs.existsSync(configPath)) {
+    const hexConfigPath = path.join(projectDir, '.hex', 'config.json');
+    if (fs.existsSync(hexConfigPath)) {
+      return path.join(projectDir, '.hex');
+    }
+    const legacyConfigPath = path.join(projectDir, '.solaudit', 'config.json');
+    if (fs.existsSync(legacyConfigPath)) {
       return path.join(projectDir, '.solaudit');
     }
   } catch { /* ignore */ }
-  return path.join(projectDir, '.solaudit');
+  return path.join(projectDir, '.hex');
 }
 
 /**

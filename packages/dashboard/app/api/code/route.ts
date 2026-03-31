@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 function getProjectDir(): string {
-  return process.env.SOLAUDIT_PROJECT_DIR ?? process.cwd();
+  return process.env.HEX_PROJECT_DIR ?? process.env.SOLAUDIT_PROJECT_DIR ?? process.cwd();
 }
 
 export async function GET(request: NextRequest) {

@@ -2,24 +2,21 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Shared semantic colors (both modes) ── */
+/* ── Hex Design Tokens ── */
 :root {
-  --accent: #3b82f6;
-  --accent-subtle: #3b82f620;
+  /* Severity */
+  --critical: #ff2200;
+  --high: #ffaa00;
+  --medium: #cccc00;
+  --low: #0088cc;
+  --info: #666666;
+  --success: #00cc33;
+  --neutral: #555555;
 
-  --critical: #ef4444;
-  --high: #f97316;
-  --medium: #eab308;
-  --low: #3b82f6;
-  --info: #8b5cf6;
-  --success: #22c55e;
-  --neutral: #6b7280;
+  /* Typography — monospace everything */
+  --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', 'SF Mono', monospace;
 
-  /* Typography */
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-mono: "SF Mono", ui-monospace, "Cascadia Code", monospace;
-
-  /* Spacing (8px base) */
+  /* Spacing (4px base) */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -28,51 +25,63 @@
   --space-6: 32px;
   --space-8: 48px;
 
-  /* Radius */
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
+  /* Radius — tight terminal feel */
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
 }
 
-/* ── Dark Mode ── */
+/* ── Dark Mode (default) ── */
 [data-theme="dark"] {
-  --surface-0: #0d0d0d;
-  --surface-1: #161616;
-  --surface-2: #1e1e1e;
-  --surface-3: #282828;
+  --surface-0: #080808;
+  --surface-1: #101010;
+  --surface-2: #181818;
+  --surface-3: #222222;
 
-  --border-subtle: #ffffff0a;
-  --border-default: #ffffff14;
-  --border-emphasis: #ffffff24;
+  --border-subtle: rgba(0, 204, 51, 0.05);
+  --border-default: rgba(0, 204, 51, 0.15);
+  --border-emphasis: rgba(0, 204, 51, 0.30);
 
-  --text-primary: #f5f5f5;
-  --text-secondary: #a1a1a1;
-  --text-tertiary: #6b6b6b;
+  --text-primary: #aaaaaa;
+  --text-secondary: #777777;
+  --text-tertiary: #505050;
+
+  --accent: #00cc33;
+  --accent-subtle: rgba(0, 204, 51, 0.08);
+  --accent-secondary: #00ff66;
+  --accent-warm: #ffaa00;
 }
 
-/* ── Light Mode ── */
+/* ── Light Mode (secondary) ── */
 [data-theme="light"] {
-  --surface-0: #f5f5f7;
+  --surface-0: #f0f0f0;
   --surface-1: #ffffff;
-  --surface-2: #ffffff;
-  --surface-3: #f0f0f0;
+  --surface-2: #f5f5f5;
+  --surface-3: #e8e8e8;
 
-  --border-subtle: #00000008;
-  --border-default: #00000012;
-  --border-emphasis: #00000020;
+  --border-subtle: rgba(0, 100, 25, 0.06);
+  --border-default: rgba(0, 100, 25, 0.14);
+  --border-emphasis: rgba(0, 100, 25, 0.25);
 
-  --text-primary: #1d1d1f;
-  --text-secondary: #6e6e73;
-  --text-tertiary: #aeaeb2;
+  --text-primary: #1a1a1a;
+  --text-secondary: #555555;
+  --text-tertiary: #999999;
+
+  --accent: #008822;
+  --accent-subtle: rgba(0, 136, 34, 0.08);
+  --accent-secondary: #00aa44;
+  --accent-warm: #cc8800;
 }
 
 /* ── Base styles ── */
 body {
-  font-family: var(--font-sans);
+  font-family: var(--font-mono);
   color: var(--text-primary);
   background: var(--surface-0);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 code, pre, .font-mono {
@@ -82,11 +91,88 @@ code, pre, .font-mono {
 /* ── Transitions ── */
 *, *::before, *::after {
   transition-property: color, background-color, border-color, opacity, box-shadow;
-  transition-duration: 150ms;
+  transition-duration: 200ms;
   transition-timing-function: ease;
 }
 
-/* Opt out for transforms, layout, etc. */
 [data-no-transition], svg, svg * {
   transition: none !important;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--surface-0);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 204, 51, 0.20);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 204, 51, 0.38);
+}
+
+/* ── Hover glow ── */
+.hex-glow {
+  transition: box-shadow 200ms ease, border-color 200ms ease;
+}
+.hex-glow:hover {
+  box-shadow: 0 0 10px rgba(0, 204, 51, 0.12), 0 0 2px rgba(0, 204, 51, 0.08);
+}
+
+/* ── Staggered reveal ── */
+@keyframes hex-fade-in {
+  from { opacity: 0; transform: translateY(5px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.hex-stagger > * {
+  opacity: 0;
+  animation: hex-fade-in 0.35s ease forwards;
+}
+.hex-stagger > *:nth-child(1)  { animation-delay: 0.04s; }
+.hex-stagger > *:nth-child(2)  { animation-delay: 0.08s; }
+.hex-stagger > *:nth-child(3)  { animation-delay: 0.12s; }
+.hex-stagger > *:nth-child(4)  { animation-delay: 0.16s; }
+.hex-stagger > *:nth-child(5)  { animation-delay: 0.20s; }
+.hex-stagger > *:nth-child(6)  { animation-delay: 0.24s; }
+.hex-stagger > *:nth-child(7)  { animation-delay: 0.28s; }
+.hex-stagger > *:nth-child(8)  { animation-delay: 0.32s; }
+
+/* ── KPI count-up ── */
+@keyframes hex-count-up {
+  from { opacity: 0; transform: scale(0.85); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.hex-count-up {
+  animation: hex-count-up 0.4s ease-out forwards;
+}
+
+/* ── Mermaid theme overrides ── */
+.mermaid svg {
+  background: transparent !important;
+}
+.mermaid .node rect,
+.mermaid .node circle,
+.mermaid .node polygon,
+.mermaid .node path {
+  fill: var(--surface-2) !important;
+  stroke: var(--accent) !important;
+}
+.mermaid .node .label {
+  color: var(--text-primary) !important;
+}
+.mermaid .edgePath .path {
+  stroke: rgba(0, 204, 51, 0.50) !important;
+}
+.mermaid .edgeLabel {
+  background-color: var(--surface-1) !important;
+  color: var(--text-secondary) !important;
+}
+.mermaid .cluster rect {
+  fill: var(--surface-1) !important;
+  stroke: var(--border-default) !important;
 }

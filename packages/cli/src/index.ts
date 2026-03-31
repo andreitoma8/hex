@@ -19,9 +19,9 @@ import { analyzeCommand } from './commands/analyze.js';
 const program = new Command();
 
 program
-  .name('solaudit')
+  .name('hex')
   .description('CLI toolkit for Solidity smart contract auditors')
-  .version('0.2.5');
+  .version('0.3.0');
 
 program.addCommand(initCommand);
 program.addCommand(statsCommand);

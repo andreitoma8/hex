@@ -10,7 +10,7 @@ description: "Validate an issue and generate a proof-of-concept test"
 
 Read:
 - The issue description provided by the auditor
-- Run: `npx solaudit context --target <relevant_contract>` for focused context
+- Run: `npx hex context --target <relevant_contract>` for focused context
 - `<output_dir>/state-vars.json` — for relevant state variable info
 - `<output_dir>/access-control.json` — for access restrictions
 - `<output_dir>/external-calls.json` — for external call surface (if relevant)
@@ -88,14 +88,14 @@ Requirements:
 - Inherit from / reuse existing test base contracts or fixtures
 - Add descriptive comments for each step
 - End with clear assertions that demonstrate the impact
-- Name the file: `test/solaudit-pocs/<finding_id>_<short_name>.t.sol` (Foundry) or `test/solaudit-pocs/<finding_id>_<short_name>.test.ts` (Hardhat)
-- Create the `test/solaudit-pocs/` directory if it doesn't exist
+- Name the file: `test/hex-pocs/<finding_id>_<short_name>.t.sol` (Foundry) or `test/hex-pocs/<finding_id>_<short_name>.test.ts` (Hardhat)
+- Create the `test/hex-pocs/` directory if it doesn't exist
 
 ## Step 3: Run and Verify
 
 Run the test:
 - Foundry: `forge test --match-test test_poc_description -vvv`
-- Hardhat: `npx hardhat test test/solaudit-pocs/<file> --grep "poc_description"`
+- Hardhat: `npx hardhat test test/hex-pocs/<file> --grep "poc_description"`
 
 If it fails, debug and fix. Iterate until the PoC passes.
 

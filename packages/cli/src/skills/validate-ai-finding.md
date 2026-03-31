@@ -11,7 +11,7 @@ description: "Independently verify a novel finding from an AI audit agent"
 Read the specific AI finding from `<output_dir>/comparison.json` → novel findings.
 The auditor will specify which finding to validate (by ID or description).
 
-Run: `npx solaudit context --target <affected_contract>` for focused context.
+Run: `npx hex context --target <affected_contract>` for focused context.
 
 Also read:
 - `<output_dir>/state-vars.json` — for state variable details

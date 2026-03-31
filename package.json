@@ -1,5 +1,5 @@
 {
-  "name": "solaudit-monorepo",
+  "name": "hex-monorepo",
   "private": true,
   "workspaces": [
     "packages/*"

@@ -24,7 +24,7 @@ export function makeRelative(projectDir: string, absolutePath: string): string {
 /**
  * Get the output directory path from the project dir and config output_dir setting.
  */
-export function getOutputDir(projectDir: string, outputDir: string = '.solaudit'): string {
+export function getOutputDir(projectDir: string, outputDir: string = '.hex'): string {
   return resolveFromProject(projectDir, outputDir);
 }
 

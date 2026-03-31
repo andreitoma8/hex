@@ -17,7 +17,7 @@ export function loadConfig(projectDir?: string): Config {
   const configPath = findConfigFile(dir);
   if (!configPath) {
     throw new Error(
-      `No config.json found. Run 'solaudit init' first.\nSearched in: ${dir}`,
+      `No config.json found. Run 'hex init' first.\nSearched in: ${dir}`,
     );
   }
 
@@ -41,6 +41,7 @@ export function loadConfig(projectDir?: string): Config {
  */
 function findConfigFile(projectDir: string): string | null {
   const candidates = [
+    path.join(projectDir, '.hex', 'config.json'),
     path.join(projectDir, '.solaudit', 'config.json'),
     path.join(projectDir, 'solaudit-output', 'config.json'),
   ];
@@ -85,7 +86,7 @@ export function createConfig(options: CreateConfigOptions): Config {
       exclude: (options.exclude ?? []).map(normalizePath),
     },
     settings: {
-      output_dir: options.outputDir ?? '.solaudit',
+      output_dir: options.outputDir ?? '.hex',
       ai_model: 'claude-sonnet-4-20250514',
       finding_template: 'default',
       ai_tools: DEFAULT_AI_TOOLS,

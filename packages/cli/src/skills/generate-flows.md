@@ -8,15 +8,15 @@ description: "Generate Mermaid flow charts by user type and value paths"
 
 ## Context Assembly
 
-1. Run `npx solaudit context` to get the full codebase
-2. Read `.solaudit/overview.md` if it exists
+1. Run `npx hex context` to get the full codebase
+2. Read `.hex/overview.md` if it exists
 
 From these, identify all significant flows:
 - **User-type flows**: what can each role do? (anyone, owner, keeper, etc.)
 - **Value flows**: deposits, withdrawals, fee collection, liquidations, swaps
 - **Admin flows**: configuration, pausing, upgrades — what changes and what are the consequences
 
-**Only generate flows for in-scope contracts** (defined in `.solaudit/config.json`). Out-of-scope contracts may appear in subgraphs as external call targets when in-scope contracts interact with them, but do not generate standalone flows for out-of-scope contracts. If a contract has no relation to the audit scope, omit it entirely.
+**Only generate flows for in-scope contracts** (defined in `.hex/config.json`). Out-of-scope contracts may appear in subgraphs as external call targets when in-scope contracts interact with them, but do not generate standalone flows for out-of-scope contracts. If a contract has no relation to the audit scope, omit it entirely.
 
 ## Color Palette (classDef)
 
@@ -113,7 +113,7 @@ Every `.mmd` file must include:
 
 ## Workflow
 
-1. **Gather context** — run `npx solaudit context`, read `.solaudit/overview.md` and analysis outputs
+1. **Gather context** — run `npx hex context`, read `.hex/overview.md` and analysis outputs
 2. **Plan all flows** — list each flow with its steps, contracts involved, and decisions. Output in a code fence.
 3. **For each flow:**
    a. **Write the diagram** — produce full Mermaid syntax and write to `<output_dir>/diagrams/flow-<name>.mmd` (create the `diagrams/` subdirectory if it doesn't exist)
@@ -213,4 +213,4 @@ graph TD
 - **Max ~15 nodes** — split long flows into sub-flows
 - **Scope-aware** — only generate flows for in-scope contracts; out-of-scope contracts appear only as call targets of in-scope flows
 - **Keep it concrete** — show the actual steps, not abstractions
-- After writing all flows, tell the user to check the Flows tab in the dashboard (`solaudit dashboard`)
+- After writing all flows, tell the user to check the Flows tab in the dashboard (`hex dashboard`)

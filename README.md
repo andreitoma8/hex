@@ -1,26 +1,26 @@
-# SolAudit
+# Hex
 
-A toolkit for Solidity smart contract auditors. SolAudit combines CLI analysis tools, Claude Code skills, and a local dashboard to take you from "I just received the code" to "here are my validated findings" — faster and with better coverage.
+A toolkit for Solidity smart contract auditors. Hex combines CLI analysis tools, Claude Code skills, and a local dashboard to take you from "I just received the code" to "here are my validated findings" — faster and with better coverage.
 
-SolAudit does not replace your expertise. It automates the mechanical parts of auditing (parsing, stat collection, diagramming, PoC scaffolding, finding write-ups) so you can spend your time on what actually matters: reading code and thinking about what can break.
+Hex does not replace your expertise. It automates the mechanical parts of auditing (parsing, stat collection, diagramming, PoC scaffolding, finding write-ups) so you can spend your time on what actually matters: reading code and thinking about what can break.
 
 ## How It Works
 
 There are three components that work together off a shared project directory:
 
-**CLI tools** (`solaudit`) run deterministic analysis — stats, access control mapping, state variable inventory, external call surface. They wrap battle-tested tools like Slither, solc, and Forge rather than reinventing static analysis. Their output is structured JSON with confidence metadata so you always know how much to trust a given data point.
+**CLI tools** (`hex`) run deterministic analysis — stats, access control mapping, state variable inventory, external call surface. They wrap battle-tested tools like Slither, solc, and Forge rather than reinventing static analysis. Their output is structured JSON with confidence metadata so you always know how much to trust a given data point.
 
-**Claude Code skills** handle anything that requires reasoning — generating protocol overviews, identifying invariants, checking if code matches its spec, writing PoCs, drafting findings. You invoke them through Claude Code in your terminal as native slash commands (e.g., `/init-audit`, `/generate-overview`). Skills are markdown files that ship with the `solaudit` package and get copied into your project's `.claude/skills/` directory. They're editable per-project if you need to customize them. Skills that need deep code comprehension (PoCs, invariants, spec conformance) recommend Opus; simpler tasks (overviews, finding write-ups) work well with Sonnet.
+**Claude Code skills** handle anything that requires reasoning — generating protocol overviews, identifying invariants, checking if code matches its spec, writing PoCs, drafting findings. You invoke them through Claude Code in your terminal as native slash commands (e.g., `/init-audit`, `/generate-overview`). Skills are markdown files that ship with the `hex` package and get copied into your project's `.claude/skills/` directory. They're editable per-project if you need to customize them. Skills that need deep code comprehension (PoCs, invariants, spec conformance) recommend Opus; simpler tasks (overviews, finding write-ups) work well with Sonnet.
 
 **Every AI skill reads all prior analysis outputs.** When you ask Claude to identify invariants, it doesn't just read the raw source code — it also reads the stats, dependency graph, access control map, state variable inventory, external call surface, and any other analysis you've already generated. Each skill layer builds on top of all previous layers, which means the AI has structured, high-confidence facts to work with rather than re-deriving everything from scratch.
 
-**The dashboard** is a local Next.js app that visualizes everything the tools and skills produce. It reads directly from your project directory and auto-refreshes when files change. The Progress page also writes back to `.solaudit/progress.json` when you mark contracts as reviewed.
+**The dashboard** is a local Next.js app that visualizes everything the tools and skills produce. It reads directly from your project directory and auto-refreshes when files change. The Progress page also writes back to `.hex/progress.json` when you mark contracts as reviewed.
 
 All three components read from and write to the same project directory. There is no server, no database, no accounts. Everything stays local.
 
 ## Prerequisites
 
-Before using SolAudit, make sure you have the following installed:
+Before using Hex, make sure you have the following installed:
 
 - **Node.js** (v18+) and npm
 - **Foundry** (`forge`, `cast`) — or Hardhat if that's what the project uses
@@ -30,32 +30,32 @@ Before using SolAudit, make sure you have the following installed:
 
 ## Quick Start
 
-### 1. Clone the client project and install SolAudit
+### 1. Clone the client project and install Hex
 
 ```bash
 # Clone or receive the client project as usual
 git clone https://github.com/client/protocol.git
 cd protocol
 
-# Install SolAudit globally (or as a dev dependency)
-npm install -g solaudit
+# Install Hex globally (or as a dev dependency)
+npm install -g hex-audit
 ```
 
 ### 2. Set up Claude Code skills
 
 ```bash
-solaudit claude
+hex claude
 ```
 
-This copies all audit skills to `.claude/skills/` so Claude Code discovers them as native slash commands. This works before `solaudit init` — no config required.
+This copies all audit skills to `.claude/skills/` so Claude Code discovers them as native slash commands. This works before `hex init` — no config required.
 
 ### 3. Initialize the audit
 
 ```bash
-solaudit init --scope "src/core/**/*.sol,src/Vault.sol" --commit abc123 --chain ethereum --docs "https://docs.protocol.xyz"
+hex init --scope "src/core/**/*.sol,src/Vault.sol" --commit abc123 --chain ethereum --docs "https://docs.protocol.xyz"
 ```
 
-This creates a `.solaudit/` directory (configurable) inside the project with:
+This creates a `.hex/` directory (configurable) inside the project with:
 - `config.json` with your audit scope
 
 It also generates a `CLAUDE.md` at the project root — a quick-reference that Claude Code auto-loads into every conversation. It contains project metadata (chain, Solidity version, docs URL), a table of all output files and what they answer, the recommended skill workflow order, and available CLI commands. This means Claude always knows where to find docs, scope, analysis data, and config without needing to be told.
@@ -72,14 +72,14 @@ claude
 ### 3. Run analysis
 
 ```bash
-solaudit stats        # nSLOC, functions, ERCs, dependencies, test coverage
-solaudit deps         # contract dependency graph and clusters
-solaudit access       # role → function mapping with confidence levels
-solaudit state        # state variable inventory (readers, writers, mutability)
-solaudit calls        # external call surface with trust classification
-solaudit patterns     # security pattern flags (ORACLE, FLASH_LOAN, TEMPORAL, etc.)
-solaudit constraints  # setter validation and event emission analysis
-solaudit surface      # attack surface summary cross-referencing all data
+hex stats        # nSLOC, functions, ERCs, dependencies, test coverage
+hex deps         # contract dependency graph and clusters
+hex access       # role → function mapping with confidence levels
+hex state        # state variable inventory (readers, writers, mutability)
+hex calls        # external call surface with trust classification
+hex patterns     # security pattern flags (ORACLE, FLASH_LOAN, TEMPORAL, etc.)
+hex constraints  # setter validation and event emission analysis
+hex surface      # attack surface summary cross-referencing all data
 ```
 
 Or run everything at once through the `init-audit` skill, which runs all commands in parallel (with surface last) and gives you a summary.
@@ -87,7 +87,7 @@ Or run everything at once through the `init-audit` skill, which runs all command
 ### 4. Start the dashboard
 
 ```bash
-solaudit dashboard
+hex dashboard
 ```
 
 This starts the dashboard and opens `http://localhost:3000` in your browser. You'll see the home page with project info and stats. As you progress through the audit, every page fills in automatically.
@@ -95,15 +95,15 @@ This starts the dashboard and opens `http://localhost:3000` in your browser. You
 You can customize the port or skip auto-opening the browser:
 
 ```bash
-solaudit dashboard --port 8080    # custom port
-solaudit dashboard --no-open      # don't open browser
+hex dashboard --port 8080    # custom port
+hex dashboard --no-open      # don't open browser
 ```
 
 ---
 
 ## The Audit Workflow
 
-SolAudit follows a four-phase workflow. You move through the phases sequentially, but you can always go back and re-run earlier steps.
+Hex follows a four-phase workflow. You move through the phases sequentially, but you can always go back and re-run earlier steps.
 
 ### Phase 1 — Understand
 
@@ -116,7 +116,7 @@ claude
 > /generate-overview
 ```
 
-Claude reads the full codebase, any documentation you linked, and all the structured analysis already generated (stats, access control, state variables, external calls, dependencies). It then writes a 2-3 paragraph overview of what the protocol does, how it works, and what the key contracts are. The overview is saved to `.solaudit/overview.md` and displayed on the dashboard home page.
+Claude reads the full codebase, any documentation you linked, and all the structured analysis already generated (stats, access control, state variables, external calls, dependencies). It then writes a 2-3 paragraph overview of what the protocol does, how it works, and what the key contracts are. The overview is saved to `.hex/overview.md` and displayed on the dashboard home page.
 
 *Recommended model: Sonnet*
 
@@ -166,7 +166,7 @@ Claude reads the full codebase, documentation, and all prior analysis outputs (e
 2. Reads the code and identifies enforced invariants (arithmetic, access control, state machine, token accounting)
 3. Compares the two and flags discrepancies — invariants stated in docs but not enforced in code (potential bugs) and invariants enforced in code but not documented (implicit assumptions)
 
-Each invariant gets a confidence rating. Output is saved to `.solaudit/invariants.md` and displayed at `/invariants` on the dashboard.
+Each invariant gets a confidence rating. Output is saved to `.hex/invariants.md` and displayed at `/invariants` on the dashboard.
 
 *Recommended model: Opus*
 
@@ -184,7 +184,7 @@ This checks whether the code actually does what it claims to do. Claude reads th
 - **Interface conformance** — does the contract implement all functions from its interfaces with correct behavior?
 - **ERC/EIP compliance** — does the ERC-4626 implementation follow rounding rules? Does ERC-20 handle zero-amount transfers?
 
-Each check is classified as CONFORMS, DEVIATES, PARTIAL, UNVERIFIABLE, or UNDOCUMENTED. Deviations are potential findings. Results are saved to `.solaudit/spec-conformance.json` and viewable at `/conformance` on the dashboard.
+Each check is classified as CONFORMS, DEVIATES, PARTIAL, UNVERIFIABLE, or UNDOCUMENTED. Deviations are potential findings. Results are saved to `.hex/spec-conformance.json` and viewable at `/conformance` on the dashboard.
 
 *Recommended model: Opus*
 
@@ -202,7 +202,7 @@ All three pages support filtering by confidence level so you can quickly see whi
 
 ### Phase 2 — Review
 
-This is where you do the actual auditing. SolAudit gets out of your way here — you read code in VS Code, think about what can break, and leave `@audit-issue` comments on anything suspicious.
+This is where you do the actual auditing. Hex gets out of your way here — you read code in VS Code, think about what can break, and leave `@audit-issue` comments on anything suspicious.
 
 When you find a potential issue, add a comment in the source code:
 
@@ -217,7 +217,7 @@ Then point Claude at it to validate and generate a PoC (see Phase 3).
 
 ### Phase 3 — Findings
 
-Once you've identified issues during review, SolAudit helps you validate them and write them up.
+Once you've identified issues during review, Hex helps you validate them and write them up.
 
 **Step 3.1 — Generate a Proof of Concept**
 
@@ -231,7 +231,7 @@ claude
 Claude will:
 
 1. **Read all context** — all prior analysis outputs (access control, state variables, external calls, invariants, spec conformance, existing findings) plus the targeted source code. This gives it the full picture to reason about exploitability.
-2. **Reason first** — trace the execution path, check preconditions, evaluate existing protections. This reasoning is preserved in a validation memo at `.solaudit/validations/A001_memo.md`, regardless of whether the issue is valid.
+2. **Reason first** — trace the execution path, check preconditions, evaluate existing protections. This reasoning is preserved in a validation memo at `.hex/validations/A001_memo.md`, regardless of whether the issue is valid.
 3. **Inspect the project's test setup** — read existing test files, base contracts, fixtures, and configuration. It reuses your project's test infrastructure rather than building from scratch.
 4. **Write the PoC** — a test file matching the project's framework (Foundry, Hardhat, etc.) and coding conventions, inheriting from existing base test contracts.
 5. **Run and iterate** — execute the test, debug if it fails, iterate until it passes.
@@ -249,7 +249,7 @@ claude
 > /write-finding for the rounding error issue in src/Vault.sol
 ```
 
-Claude reads the issue description, the validation memo, the PoC, and the relevant code, then writes a structured finding entry to `.solaudit/findings.json` with:
+Claude reads the issue description, the validation memo, the PoC, and the relevant code, then writes a structured finding entry to `.hex/findings.json` with:
 
 - Severity (Critical/High/Medium/Low/Info, directly assessed)
 - Description (self-contained: covers what the issue is, why it exists, and what the impact is)
@@ -304,7 +304,7 @@ Claude semantically compares each AI finding against your own findings. It match
 - **Novel** — Genuinely new findings you didn't catch, ranked by likely severity
 - **Rejected** — Out of scope or clearly invalid, with explanation
 
-Results are saved to `.solaudit/comparison.json` and the master tracking table is updated.
+Results are saved to `.hex/comparison.json` and the master tracking table is updated.
 
 *Recommended model: Sonnet*
 
@@ -340,24 +340,24 @@ All commands are run from within the project directory (or with `--project /path
 
 | Command | What it does |
 |---------|-------------|
-| `solaudit init` | Initialize audit config — scope, commit, chain, docs URL |
-| `solaudit analyze` | Run all analysis commands in parallel (stats, deps, access, state, calls, patterns, constraints), then surface |
-| `solaudit stats` | Generate codebase statistics and test coverage |
-| `solaudit deps` | Build contract dependency graph |
-| `solaudit access` | Extract access control mapping (roles → functions, including inherited) |
-| `solaudit state` | Generate state variable inventory |
-| `solaudit calls` | Map external call surface (AST-based, Slither optional) |
-| `solaudit patterns` | Detect security-relevant patterns (ORACLE, FLASH_LOAN, TEMPORAL, etc.) |
-| `solaudit constraints` | Extract setter validation status and missing event emission |
-| `solaudit surface` | Build attack surface summary cross-referencing all analysis |
-| `solaudit context` | Assemble optimized AI context from codebase |
-| `solaudit context --target Vault` | Context for a specific contract and its dependencies |
-| `solaudit context --estimate` | Show token count without generating context |
-| `solaudit dashboard` | Start local dashboard and open in browser |
-| `solaudit dashboard --port 8080` | Start dashboard on a custom port |
-| `solaudit claude` | Copy skills to `.claude/skills/` for Claude Code discovery |
-| `solaudit update-skills` | Re-copy skill files from package (overwrites by default) |
-| `solaudit update-skills --keep-custom` | Skip existing skill files instead of overwriting |
+| `hex init` | Initialize audit config — scope, commit, chain, docs URL |
+| `hex analyze` | Run all analysis commands in parallel (stats, deps, access, state, calls, patterns, constraints), then surface |
+| `hex stats` | Generate codebase statistics and test coverage |
+| `hex deps` | Build contract dependency graph |
+| `hex access` | Extract access control mapping (roles → functions, including inherited) |
+| `hex state` | Generate state variable inventory |
+| `hex calls` | Map external call surface (AST-based, Slither optional) |
+| `hex patterns` | Detect security-relevant patterns (ORACLE, FLASH_LOAN, TEMPORAL, etc.) |
+| `hex constraints` | Extract setter validation status and missing event emission |
+| `hex surface` | Build attack surface summary cross-referencing all analysis |
+| `hex context` | Assemble optimized AI context from codebase |
+| `hex context --target Vault` | Context for a specific contract and its dependencies |
+| `hex context --estimate` | Show token count without generating context |
+| `hex dashboard` | Start local dashboard and open in browser |
+| `hex dashboard --port 8080` | Start dashboard on a custom port |
+| `hex claude` | Copy skills to `.claude/skills/` for Claude Code discovery |
+| `hex update-skills` | Re-copy skill files from package (overwrites by default) |
+| `hex update-skills --keep-custom` | Skip existing skill files instead of overwriting |
 
 ---
 
@@ -382,7 +382,7 @@ Skills are invoked through Claude Code. Each skill has a recommended model — s
 
 ### Where Skills Live
 
-Skills use Claude Code's native skill format, stored in `.claude/skills/<name>/SKILL.md`. They're copied there when you run `solaudit claude` or `solaudit init`.
+Skills use Claude Code's native skill format, stored in `.claude/skills/<name>/SKILL.md`. They're copied there when you run `hex claude` or `hex init`.
 
 ```
 .claude/skills/
@@ -404,18 +404,18 @@ Skills use Claude Code's native skill format, stored in `.claude/skills/<name>/S
 
 **Customizing skills for a project:** You can edit any `SKILL.md` file in place. For example, you might add project-specific hints to the invariant identification skill, or adjust the PoC conventions to match an unusual test setup.
 
-**Updating skills after upgrading SolAudit:**
+**Updating skills after upgrading Hex:**
 
 ```bash
-solaudit update-skills              # re-copy and overwrite all skill files from the new package version
-solaudit update-skills --keep-custom  # skip existing skill files to preserve your modifications
+hex update-skills              # re-copy and overwrite all skill files from the new package version
+hex update-skills --keep-custom  # skip existing skill files to preserve your modifications
 ```
 
 By default, `update-skills` overwrites existing skills with the latest version. Use `--keep-custom` to preserve any per-project modifications you've made.
 
 ### What Skills See
 
-Every AI skill that reasons about code automatically reads all available analysis outputs from `.solaudit/` — not just the raw source code. This means by the time you invoke `identify-invariants`, the AI already has:
+Every AI skill that reasons about code automatically reads all available analysis outputs from `.hex/` — not just the raw source code. This means by the time you invoke `identify-invariants`, the AI already has:
 
 - The codebase statistics (nSLOC, ERCs, dependencies)
 - The dependency graph (which contracts interact)
@@ -467,10 +467,10 @@ On the dashboard, confidence is shown as colored badges. You can filter any anal
 
 ## Output Directory Structure
 
-All SolAudit outputs live in a single directory inside the project (default: `.solaudit/`, configurable in `config.json`).
+All Hex outputs live in a single directory inside the project (default: `.hex/`, configurable in `config.json`).
 
 ```
-.solaudit/
+.hex/
 ├── config.json              # Audit scope, settings
 ├── overview.md              # AI-generated protocol overview
 ├── stats.json               # Codebase statistics and test coverage
@@ -527,7 +527,7 @@ But the entire project remains accessible. Claude Code can read out-of-scope con
 
 ```bash
 # In-scope: these are what you're auditing
-solaudit init --scope "src/core/Vault.sol,src/core/Strategy.sol,src/libraries/Math.sol"
+hex init --scope "src/core/Vault.sol,src/core/Strategy.sol,src/libraries/Math.sol"
 
 # Still accessible: tests, mocks, deploy scripts, dependencies, interfaces
 # Claude Code can read them all, forge can compile and run tests against them

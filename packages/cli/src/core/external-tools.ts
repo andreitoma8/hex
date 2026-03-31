@@ -166,7 +166,7 @@ export async function runForge(
 /**
  * Flatten a Solidity file using forge flatten.
  * Results are cached in-memory so repeated calls (e.g., from stats + access
- * during `solaudit analyze`) skip the subprocess.
+ * during `hex analyze`) skip the subprocess.
  */
 const flattenCache = new Map<string, string | null>();
 

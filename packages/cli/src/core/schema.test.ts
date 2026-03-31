@@ -53,7 +53,7 @@ describe('ConfigSchema', () => {
     if (result.success) {
       expect(result.data.version).toBe('1.0');
       expect(result.data.project.chain).toBe('ethereum');
-      expect(result.data.settings.output_dir).toBe('.solaudit');
+      expect(result.data.settings.output_dir).toBe('.hex');
     }
   });
 });

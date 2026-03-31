@@ -118,60 +118,61 @@ export default function HomePage() {
   return (
     <div>
       {/* Project header */}
-      <div className="mb-sp-6">
-        <h1 className="text-title font-semibold text-text-primary">
-          {config?.project.name ?? 'SolAudit Dashboard'}
+      <div className="mb-sp-5">
+        <h1 className="text-title font-semibold text-text-primary tracking-wide">
+          {config?.project.name ?? 'Hex Dashboard'}
         </h1>
         {config && (
-          <div className="mt-2 flex flex-wrap items-center gap-3 text-body text-text-secondary">
-            <span className="inline-flex items-center gap-1.5 rounded-sm bg-accent-subtle px-2 py-0.5 text-caption font-medium text-accent">
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-body text-text-secondary">
+            <span className="inline-flex items-center border border-accent/30 bg-accent-subtle px-2 py-0.5 text-caption font-medium text-accent" style={{ borderRadius: 'var(--radius-sm)' }}>
               {config.project.chain}
             </span>
-            <span className="font-mono text-caption text-text-tertiary">
+            <span className="text-caption text-text-tertiary border border-border-subtle px-2 py-0.5" style={{ borderRadius: 'var(--radius-sm)' }}>
               {config.project.commit.slice(0, 8)}
             </span>
-            <span className="text-text-tertiary">Solidity {config.project.solidity_version}</span>
-            <span className="text-text-tertiary">{config.project.scope.length} file{config.project.scope.length !== 1 ? 's' : ''} in scope</span>
+            <span className="text-caption text-text-tertiary">sol {config.project.solidity_version}</span>
+            <span className="text-caption text-text-tertiary">{config.project.scope.length} file{config.project.scope.length !== 1 ? 's' : ''} in scope</span>
           </div>
         )}
       </div>
 
       {/* KPI cards — 5 in a row */}
-      <div className="mb-sp-6 grid grid-cols-2 gap-sp-3 sm:grid-cols-3 lg:grid-cols-5">
-        <KpiCard label="Contracts" value={stats?.totals.contracts} />
-        <KpiCard label="nSLOC" value={stats?.totals.nsloc?.toLocaleString()} />
-        <KpiCard label="Functions" value={totalExternalFunctions} />
-        <KpiCard label="External Calls" value={totalExternalCalls} />
-        <KpiCard label="Findings" value={totalFindings} />
+      <div className="mb-sp-5 grid grid-cols-2 gap-sp-3 sm:grid-cols-3 lg:grid-cols-5 hex-stagger">
+        <KpiCard label="Contracts" value={stats?.totals.contracts} href="/stats" />
+        <KpiCard label="nSLOC" value={stats?.totals.nsloc?.toLocaleString()} href="/stats" />
+        <KpiCard label="Functions" value={totalExternalFunctions} href="/functions" />
+        <KpiCard label="Ext Calls" value={totalExternalCalls} href="/calls" />
+        <KpiCard label="Findings" value={totalFindings} href="/all-findings" />
       </div>
 
       {/* Overview */}
-      <div className="mb-sp-6">
+      <div className="mb-sp-5">
         {overview ? (
-          <div className="rounded-md border border-border-default bg-surface-2 p-sp-5">
+          <div className="border border-border-default bg-surface-1 p-sp-5" style={{ borderRadius: 'var(--radius-sm)' }}>
             <div className="mx-auto max-w-3xl">
               <MarkdownRenderer content={overview} />
             </div>
           </div>
         ) : (
-          <NotYetGenerated command="solaudit overview" />
+          <NotYetGenerated command="hex overview" />
         )}
       </div>
 
       {/* Quick nav tiles */}
-      <div className="grid gap-sp-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-sp-3 sm:grid-cols-2 lg:grid-cols-3 hex-stagger">
         {NAV_LINKS.map((item) => (
           <Link
             key={item.href}
             href={item.href}
-            className="group flex items-start gap-3 rounded-md border border-border-default bg-surface-2 p-sp-4 hover:border-accent/30 hover:bg-surface-3"
+            className="hex-glow group flex items-start gap-3 border border-border-default bg-surface-1 p-sp-4 hover:border-border-emphasis hover:bg-surface-2"
+            style={{ borderRadius: 'var(--radius-sm)' }}
           >
             <div className="shrink-0 text-text-tertiary group-hover:text-accent">
               {item.icon}
             </div>
             <div>
-              <h3 className="text-heading font-medium text-text-primary group-hover:text-accent">
-                {item.label}
+              <h3 className="text-heading font-medium text-text-secondary group-hover:text-accent">
+                &gt; {item.label}
               </h3>
               <p className="mt-0.5 text-caption text-text-tertiary">
                 {item.description}
@@ -187,19 +188,23 @@ export default function HomePage() {
 function KpiCard({
   label,
   value,
+  href,
 }: {
   label: string;
   value: string | number | null | undefined;
+  href?: string;
 }) {
   const isMuted = value == null;
-  return (
-    <div className="rounded-md border border-border-default bg-surface-2 p-sp-4">
-      <div
-        className={`text-display ${isMuted ? 'text-text-tertiary' : 'text-text-primary'}`}
-      >
+  const inner = (
+    <div className={`hex-glow border border-border-default bg-surface-1 p-sp-4 ${href ? 'hover:border-border-emphasis hover:bg-surface-2 cursor-pointer' : ''}`} style={{ borderRadius: 'var(--radius-sm)' }}>
+      <div className={`text-display hex-count-up ${isMuted ? 'text-text-tertiary' : 'text-accent'}`}>
         {value ?? '--'}
       </div>
-      <div className="mt-1 text-caption text-text-secondary">{label}</div>
+      <div className="mt-1 text-caption text-text-tertiary uppercase tracking-wider">{label}</div>
     </div>
   );
+  if (href) {
+    return <Link href={href}>{inner}</Link>;
+  }
+  return inner;
 }

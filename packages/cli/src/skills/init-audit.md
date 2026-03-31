@@ -6,12 +6,12 @@ description: "Initialize a Solidity audit project and run the full analysis pipe
 
 **Recommended model:** Sonnet
 
-You are helping set up a new Solidity audit project using SolAudit.
+You are helping set up a new Solidity audit project using Hex.
 
 ## Prerequisites
 - The auditor has cloned or received the client project
 - Node.js and npm are installed
-- SolAudit CLI is installed (`npm install -g solaudit`)
+- Hex CLI is installed (`npm install -g hex`)
 
 ## Steps
 
@@ -26,7 +26,7 @@ Ask the auditor for:
 ### 2. Initialize
 Run:
 ```bash
-npx solaudit init --project "<path>" --scope "<scope>" --commit <hash> --chain <chain> --docs "<url>"
+npx hex init --project "<path>" --scope "<scope>" --commit <hash> --chain <chain> --docs "<url>"
 ```
 
 ### 3. Audit Dependencies
@@ -77,7 +77,7 @@ Check the output of init. If compilation verification failed, investigate:
 ### 5. Run Analysis Pipeline
 Run the full analysis in a single command:
 ```bash
-npx solaudit analyze
+npx hex analyze
 ```
 
 This runs stats → deps → access → state → calls in sequence, continuing on failure and reporting a summary at the end.
@@ -99,11 +99,11 @@ After all commands complete, summarize:
 ### 7. Start the Dashboard
 Offer to start the dashboard so the auditor can visualize the analysis:
 ```bash
-npx solaudit dashboard
+npx hex dashboard
 ```
 This opens the dashboard in the browser at `http://localhost:3000`, showing all generated data with live refresh.
 
-Then ask: "Ready to generate the overview and diagrams? (These require AI analysis) You can also start the dashboard now with `solaudit dashboard` to visualize your analysis data."
+Then ask: "Ready to generate the overview and diagrams? (These require AI analysis) You can also start the dashboard now with `hex dashboard` to visualize your analysis data."
 
 ## Output
 The following files should now exist in the output directory:

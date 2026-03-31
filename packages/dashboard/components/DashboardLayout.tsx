@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { useEffect, useState } from 'react';
 
-/* ── Icon components (inline SVG, no library) ── */
+/* ── Icon components (inline SVG) ── */
 
 function IconHome(p: React.SVGProps<SVGSVGElement>) {
   return (
@@ -114,60 +114,56 @@ function IconMoon(p: React.SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
-function IconMonitor(p: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 17.25v1.007a3 3 0 0 1-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0 1 15 18.257V17.25m6-12V15a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 15V5.25A2.25 2.25 0 0 1 5.25 3h13.5A2.25 2.25 0 0 1 21 5.25Z" />
-    </svg>
-  );
-}
 
 /* ── Nav structure ── */
 const NAV_GROUPS = [
   {
-    label: 'Overview',
+    label: 'RECON',
     items: [
-      { href: '/', label: 'Home', icon: IconHome },
+      { href: '/',         label: 'Home',     icon: IconHome     },
       { href: '/progress', label: 'Progress', icon: IconProgress },
-      { href: '/stats', label: 'Stats', icon: IconStats },
+      { href: '/stats',    label: 'Stats',    icon: IconStats    },
     ],
   },
   {
-    label: 'Analysis',
+    label: 'ANALYSIS',
     items: [
-      { href: '/access', label: 'Access Control', icon: IconLock },
-      { href: '/functions', label: 'Functions', icon: IconFunctions },
-      { href: '/calls', label: 'External Calls', icon: IconCalls },
+      { href: '/access',    label: 'Access Control', icon: IconLock      },
+      { href: '/functions', label: 'Functions',      icon: IconFunctions },
+      { href: '/calls',     label: 'Ext Calls',      icon: IconCalls     },
     ],
   },
   {
-    label: 'Reasoning',
+    label: 'REASONING',
     items: [
-      { href: '/invariants', label: 'Invariants', icon: IconShield },
-      { href: '/conformance', label: 'Spec Conformance', icon: IconSpec },
+      { href: '/invariants',  label: 'Invariants',      icon: IconShield },
+      { href: '/conformance', label: 'Spec Conformance', icon: IconSpec  },
     ],
   },
   {
-    label: 'Visuals',
+    label: 'VISUAL',
     items: [
       { href: '/diagram', label: 'Diagram', icon: IconDiagram },
-      { href: '/flows', label: 'Flows', icon: IconFlows },
+      { href: '/flows',   label: 'Flows',   icon: IconFlows   },
     ],
   },
   {
-    label: 'AI Audit',
+    label: 'AI OPS',
     items: [
       { href: '/ai-reports', label: 'AI Reports', icon: IconRobot },
     ],
   },
   {
-    label: 'Findings',
+    label: 'FINDINGS',
     items: [
-      { href: '/report', label: 'Report', icon: IconReport },
+      { href: '/report',       label: 'Report',       icon: IconReport   },
       { href: '/all-findings', label: 'All Findings', icon: IconFindings },
     ],
   },
 ];
+
+/* Export for CommandPalette */
+export { NAV_GROUPS };
 
 /* ── Theme toggle ── */
 function ThemeToggle() {
@@ -178,26 +174,22 @@ function ThemeToggle() {
   if (!mounted) return <div className="h-8" />;
 
   const cycle = () => {
-    if (theme === 'light') setTheme('dark');
-    else if (theme === 'dark') setTheme('system');
-    else setTheme('light');
+    setTheme(theme === 'dark' ? 'light' : 'dark');
   };
 
-  const Icon = theme === 'light' ? IconSun : theme === 'dark' ? IconMoon : IconMonitor;
-  const label = theme === 'light' ? 'Light' : theme === 'dark' ? 'Dark' : 'System';
+  const Icon = theme === 'light' ? IconSun : IconMoon;
+  const label = theme === 'light' ? 'Light' : 'Dark';
 
   return (
     <div>
-      <div className="mb-1.5 px-1 text-[10px] font-medium uppercase tracking-wider text-text-tertiary">
-        Theme
-      </div>
       <button
         type="button"
         onClick={cycle}
-        className="flex w-full items-center gap-2 rounded-md border border-border-default bg-surface-2 px-2.5 py-1.5 text-body text-text-secondary hover:bg-surface-3 hover:text-text-primary"
+        className="flex w-full items-center gap-2 border border-border-default bg-surface-2 px-2.5 py-1.5 text-body text-text-secondary hover:border-accent hover:text-accent"
+        style={{ borderRadius: 'var(--radius-sm)' }}
       >
-        <Icon className="h-4 w-4 shrink-0" />
-        <span>{label}</span>
+        <Icon className="h-3.5 w-3.5 shrink-0" />
+        <span className="text-caption">{label}</span>
       </button>
     </div>
   );
@@ -209,21 +201,22 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen">
-      {/* Sidebar — fixed */}
+      {/* Sidebar */}
       <nav className="fixed left-0 top-0 flex h-screen w-[200px] flex-col border-r border-border-default bg-surface-1">
         {/* Logo */}
-        <div className="px-4 pb-2 pt-5">
-          <h1 className="text-heading font-semibold text-text-primary">SolAudit</h1>
-          <span className="mt-0.5 inline-block rounded-sm bg-accent-subtle px-1.5 py-0.5 text-caption text-accent">
-            v0.2.0
-          </span>
+        <div className="px-4 pb-3 pt-5">
+          <div className="flex items-baseline gap-2">
+            <h1 className="text-heading font-semibold text-accent tracking-wider">hex</h1>
+            <span className="text-caption text-text-tertiary">v0.3.0</span>
+          </div>
+          <div className="mt-1 h-px bg-border-default" />
         </div>
 
-        {/* Nav groups — scrollable */}
-        <div className="mt-2 flex-1 overflow-y-auto px-2 pb-4">
+        {/* Nav groups */}
+        <div className="mt-1 flex-1 overflow-y-auto px-2 pb-4">
           {NAV_GROUPS.map((group) => (
             <div key={group.label} className="mt-4 first:mt-0">
-              <div className="mb-1 px-2.5 text-caption font-medium uppercase tracking-wider text-text-tertiary">
+              <div className="mb-1 px-2.5 text-caption font-medium tracking-widest text-text-tertiary uppercase">
                 {group.label}
               </div>
               {group.items.map((item) => {
@@ -232,14 +225,14 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`group flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-body ${
+                    className={`group flex items-center gap-2.5 px-2.5 py-1.5 text-body ${
                       isActive
                         ? 'border-l-2 border-l-accent bg-accent-subtle text-accent font-medium'
-                        : 'border-l-2 border-l-transparent text-text-secondary hover:bg-surface-3 hover:text-text-primary'
+                        : 'border-l-2 border-l-transparent text-text-secondary hover:border-l-border-emphasis hover:bg-surface-3 hover:text-text-primary'
                     }`}
                   >
-                    <item.icon className="h-4 w-4 shrink-0" />
-                    <span>{item.label}</span>
+                    <item.icon className="h-3.5 w-3.5 shrink-0" />
+                    <span>{isActive ? `> ${item.label}` : item.label}</span>
                   </Link>
                 );
               })}
@@ -247,13 +240,19 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           ))}
         </div>
 
-        {/* Footer: theme toggle — always visible */}
-        <div className="border-t border-border-default px-2 py-3">
+        {/* Footer */}
+        <div className="border-t border-border-default px-2 py-3 space-y-2">
           <ThemeToggle />
+          <div className="flex items-center gap-1.5 px-2.5 text-caption text-text-tertiary">
+            <kbd className="border border-border-default px-1 py-0.5 text-[10px]" style={{ borderRadius: 'var(--radius-sm)' }}>Ctrl</kbd>
+            <span>+</span>
+            <kbd className="border border-border-default px-1 py-0.5 text-[10px]" style={{ borderRadius: 'var(--radius-sm)' }}>K</kbd>
+            <span className="ml-0.5">quick nav</span>
+          </div>
         </div>
       </nav>
 
-      {/* Main content — offset by sidebar width */}
+      {/* Main content */}
       <main className="ml-[200px] min-h-screen bg-surface-0 p-sp-5">
         {children}
       </main>

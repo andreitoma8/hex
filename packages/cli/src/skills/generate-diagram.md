@@ -8,14 +8,14 @@ description: "Create a Mermaid system architecture diagram"
 
 ## Context Assembly
 
-1. Run `npx solaudit context` to get the full codebase
-2. Read `.solaudit/overview.md` if it exists
+1. Run `npx hex context` to get the full codebase
+2. Read `.hex/overview.md` if it exists
 
 From these, identify:
 - All concrete contracts (skip interfaces, abstract contracts, libraries)
 - How contracts interact (calls, delegations, reads)
 - Contract groupings / clusters by purpose
-- **Only include contracts that are in the audit scope** (defined in `.solaudit/config.json`). Out-of-scope contracts may appear as simplified nodes if they interact with in-scope contracts, but should not be the focus of any diagram zone. If there is no interaction with in-scope contracts, omit them entirely.
+- **Only include contracts that are in the audit scope** (defined in `.hex/config.json`). Out-of-scope contracts may appear as simplified nodes if they interact with in-scope contracts, but should not be the focus of any diagram zone. If there is no interaction with in-scope contracts, omit them entirely.
 
 ## Semantic Symbols
 
@@ -122,7 +122,7 @@ Every `.mmd` file must include:
 
 ## Workflow
 
-1. **Gather context** — run `npx solaudit context`, read `.solaudit/overview.md` and any analysis outputs
+1. **Gather context** — run `npx hex context`, read `.hex/overview.md` and any analysis outputs
 2. **Plan** — list contracts, assign types/colors/symbols, sketch groupings in a code fence
 3. **Write the diagram** — produce the full Mermaid syntax and write it to `<output_dir>/diagrams/diagram.mmd` (create the `diagrams/` subdirectory if it doesn't exist)
 4. **Validate** — read the file back and run through the validation checklist below
@@ -187,4 +187,4 @@ graph TD
 - **Keep it high-level** — show contract-to-contract relationships, not internal details
 - **Max ~15 nodes** — split large protocols into multiple focused diagrams
 - **Scope-aware** — only diagram contracts defined in the audit scope; out-of-scope contracts appear only when they interact with in-scope ones
-- After writing, tell the user to check the Diagram tab in the dashboard (`solaudit dashboard`)
+- After writing, tell the user to check the Diagram tab in the dashboard (`hex dashboard`)

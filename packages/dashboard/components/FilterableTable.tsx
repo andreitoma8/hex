@@ -116,7 +116,7 @@ export function FilterableTable<T extends object>({
   const filterableCols = columns.filter((c) => c.enableColumnFilter);
 
   return (
-    <div className="overflow-hidden rounded-md border border-border-default">
+    <div className="overflow-hidden border border-border-default" style={{ borderRadius: 'var(--radius-sm)' }}>
       {/* Collapsible header */}
       {title && (
         <button
@@ -156,7 +156,7 @@ export function FilterableTable<T extends object>({
                       }
                       className={`rounded-sm px-2.5 py-1 text-caption font-medium ${
                         !currentFilter?.value
-                          ? 'bg-accent text-white'
+                          ? 'bg-accent text-surface-0'
                           : 'bg-surface-3 text-text-secondary hover:text-text-primary'
                       }`}
                     >
@@ -179,7 +179,7 @@ export function FilterableTable<T extends object>({
                           }
                           className={`rounded-sm px-2.5 py-1 text-caption font-medium ${
                             currentFilter?.value === opt
-                              ? 'bg-accent text-white'
+                              ? 'bg-accent text-surface-0'
                               : 'bg-surface-3 text-text-secondary hover:text-text-primary'
                           }`}
                         >
@@ -232,7 +232,7 @@ export function FilterableTable<T extends object>({
                   return (
                     <Fragment key={row.id}>
                       <tr
-                        className={`${
+                        className={`hex-glow ${
                           rowClassName
                             ? rowClassName(rowData)
                             : 'bg-surface-1 hover:bg-surface-3'

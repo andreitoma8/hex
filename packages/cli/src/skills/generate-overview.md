@@ -13,7 +13,7 @@ Read these files from the output directory:
 - `stats.json` — for high-level numbers (contracts, nSLOC, ERCs, dependencies)
 - `deps.json` — for contract relationships and clusters
 
-Run: `npx solaudit context` to get the full codebase context.
+Run: `npx hex context` to get the full codebase context.
 
 If `config.json` has a `docs_url`, fetch and read the documentation.
 

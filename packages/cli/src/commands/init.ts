@@ -18,7 +18,7 @@ export const initCommand = new Command('init')
   .option('--chain <chain>', 'Target chain', 'ethereum')
   .option('--name <name>', 'Project name')
   .option('--docs <url>', 'Documentation URL')
-  .option('--output-dir <dir>', 'Output directory', '.solaudit')
+  .option('--output-dir <dir>', 'Output directory', '.hex')
   .option('--exclude <globs>', 'Comma-separated exclude globs')
   .option('--no-verify', 'Skip build verification')
   .action(async (opts) => {
@@ -202,9 +202,9 @@ export const initCommand = new Command('init')
       // Create CLAUDE.md for Claude Code skill discovery
       const claudeMdPath = path.join(projectDir, 'CLAUDE.md');
       if (!fs.existsSync(claudeMdPath)) {
-        const claudeMd = `# SolAudit Project: ${config.project.name}
+        const claudeMd = `# Hex Project: ${config.project.name}
 
-This project is being audited with SolAudit.
+This project is being audited with Hex.
 
 - **Chain:** ${config.project.chain}
 - **Solidity:** ${config.project.solidity_version}
@@ -262,10 +262,10 @@ Each skill builds on previous outputs. Run them in order for best results.
 
 ## CLI Commands
 
-- \`npx solaudit analyze\` — Run all deterministic analysis (stats, deps, access, state, calls)
-- \`npx solaudit context\` — Assemble full codebase context for AI prompts
-- \`npx solaudit context --target <Contract>\` — Focused context for a single contract
-- \`npx solaudit dashboard\` — Open browser dashboard at http://localhost:3000
+- \`npx hex analyze\` — Run all deterministic analysis (stats, deps, access, state, calls)
+- \`npx hex context\` — Assemble full codebase context for AI prompts
+- \`npx hex context --target <Contract>\` — Focused context for a single contract
+- \`npx hex dashboard\` — Open browser dashboard at http://localhost:3000
 `;
         fs.writeFileSync(claudeMdPath, claudeMd, 'utf-8');
       }
@@ -275,9 +275,9 @@ Each skill builds on previous outputs. Run them in order for best results.
       logger.info(`Output: ${normalizePath(outputDir)}`);
       logger.info('');
       logger.info('Next steps:');
-      logger.dim('  solaudit stats    # Generate codebase statistics');
-      logger.dim('  solaudit deps     # Build dependency graph');
-      logger.dim('  solaudit access   # Map access control');
+      logger.dim('  hex stats    # Generate codebase statistics');
+      logger.dim('  hex deps     # Build dependency graph');
+      logger.dim('  hex access   # Map access control');
     } catch (err) {
       spin.fail('Initialization failed');
       logger.error(err instanceof Error ? err.message : String(err));

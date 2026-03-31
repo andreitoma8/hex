@@ -9,7 +9,6 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['var(--font-sans)'],
         mono: ['var(--font-mono)'],
       },
       colors: {
@@ -32,6 +31,8 @@ const config: Config = {
         accent: {
           DEFAULT: 'var(--accent)',
           subtle: 'var(--accent-subtle)',
+          secondary: 'var(--accent-secondary)',
+          warm: 'var(--accent-warm)',
         },
         severity: {
           critical: 'var(--critical)',
@@ -59,9 +60,9 @@ const config: Config = {
       },
       fontSize: {
         display: ['32px', { lineHeight: '1.2', fontWeight: '700' }],
-        title: ['20px', { lineHeight: '1.3', fontWeight: '600' }],
+        title:   ['20px', { lineHeight: '1.3', fontWeight: '600' }],
         heading: ['15px', { lineHeight: '1.4', fontWeight: '500' }],
-        body: ['13px', { lineHeight: '1.5', fontWeight: '400' }],
+        body:    ['13px', { lineHeight: '1.5', fontWeight: '400' }],
         caption: ['11px', { lineHeight: '1.4', fontWeight: '400' }],
       },
     },
