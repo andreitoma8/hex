@@ -42,9 +42,9 @@
   --border-default: rgba(0, 204, 51, 0.15);
   --border-emphasis: rgba(0, 204, 51, 0.30);
 
-  --text-primary: #aaaaaa;
-  --text-secondary: #777777;
-  --text-tertiary: #505050;
+  --text-primary: #e8e8e8;
+  --text-secondary: #b0b0b0;
+  --text-tertiary: #808080;
 
   --accent: #00cc33;
   --accent-subtle: rgba(0, 204, 51, 0.08);

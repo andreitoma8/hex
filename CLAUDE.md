@@ -22,9 +22,9 @@
 | `--surface-1` | `#101010` | Cards, sidebar |
 | `--surface-2` | `#181818` | Elevated surfaces, inputs |
 | `--surface-3` | `#222222` | Hover states |
-| `--text-primary` | `#aaaaaa` | Body text |
-| `--text-secondary` | `#777777` | Secondary labels |
-| `--text-tertiary` | `#555555` | Disabled, hints |
+| `--text-primary` | `#cccccc` | Body text |
+| `--text-secondary` | `#999999` | Secondary labels |
+| `--text-tertiary` | `#666666` | Disabled, hints |
 | `--accent` | `#00cc33` | Primary green (links, active states, borders) |
 | `--accent-secondary` | `#00ff66` | Bright green (highlights, success confirmations) |
 | `--accent-warm` | `#ffaa00` | Amber (warnings, secondary attention) |
@@ -73,11 +73,6 @@ Every data page follows this pattern:
 - No persistent background effects (no scanlines, no matrix rain)
 - All transitions: 200ms ease
 - Prefer CSS-only animations
-
-### Boot Sequence (first load)
-- 4-second terminal typing animation
-- Skippable (click/keypress)
-- Respects `hex-boot-disabled` localStorage flag
 
 ### Micro-interactions
 - `hex-glow`: green box-shadow on hover (`0 0 8px rgba(0,204,51,0.15)`)
