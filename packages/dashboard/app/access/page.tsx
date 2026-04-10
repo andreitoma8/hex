@@ -109,6 +109,7 @@ export default function AccessPage() {
         anyoneFnKeys={anyoneFnKeys}
         anyoneRole={anyoneRole ?? null}
         otherRoles={otherRoles}
+        allRoles={roles}
       />
     </div>
   );

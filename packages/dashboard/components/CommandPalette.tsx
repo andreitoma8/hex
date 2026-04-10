@@ -57,27 +57,27 @@ export function CommandPalette() {
 
   return (
     <div
-      className="fixed inset-0 z-[9000] flex items-start justify-center pt-[15vh]"
-      style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }}
+      className="fixed inset-0 z-[9000] flex items-start justify-center px-4 pt-[12vh]"
+      style={{ background: 'var(--overlay-bg)' }}
       onClick={() => setOpen(false)}
     >
       <div
-        className="w-full max-w-lg border border-border-emphasis bg-surface-1 shadow-2xl"
-        style={{
-          borderRadius: 'var(--radius-md)',
-          boxShadow: '0 0 60px rgba(0,204,51,0.10)',
-        }}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Quick navigation"
+        className="w-full max-w-lg rounded-lg border border-border-default bg-surface-1 shadow-lg"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Search input */}
         <div className="flex items-center border-b border-border-default px-4 py-3 gap-2">
-          <span className="text-accent text-body font-medium shrink-0">&gt;</span>
+          <span className="text-accent text-body font-medium shrink-0" aria-hidden="true">&gt;</span>
           <input
             ref={inputRef}
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="search pages..."
+            aria-label="Search pages"
             className="flex-1 bg-transparent text-body text-text-primary placeholder-text-tertiary outline-none"
             onKeyDown={(e) => {
               if (e.key === 'ArrowDown') {
@@ -88,6 +88,8 @@ export function CommandPalette() {
                 setSelected((s) => Math.max(s - 1, 0));
               } else if (e.key === 'Enter' && results[selected]) {
                 navigate(results[selected].href);
+              } else if (e.key === 'Tab') {
+                e.preventDefault(); // focus trap
               }
             }}
           />

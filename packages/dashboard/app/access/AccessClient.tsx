@@ -62,7 +62,7 @@ type Tab = (typeof TABS)[number];
 
 // ─── Columns ────────────────────────────────────────────────────────
 
-function makeColumns(anyoneFnKeys: Set<string>, showMutability: boolean): FilterableColumn<AccessFunction>[] {
+function makeColumns(anyoneFnKeys: Set<string>, roleLookup: Map<string, string[]>, showMutability: boolean): FilterableColumn<AccessFunction>[] {
   const cols: FilterableColumn<AccessFunction>[] = [
     {
       id: 'contract',
@@ -75,18 +75,32 @@ function makeColumns(anyoneFnKeys: Set<string>, showMutability: boolean): Filter
       id: 'function',
       header: 'Function',
       accessorKey: 'function',
+      cell: (row) => (
+        <span className="font-mono text-body text-text-secondary">{row.function}</span>
+      ),
+    },
+    {
+      id: 'caller',
+      header: 'Who can call',
+      accessorKey: 'function',
       cell: (row) => {
         const key = `${row.contract}::${row.function}`;
+        const roles = roleLookup.get(key) ?? [];
         const isAnyone = anyoneFnKeys.has(key);
+        if (roles.length === 0 && !isAnyone) return <span className="text-text-tertiary">--</span>;
         return (
-          <span className="font-mono text-body text-text-secondary">
-            {row.function}
+          <div className="flex flex-wrap gap-1">
             {isAnyone && (
-              <span className="ml-2 inline-flex items-center rounded-sm bg-[var(--critical)]/15 px-1.5 py-0.5 text-caption font-semibold uppercase text-[var(--critical)]">
-                anyone
+              <span className="inline-flex items-center rounded-md bg-[var(--critical)]/10 px-2 py-0.5 text-caption font-medium text-[var(--critical)]">
+                Anyone
               </span>
             )}
-          </span>
+            {roles.filter(r => r.toLowerCase() !== 'anyone' && r.toLowerCase() !== 'public').map((role) => (
+              <span key={role} className="inline-flex items-center rounded-md bg-accent-subtle px-2 py-0.5 text-caption font-medium text-accent">
+                {role}
+              </span>
+            ))}
+          </div>
         );
       },
     },
@@ -155,6 +169,7 @@ interface AccessClientProps {
   anyoneFnKeys: string[];
   anyoneRole: Role | null;
   otherRoles: Role[];
+  allRoles: Role[];
 }
 
 export function AccessClient({
@@ -162,10 +177,25 @@ export function AccessClient({
   readOnlyFunctions,
   anyoneFnKeys,
   otherRoles,
+  allRoles,
 }: AccessClientProps) {
   const [activeTab, setActiveTab] = useState<Tab>('All');
   const [showUnprotectedOnly, setShowUnprotectedOnly] = useState(false);
   const anyoneSet = useMemo(() => new Set(anyoneFnKeys), [anyoneFnKeys]);
+
+  // Build function → roles lookup
+  const roleLookup = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const role of allRoles) {
+      for (const fn of role.functions) {
+        const key = `${fn.contract}::${fn.function}`;
+        const existing = map.get(key) ?? [];
+        existing.push(role.role);
+        map.set(key, existing);
+      }
+    }
+    return map;
+  }, [allRoles]);
 
   const allFunctions = useMemo(
     () => [...writeFunctions, ...readOnlyFunctions],
@@ -189,8 +219,8 @@ export function AccessClient({
 
   const showMutability = activeTab === 'All' || activeTab === 'Read-Only';
   const columns = useMemo(
-    () => makeColumns(anyoneSet, showMutability),
-    [anyoneSet, showMutability],
+    () => makeColumns(anyoneSet, roleLookup, showMutability),
+    [anyoneSet, roleLookup, showMutability],
   );
 
   return (

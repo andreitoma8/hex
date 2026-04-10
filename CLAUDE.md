@@ -7,113 +7,99 @@
 - Dashboard package: `hex-dashboard`
 
 ## Typography
-- **Font**: JetBrains Mono (Google Fonts) everywhere. No sans-serif.
-- **Fallback stack**: `ui-monospace, 'Cascadia Code', 'SF Mono', monospace`
-- **Scale**: display (32px/700), title (20px/600), heading (15px/500), body (13px/400), caption (11px/400)
-- **Headers**: uppercase with wider letter-spacing for section/group labels
-- **Tables**: body weight for data, medium weight for column headers
+- **Display/body**: Manrope (Google Fonts), variable weight 200-800
+- **Code only**: JetBrains Mono (file paths, code snippets, code blocks)
+- **Fallback (sans)**: `system-ui, -apple-system, sans-serif`
+- **Fallback (mono)**: `ui-monospace, 'SF Mono', monospace`
+- **Scale**: display (28px/600), title (20px/600), heading (15px/500), body (14px/400), caption (12px/400)
+- **Section headers**: sentence case, medium weight (not uppercase)
 
 ## Color Palette
 
-### Dark Mode (default)
+### Dark Mode (primary)
+Surfaces are blue-tinted (hue 265), not pure black. Built with OKLCH for perceptual uniformity.
+
 | Token | Value | Usage |
 |-------|-------|-------|
-| `--surface-0` | `#080808` | Page background |
-| `--surface-1` | `#101010` | Cards, sidebar |
-| `--surface-2` | `#181818` | Elevated surfaces, inputs |
-| `--surface-3` | `#222222` | Hover states |
-| `--text-primary` | `#cccccc` | Body text |
-| `--text-secondary` | `#999999` | Secondary labels |
-| `--text-tertiary` | `#666666` | Disabled, hints |
-| `--accent` | `#00cc33` | Primary green (links, active states, borders) |
-| `--accent-secondary` | `#00ff66` | Bright green (highlights, success confirmations) |
-| `--accent-warm` | `#ffaa00` | Amber (warnings, secondary attention) |
-| `--border-subtle` | `rgba(0,204,51,0.05)` | Faint dividers |
-| `--border-default` | `rgba(0,204,51,0.15)` | Standard borders |
-| `--border-emphasis` | `rgba(0,204,51,0.30)` | Active/focused borders |
+| `--surface-0` | `oklch(0.13 0.005 265)` | Page background |
+| `--surface-1` | `oklch(0.17 0.006 265)` | Cards, sidebar |
+| `--surface-2` | `oklch(0.21 0.006 265)` | Elevated surfaces, inputs |
+| `--surface-3` | `oklch(0.26 0.006 265)` | Hover states |
+| `--text-primary` | `oklch(0.93 0.005 265)` | Body text |
+| `--text-secondary` | `oklch(0.65 0.01 265)` | Secondary labels |
+| `--text-tertiary` | `oklch(0.48 0.008 265)` | Disabled, hints |
+| `--accent` | `oklch(0.58 0.19 265)` | Indigo (links, active states) |
+| `--accent-subtle` | `oklch(0.58 0.19 265 / 0.10)` | Hover tint |
+| `--accent-secondary` | `oklch(0.68 0.14 265)` | Lighter indigo |
+| `--border-subtle` | `oklch(0.25 0.005 265 / 0.5)` | Faint dividers |
+| `--border-default` | `oklch(0.30 0.006 265 / 0.6)` | Standard borders |
+| `--border-emphasis` | `oklch(0.40 0.01 265 / 0.7)` | Active borders |
 
 ### Severity Colors (both modes)
-| Severity | Color | Hex |
-|----------|-------|-----|
-| Critical | Red | `#ff2200` |
-| High | Amber | `#ffaa00` |
-| Medium | Yellow | `#cccc00` |
-| Low | Blue | `#0088cc` |
-| Info | Gray | `#666666` |
+| Severity | Color | Value |
+|----------|-------|-------|
+| Critical | Red | `oklch(0.58 0.22 25)` |
+| High | Amber | `oklch(0.68 0.16 55)` |
+| Medium | Yellow | `oklch(0.72 0.14 85)` |
+| Low | Blue | `oklch(0.58 0.14 250)` |
+| Info | Gray | `oklch(0.55 0.01 265)` |
 
 ### Light Mode (secondary)
-Muted greens on off-white. `--accent: #008822`, surfaces start at `#f0f0f0`. Lower priority; dark mode is the primary experience.
+Surfaces start at near-white. Accent shifts to deeper indigo for contrast. Lower priority; dark mode is the primary experience.
 
 ## Layout Patterns
 
 ### Page Structure
-Every data page follows this pattern:
-1. **Page header**: title in heading size, optional description in text-secondary
-2. **Summary cards row**: 3-5 KPI cards showing aggregated counts. Cards are clickable and act as filters for the table below.
-3. **Detail table**: FilterableTable or SortableTable with the full dataset. Supports column sorting, filter pills, and expandable rows.
+1. **Page title**: title size, semibold
+2. **Summary metrics** (where applicable): grid of stat cards
+3. **Detail table**: FilterableTable or SortableTable with the full dataset
 
 ### Sidebar Navigation
-- Fixed 200px width, `bg-surface-1`, right border `border-default`
-- Groups labeled in uppercase caption text: RECON, ANALYSIS, REASONING, VISUAL, AI OPS, FINDINGS
-- Active item: `border-l-2 border-l-accent bg-accent-subtle text-accent`
-- Items prefixed with `>` on active/hover
-- Footer: theme toggle + `Ctrl+K` command palette hint
+- Fixed 220px width, `bg-surface-1`, right border `border-subtle`
+- Groups labeled in sentence case, caption size
+- Active item: `bg-accent-subtle text-accent` (no border-left stripe)
+- Footer: theme toggle + `⌘K` hint
 
 ### Cards
 - Background: `bg-surface-1`
-- Border: `border border-border-default`
-- Border radius: `rounded-sm` (2px) for tight terminal feel
-- Hover: `hex-glow` class (green box-shadow)
-- Padding: `p-sp-4` standard
+- Border: `border border-border-subtle`
+- Border radius: `rounded-lg` (12px)
+- Hover: `border-border-default bg-surface-2`
+- Padding: `p-4` to `p-6`
 
 ## Animations & Motion
 
 ### Principles
-- Cinematic on first load, subtle after
-- No persistent background effects (no scanlines, no matrix rain)
-- All transitions: 200ms ease
-- Prefer CSS-only animations
+- Subtle, functional, not decorative
+- All transitions: 200ms ease on interactive elements only (not universal)
+- No persistent background effects
 
-### Micro-interactions
-- `hex-glow`: green box-shadow on hover (`0 0 8px rgba(0,204,51,0.15)`)
-- `hex-stagger`: children fade-in with 50ms staggered delay
-- `hex-count-up`: KPI number scale-in animation
-- Table rows: background transition on hover
-- Page transitions: 200ms fade
+### Utilities
+- `.stagger`: children fade-in with 30ms staggered delay
+- `.scale-in`: KPI number scale animation (0.92 to 1, 350ms)
 
 ## Component Conventions
 
 ### Tables
-- Header row: uppercase, `text-text-tertiary`, wider letter-spacing
-- Active filter pills: `bg-accent text-surface-0`
+- Header row: caption size, text-tertiary
 - Row hover: `bg-surface-3`
 - Row dividers: `border-border-subtle`
-- Expandable rows for detail content (no modal popups for inline data)
+- Filter pills: rounded-md, `bg-accent text-surface-0` when active
 
 ### Badges
-- Severity badges use the severity color palette with `rounded-sm`
-- Confidence badges: high/medium/low with color gradient
-- All badges are compact: `px-1.5 py-0.5 text-caption`
+- Severity badges use the severity color palette
+- All badges: `rounded-md`, `px-2.5 py-1 text-caption`
 
 ### Code References
-- Clickable `file:line` format
-- Modal with dark terminal surface, green border
-- Target lines highlighted with green tint
-- Syntax highlighting via rehype-highlight
+- Clickable `file:line` format in monospace
+- Modal with clean surface, subtle shadow
+- Highlighted lines: `bg-accent/10`
 
 ## Do NOT
-- Use sans-serif fonts anywhere
-- Use border-radius larger than 6px
-- Add persistent animated backgrounds
-- Use purple, pink, or pastel colors
-- Default to light mode
-- Add new pages without discussion (polish existing ones first)
-- Use generic AI aesthetics (see banned patterns below)
-
-### Banned Visual Patterns
-- System font stacks (Arial, Inter, Roboto, Segoe UI)
-- Purple gradients on white backgrounds
-- Rounded pill buttons with gradient fills
-- Drop shadows on white cards
-- Generic blue accent colors
-- Cookie-cutter card grid layouts without character
+- Use monospace fonts outside of code blocks
+- Use colored border-left/right stripes on cards (>1px)
+- Add gradient text
+- Use bounce/elastic easing
+- Use green (#00cc33) or neon accent colors
+- Use glassmorphism/backdrop-blur decoratively
+- Default to all-uppercase labels

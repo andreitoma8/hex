@@ -26,12 +26,12 @@ const STATUS_BADGE_STYLES: Record<string, string> = {
   CONFORMS: 'bg-[var(--success)]/15 text-[var(--success)]',
 };
 
-const STATUS_ROW_BORDER: Record<string, string> = {
-  DEVIATES: 'border-l-[var(--critical)]',
-  PARTIAL: 'border-l-[var(--medium)]',
-  UNVERIFIABLE: 'border-l-accent',
-  UNDOCUMENTED: 'border-l-[var(--neutral)]',
-  CONFORMS: 'border-l-[var(--success)]',
+const STATUS_ROW_BG: Record<string, string> = {
+  DEVIATES: 'bg-[var(--critical)]/5',
+  PARTIAL: 'bg-[var(--medium)]/5',
+  UNVERIFIABLE: 'bg-accent/5',
+  UNDOCUMENTED: 'bg-surface-1',
+  CONFORMS: 'bg-[var(--success)]/5',
 };
 
 const SEVERITY_STYLES: Record<string, string> = {
@@ -76,8 +76,8 @@ export function ConformanceTable({ checks }: ConformanceTableProps) {
         <button
           type="button"
           onClick={() => setStatusFilter(null)}
-          className={`rounded-sm px-2.5 py-1 text-caption font-medium ${
-            !statusFilter ? 'bg-accent text-white' : 'bg-surface-3 text-text-secondary hover:text-text-primary'
+          className={`rounded-sm px-3 py-1.5 text-caption font-medium ${
+            !statusFilter ? 'bg-accent text-surface-0' : 'bg-surface-3 text-text-secondary hover:text-text-primary'
           }`}
         >
           All
@@ -90,8 +90,8 @@ export function ConformanceTable({ checks }: ConformanceTableProps) {
               key={status}
               type="button"
               onClick={() => setStatusFilter(statusFilter === status ? null : status)}
-              className={`rounded-sm px-2.5 py-1 text-caption font-medium ${
-                statusFilter === status ? 'bg-accent text-white' : 'bg-surface-3 text-text-secondary hover:text-text-primary'
+              className={`rounded-sm px-3 py-1.5 text-caption font-medium ${
+                statusFilter === status ? 'bg-accent text-surface-0' : 'bg-surface-3 text-text-secondary hover:text-text-primary'
               }`}
             >
               {status} <span className="opacity-60">{count}</span>
@@ -105,27 +105,32 @@ export function ConformanceTable({ checks }: ConformanceTableProps) {
         <table className="w-full text-left text-body">
           <thead className="border-b border-border-default bg-surface-2 text-caption font-medium uppercase tracking-wider text-text-tertiary">
             <tr>
-              <th className="w-8 px-2 py-sp-2" />
-              <th className="w-24 px-sp-4 py-sp-2">ID</th>
-              <th className="px-sp-4 py-sp-2">Requirement</th>
-              <th className="w-32 px-sp-4 py-sp-2">Status</th>
-              <th className="w-24 px-sp-4 py-sp-2">Source</th>
+              <th scope="col" className="w-8 px-2 py-sp-2" />
+              <th scope="col" className="w-24 px-sp-4 py-sp-2">ID</th>
+              <th scope="col" className="px-sp-4 py-sp-2">Requirement</th>
+              <th scope="col" className="w-32 px-sp-4 py-sp-2">Status</th>
+              <th scope="col" className="w-24 px-sp-4 py-sp-2">Source</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border-subtle">
             {filteredChecks.map((check) => {
               const isExpanded = expandedRows.has(check.id);
               const badgeStyle = STATUS_BADGE_STYLES[check.status] ?? STATUS_BADGE_STYLES.UNDOCUMENTED;
-              const borderColor = STATUS_ROW_BORDER[check.status] ?? STATUS_ROW_BORDER.UNDOCUMENTED;
+              const rowBg = STATUS_ROW_BG[check.status] ?? STATUS_ROW_BG.UNDOCUMENTED;
 
               return (
                 <Fragment key={check.id}>
                   <tr
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={isExpanded}
                     onClick={() => toggleRow(check.id)}
-                    className={`border-l-4 ${borderColor} cursor-pointer bg-surface-1 hover:bg-surface-3`}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleRow(check.id); } }}
+                    className={`${rowBg} cursor-pointer hover:bg-surface-3`}
                   >
                     <td className="w-8 px-2 py-sp-2 text-text-tertiary">
                       <svg
+                        aria-hidden="true"
                         className={`h-4 w-4 ${isExpanded ? 'rotate-90' : ''}`}
                         fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
                       >
@@ -151,7 +156,7 @@ export function ConformanceTable({ checks }: ConformanceTableProps) {
                   </tr>
 
                   {isExpanded && (
-                    <tr className={`border-l-4 ${borderColor}`}>
+                    <tr className={`${rowBg}`}>
                       <td colSpan={5} className="bg-surface-0 px-sp-6 py-sp-4">
                         <div className="text-body text-text-secondary">
                           <h4 className="mb-sp-2 text-caption font-medium uppercase text-text-tertiary">
