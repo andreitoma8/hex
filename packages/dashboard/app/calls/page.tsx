@@ -41,7 +41,7 @@ export default function CallsPage() {
     return (
       <div>
         <h2 className="mb-sp-5 text-title font-semibold text-text-primary">External Calls</h2>
-        <NotYetGenerated command="solaudit calls" />
+        <NotYetGenerated command="hex calls" />
       </div>
     );
   }

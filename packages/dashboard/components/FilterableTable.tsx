@@ -116,12 +116,13 @@ export function FilterableTable<T extends object>({
   const filterableCols = columns.filter((c) => c.enableColumnFilter);
 
   return (
-    <div className="overflow-hidden rounded-md border border-border-default">
+    <div className="overflow-hidden border border-border-default" style={{ borderRadius: 'var(--radius-sm)' }}>
       {/* Collapsible header */}
       {title && (
         <button
           type="button"
           onClick={() => setOpen(!open)}
+          aria-expanded={open}
           className="flex w-full items-center justify-between bg-surface-2 px-sp-4 py-sp-3 text-left hover:bg-surface-3"
         >
           <span className="text-heading font-medium text-text-primary">
@@ -129,6 +130,7 @@ export function FilterableTable<T extends object>({
           </span>
           <svg
             className={`h-4 w-4 text-text-tertiary ${open ? 'rotate-180' : ''}`}
+            aria-hidden="true"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -154,9 +156,9 @@ export function FilterableTable<T extends object>({
                       onClick={() =>
                         setColumnFilters((prev) => prev.filter((f) => f.id !== col.id))
                       }
-                      className={`rounded-sm px-2.5 py-1 text-caption font-medium ${
+                      className={`rounded-sm px-3 py-1.5 text-caption font-medium ${
                         !currentFilter?.value
-                          ? 'bg-accent text-white'
+                          ? 'bg-accent text-surface-0'
                           : 'bg-surface-3 text-text-secondary hover:text-text-primary'
                       }`}
                     >
@@ -177,9 +179,9 @@ export function FilterableTable<T extends object>({
                               return [...without, { id: col.id, value: opt }];
                             })
                           }
-                          className={`rounded-sm px-2.5 py-1 text-caption font-medium ${
+                          className={`rounded-sm px-3 py-1.5 text-caption font-medium ${
                             currentFilter?.value === opt
-                              ? 'bg-accent text-white'
+                              ? 'bg-accent text-surface-0'
                               : 'bg-surface-3 text-text-secondary hover:text-text-primary'
                           }`}
                         >
@@ -203,16 +205,22 @@ export function FilterableTable<T extends object>({
                     hg.headers.map((header) => (
                       <th
                         key={header.id}
+                        scope="col"
+                        aria-sort={
+                          header.column.getIsSorted() === 'asc' ? 'ascending'
+                          : header.column.getIsSorted() === 'desc' ? 'descending'
+                          : undefined
+                        }
                         className="cursor-pointer select-none px-sp-4 py-sp-2 hover:text-text-secondary"
                         onClick={header.column.getToggleSortingHandler()}
                       >
                         <div className="flex items-center gap-1">
                           {flexRender(header.column.columnDef.header, header.getContext())}
                           {header.column.getIsSorted() === 'asc' && (
-                            <svg className="h-3 w-3" viewBox="0 0 12 12" fill="currentColor"><path d="M6 2l4 5H2z" /></svg>
+                            <svg className="h-3 w-3" aria-hidden="true" viewBox="0 0 12 12" fill="currentColor"><path d="M6 2l4 5H2z" /></svg>
                           )}
                           {header.column.getIsSorted() === 'desc' && (
-                            <svg className="h-3 w-3" viewBox="0 0 12 12" fill="currentColor"><path d="M6 10l4-5H2z" /></svg>
+                            <svg className="h-3 w-3" aria-hidden="true" viewBox="0 0 12 12" fill="currentColor"><path d="M6 10l4-5H2z" /></svg>
                           )}
                         </div>
                       </th>
@@ -237,12 +245,24 @@ export function FilterableTable<T extends object>({
                             ? rowClassName(rowData)
                             : 'bg-surface-1 hover:bg-surface-3'
                         } ${isClickable ? 'cursor-pointer' : ''}`}
+                        role={isClickable ? 'button' : undefined}
+                        tabIndex={isClickable ? 0 : undefined}
+                        aria-expanded={expandedRow ? isExpanded : undefined}
                         onClick={() => {
                           if (expandedRow) {
                             setExpandedId(isExpanded ? null : rowKey);
                           }
                           onRowClick?.(rowData);
                         }}
+                        onKeyDown={isClickable ? (e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            if (expandedRow) {
+                              setExpandedId(isExpanded ? null : rowKey);
+                            }
+                            onRowClick?.(rowData);
+                          }
+                        } : undefined}
                       >
                         {row.getVisibleCells().map((cell) => (
                           <td key={cell.id} className="h-9 px-sp-4 py-sp-2">

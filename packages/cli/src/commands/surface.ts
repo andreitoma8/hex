@@ -29,7 +29,7 @@ export const surfaceCommand = new Command('surface')
       const constraints = readJsonFile<ConstraintResult>(normalizePath(path.join(outputDir, 'constraints.json')));
 
       if (!access && !calls) {
-        spin.fail('No analysis data found — run `solaudit analyze` first');
+        spin.fail('No analysis data found — run `hex analyze` first');
         process.exit(1);
       }
 

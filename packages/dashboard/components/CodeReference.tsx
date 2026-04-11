@@ -52,7 +52,11 @@ export function CodeReference({ file, lineStart, lineEnd, snippet }: CodeReferen
       {modalOpen && (
         <ModalOverlay onClose={() => setModalOpen(false)}>
           <div
-            className="relative max-h-[80vh] w-full max-w-3xl overflow-auto rounded-lg border border-border-emphasis bg-surface-1 shadow-2xl"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Source code: ${label}`}
+            className="relative max-h-[80vh] w-full max-w-3xl overflow-auto border border-border-emphasis bg-surface-1 shadow-2xl"
+            style={{ borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-accent)' }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -61,9 +65,10 @@ export function CodeReference({ file, lineStart, lineEnd, snippet }: CodeReferen
               <button
                 type="button"
                 onClick={() => setModalOpen(false)}
+                aria-label="Close"
                 className="rounded p-1 text-text-tertiary hover:bg-surface-3 hover:text-text-primary"
               >
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="h-5 w-5" aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
@@ -81,7 +86,7 @@ export function CodeReference({ file, lineStart, lineEnd, snippet }: CodeReferen
                     return (
                       <div
                         key={i}
-                        className={isHighlighted ? 'bg-severity-medium/10' : ''}
+                        className={isHighlighted ? 'bg-accent/10' : ''}
                       >
                         <span className="mr-4 inline-block w-10 select-none text-right text-text-tertiary">
                           {lineNum}
@@ -111,7 +116,8 @@ function ModalOverlay({ onClose, children }: { onClose: () => void; children: Re
     <div
       ref={overlayRef}
       tabIndex={-1}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm outline-none"
+      className="fixed inset-0 z-50 flex items-center justify-center outline-none"
+      style={{ background: 'var(--overlay-bg)' }}
       onClick={onClose}
       onKeyDown={(e) => {
         if (e.key === 'Escape') onClose();

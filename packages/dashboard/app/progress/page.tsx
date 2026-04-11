@@ -57,7 +57,7 @@ export default function ProgressPage() {
     return (
       <div>
         <h2 className="mb-sp-5 text-title font-semibold text-text-primary">Progress</h2>
-        <NotYetGenerated command="solaudit stats" />
+        <NotYetGenerated command="hex stats" />
       </div>
     );
   }

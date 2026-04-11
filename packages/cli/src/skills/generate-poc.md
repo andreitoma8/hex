@@ -10,12 +10,14 @@ description: "Validate an issue and generate a proof-of-concept test"
 
 Read:
 - The issue description provided by the auditor
-- Run: `npx solaudit context --target <relevant_contract>` for focused context
+- Run: `npx hex context --target <relevant_contract>` for focused context
 - `<output_dir>/state-vars.json` — for relevant state variable info
 - `<output_dir>/access-control.json` — for access restrictions
 - `<output_dir>/external-calls.json` — for external call surface (if relevant)
 
 ## Step 0: Understand the Project's Test Infrastructure
+
+**CRITICAL: You MUST complete Step 0 before writing any test code.** Do not proceed to Step 2 until you have identified the base test contract (if any), the deployment fixture/setup, and how tokens are dealt and accounts impersonated. Failure to reuse existing test infrastructure is the #1 cause of PoC failures.
 
 Before writing any test code, inspect the project's existing test setup:
 
@@ -88,14 +90,71 @@ Requirements:
 - Inherit from / reuse existing test base contracts or fixtures
 - Add descriptive comments for each step
 - End with clear assertions that demonstrate the impact
-- Name the file: `test/solaudit-pocs/<finding_id>_<short_name>.t.sol` (Foundry) or `test/solaudit-pocs/<finding_id>_<short_name>.test.ts` (Hardhat)
-- Create the `test/solaudit-pocs/` directory if it doesn't exist
+- Name the file: `test/hex-pocs/<finding_id>_<short_name>.t.sol` (Foundry) or `test/hex-pocs/<finding_id>_<short_name>.test.ts` (Hardhat)
+- Create the `test/hex-pocs/` directory if it doesn't exist
+
+### Economic Impact Logging (REQUIRED)
+
+Every PoC MUST log economic impact with before/after balance snapshots:
+
+```solidity
+// Before exploit
+uint256 attackerBalanceBefore = token.balanceOf(attacker);
+uint256 victimBalanceBefore = token.balanceOf(address(vault));
+
+// ... execute exploit steps ...
+
+// After exploit
+uint256 attackerBalanceAfter = token.balanceOf(attacker);
+uint256 profit = attackerBalanceAfter - attackerBalanceBefore;
+uint256 victimLoss = victimBalanceBefore - token.balanceOf(address(vault));
+
+console.log("Attacker profit: %s tokens (%s decimals)", profit, token.decimals());
+console.log("Victim loss: %s tokens", victimLoss);
+// If price oracle available in tests:
+// uint256 priceUsd = oracle.latestAnswer();
+// console.log("Profit in USD: $%s", (profit * priceUsd) / (10 ** token.decimals()));
+```
+
+### Descriptive Assertions
+
+Use assertion messages that explain the exploit impact, not just pass/fail:
+
+```solidity
+assertGt(attackerBalanceAfter, attackerBalanceBefore, "Exploit should be profitable for attacker");
+assertLt(token.balanceOf(address(vault)), victimBalanceBefore, "Vault should have lost funds");
+assertEq(profit, victimLoss, "Attacker profit should equal vault loss (no external source)");
+```
+
+### Rounding Error PoCs
+
+For rounding/precision vulnerabilities, demonstrate BOTH per-transaction and cumulative impact:
+
+```solidity
+// Per-transaction loss
+uint256 before = token.balanceOf(address(vault));
+// ... single operation ...
+uint256 singleLoss = before - token.balanceOf(address(vault));
+console.log("Loss per transaction: %s wei", singleLoss);
+
+// Cumulative impact over realistic timeframe
+uint256 cumulativeLoss = 0;
+for (uint256 i = 0; i < 1000; i++) {
+    uint256 b = token.balanceOf(address(vault));
+    // ... repeat operation ...
+    cumulativeLoss += b - token.balanceOf(address(vault));
+}
+console.log("Cumulative loss over 1000 transactions: %s tokens", cumulativeLoss);
+console.log("Average loss per transaction: %s wei", cumulativeLoss / 1000);
+```
+
+This pattern is critical for rounding bugs where per-transaction loss seems negligible but compounds to significant value over time.
 
 ## Step 3: Run and Verify
 
 Run the test:
 - Foundry: `forge test --match-test test_poc_description -vvv`
-- Hardhat: `npx hardhat test test/solaudit-pocs/<file> --grep "poc_description"`
+- Hardhat: `npx hardhat test test/hex-pocs/<file> --grep "poc_description"`
 
 If it fails, debug and fix. Iterate until the PoC passes.
 

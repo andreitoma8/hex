@@ -19,9 +19,9 @@ export const claudeCommand = new Command('claude')
       const claudeSkillsDir = getClaudeSkillsDir(projectDir);
 
       // Warn about legacy skills directory
-      const legacyDir = path.join(projectDir, '.solaudit', 'skills');
+      const legacyDir = path.join(projectDir, '.hex', 'skills');
       if (fs.existsSync(legacyDir)) {
-        logger.warn(`Legacy skills directory found at .solaudit/skills/`);
+        logger.warn(`Legacy skills directory found at .hex/skills/`);
         logger.warn(`Skills now live in .claude/skills/ — you can remove the legacy directory.`);
       }
 

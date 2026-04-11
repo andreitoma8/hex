@@ -2,24 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Shared semantic colors (both modes) ── */
+/* ── Design Tokens ── */
 :root {
-  --accent: #3b82f6;
-  --accent-subtle: #3b82f620;
-
-  --critical: #ef4444;
-  --high: #f97316;
-  --medium: #eab308;
-  --low: #3b82f6;
-  --info: #8b5cf6;
-  --success: #22c55e;
-  --neutral: #6b7280;
+  /* Severity */
+  --critical: oklch(0.58 0.22 25);
+  --high: oklch(0.68 0.16 55);
+  --medium: oklch(0.72 0.14 85);
+  --low: oklch(0.58 0.14 250);
+  --info: oklch(0.55 0.01 265);
+  --success: oklch(0.60 0.16 145);
+  --neutral: oklch(0.50 0.005 265);
 
   /* Typography */
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-mono: "SF Mono", ui-monospace, "Cascadia Code", monospace;
+  --font-sans: 'Manrope', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
 
-  /* Spacing (8px base) */
+  /* Spacing (4px base) */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -28,42 +26,58 @@
   --space-6: 32px;
   --space-8: 48px;
 
-  /* Radius */
+  /* Radius — soft, Apple-like */
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 12px;
+
+  /* Overlay / shadow */
+  --overlay-bg: oklch(0.08 0.005 265 / 0.75);
+  --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.05);
+  --shadow-md: 0 2px 8px oklch(0 0 0 / 0.08), 0 1px 2px oklch(0 0 0 / 0.04);
+  --shadow-lg: 0 8px 24px oklch(0 0 0 / 0.12), 0 2px 8px oklch(0 0 0 / 0.06);
 }
 
-/* ── Dark Mode ── */
+/* ── Dark Mode (primary) ── */
 [data-theme="dark"] {
-  --surface-0: #0d0d0d;
-  --surface-1: #161616;
-  --surface-2: #1e1e1e;
-  --surface-3: #282828;
+  --surface-0: oklch(0.13 0.005 265);
+  --surface-1: oklch(0.17 0.006 265);
+  --surface-2: oklch(0.21 0.006 265);
+  --surface-3: oklch(0.26 0.006 265);
 
-  --border-subtle: #ffffff0a;
-  --border-default: #ffffff14;
-  --border-emphasis: #ffffff24;
+  --border-subtle: oklch(0.28 0.005 265 / 0.5);
+  --border-default: oklch(0.32 0.006 265 / 0.55);
+  --border-emphasis: oklch(0.42 0.01 265 / 0.65);
 
-  --text-primary: #f5f5f5;
-  --text-secondary: #a1a1a1;
-  --text-tertiary: #6b6b6b;
+  --text-primary: oklch(0.93 0.005 265);
+  --text-secondary: oklch(0.65 0.01 265);
+  --text-tertiary: oklch(0.48 0.008 265);
+
+  --accent: oklch(0.58 0.19 265);
+  --accent-subtle: oklch(0.58 0.19 265 / 0.10);
+  --accent-secondary: oklch(0.68 0.14 265);
+  --accent-warm: oklch(0.68 0.16 55);
 }
 
-/* ── Light Mode ── */
+/* ── Light Mode (secondary) ── */
 [data-theme="light"] {
-  --surface-0: #f5f5f7;
-  --surface-1: #ffffff;
-  --surface-2: #ffffff;
-  --surface-3: #f0f0f0;
+  --surface-0: oklch(0.97 0.003 265);
+  --surface-1: oklch(1 0 0);
+  --surface-2: oklch(0.96 0.004 265);
+  --surface-3: oklch(0.93 0.005 265);
 
-  --border-subtle: #00000008;
-  --border-default: #00000012;
-  --border-emphasis: #00000020;
+  --border-subtle: oklch(0.85 0.005 265 / 0.5);
+  --border-default: oklch(0.80 0.006 265 / 0.45);
+  --border-emphasis: oklch(0.70 0.01 265 / 0.5);
 
-  --text-primary: #1d1d1f;
-  --text-secondary: #6e6e73;
-  --text-tertiary: #aeaeb2;
+  --text-primary: oklch(0.15 0.01 265);
+  --text-secondary: oklch(0.42 0.01 265);
+  --text-tertiary: oklch(0.60 0.008 265);
+
+  --accent: oklch(0.48 0.22 265);
+  --accent-subtle: oklch(0.48 0.22 265 / 0.08);
+  --accent-secondary: oklch(0.55 0.18 265);
+  --accent-warm: oklch(0.58 0.16 55);
 }
 
 /* ── Base styles ── */
@@ -73,20 +87,71 @@ body {
   background: var(--surface-0);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-size: 14px;
+  line-height: 1.55;
 }
 
 code, pre, .font-mono {
   font-family: var(--font-mono);
 }
 
-/* ── Transitions ── */
-*, *::before, *::after {
-  transition-property: color, background-color, border-color, opacity, box-shadow;
-  transition-duration: 150ms;
-  transition-timing-function: ease;
+/* ── Focus ── */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
-/* Opt out for transforms, layout, etc. */
-[data-no-transition], svg, svg * {
-  transition: none !important;
+/* ── Transitions (opt-in) ── */
+a, button, input, select, textarea,
+[role="button"], .transition-colors {
+  transition: color 200ms ease, background-color 200ms ease, border-color 200ms ease, opacity 200ms ease, box-shadow 200ms ease;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-emphasis);
+}
+
+/* ── Fade in animation ── */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.stagger > * {
+  opacity: 0;
+  animation: fade-in 0.3s ease-out forwards;
+}
+.stagger > *:nth-child(1)  { animation-delay: 0.03s; }
+.stagger > *:nth-child(2)  { animation-delay: 0.06s; }
+.stagger > *:nth-child(3)  { animation-delay: 0.09s; }
+.stagger > *:nth-child(4)  { animation-delay: 0.12s; }
+.stagger > *:nth-child(5)  { animation-delay: 0.15s; }
+.stagger > *:nth-child(6)  { animation-delay: 0.18s; }
+.stagger > *:nth-child(7)  { animation-delay: 0.21s; }
+.stagger > *:nth-child(8)  { animation-delay: 0.24s; }
+
+/* ── KPI scale-in ── */
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.scale-in {
+  animation: scale-in 0.35s ease-out forwards;
+}
+
+/* ── Mermaid theme overrides ── */
+.mermaid svg {
+  background: transparent !important;
 }

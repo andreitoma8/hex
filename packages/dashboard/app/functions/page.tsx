@@ -149,7 +149,7 @@ export default function FunctionsPage() {
     return (
       <div>
         <h2 className="mb-sp-5 text-title font-semibold text-text-primary">Functions</h2>
-        <NotYetGenerated command="solaudit access" />
+        <NotYetGenerated command="hex access" />
       </div>
     );
   }

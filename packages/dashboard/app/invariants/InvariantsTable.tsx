@@ -174,7 +174,7 @@ function DiscrepanciesTab({ data }: { data: Discrepancy[] }) {
       {data.map((disc) => (
         <div
           key={disc.id}
-          className="rounded-md border border-border-default border-l-4 border-l-[var(--critical)] bg-surface-2 px-sp-4 py-sp-3"
+          className="rounded-md border border-border-default bg-[var(--critical)]/5 px-sp-4 py-sp-3"
         >
           <div className="mb-sp-2 flex items-center gap-2">
             <span className="font-mono text-caption text-[var(--critical)]">{disc.id}</span>
@@ -215,7 +215,7 @@ function AssumptionsTab({ data }: { data: Assumption[] }) {
       {data.map((assum) => (
         <div
           key={assum.id}
-          className="rounded-md border border-border-default border-l-4 border-l-[var(--medium)] bg-surface-2 px-sp-4 py-sp-3"
+          className="rounded-md border border-border-default bg-[var(--medium)]/5 px-sp-4 py-sp-3"
         >
           <div className="mb-sp-2 flex items-center gap-2">
             <span className="font-mono text-caption text-[var(--medium)]">{assum.id}</span>

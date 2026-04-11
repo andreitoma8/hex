@@ -23,7 +23,7 @@ export default function StatsPage() {
     return (
       <div>
         <h2 className="mb-sp-5 text-title font-semibold text-text-primary">Stats</h2>
-        <NotYetGenerated command="solaudit stats" />
+        <NotYetGenerated command="hex stats" />
       </div>
     );
   }

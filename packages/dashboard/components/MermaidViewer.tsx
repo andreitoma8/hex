@@ -2,28 +2,13 @@
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 
-/* ── Loading spinner (reusable) ── */
-export function LoadingSpinner({ label = 'Loading...' }: { label?: string }) {
+/* ── Terminal loading indicator (reusable) ── */
+export function LoadingSpinner({ label = 'loading...' }: { label?: string }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-sp-8">
-      <svg
-        className="h-8 w-8 animate-spin text-accent"
-        viewBox="0 0 24 24"
-        fill="none"
-      >
-        <circle
-          className="opacity-25"
-          cx="12"
-          cy="12"
-          r="10"
-          stroke="currentColor"
-          strokeWidth="3"
-        />
-        <path
-          className="opacity-75"
-          fill="currentColor"
-          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-        />
+      <svg className="h-5 w-5 animate-spin text-accent" viewBox="0 0 24 24" fill="none">
+        <circle className="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
       </svg>
       <span className="text-body text-text-secondary">{label}</span>
     </div>
@@ -88,9 +73,33 @@ export function MermaidViewer({ syntax }: MermaidViewerProps) {
         const mermaid = (await import('mermaid')).default;
         mermaid.initialize({
           startOnLoad: false,
-          theme: 'dark',
+          theme: 'base',
+          themeVariables: {
+            background: '#1c1c1e',
+            mainBkg: '#27272a',
+            primaryColor: '#27272a',
+            primaryBorderColor: 'rgba(91,108,240,0.35)',
+            primaryTextColor: '#ecedf0',
+            lineColor: 'rgba(91,108,240,0.45)',
+            secondaryColor: '#313135',
+            tertiaryColor: '#3c3c42',
+            clusterBkg: '#222225',
+            clusterBorder: 'rgba(91,108,240,0.15)',
+            edgeLabelBackground: '#1c1c1e',
+            titleColor: '#9b9ca6',
+            fontFamily: 'Manrope, system-ui, sans-serif',
+            fontSize: '12px',
+            labelTextColor: '#ecedf0',
+            nodeBorder: 'rgba(91,108,240,0.35)',
+            actorBkg: '#27272a',
+            actorBorder: 'rgba(91,108,240,0.35)',
+            actorTextColor: '#ecedf0',
+            actorLineColor: 'rgba(91,108,240,0.25)',
+            signalColor: 'rgba(91,108,240,0.45)',
+            signalTextColor: '#9b9ca6',
+          },
           securityLevel: 'loose',
-          fontFamily: 'ui-sans-serif, system-ui, sans-serif',
+          fontFamily: 'Manrope, system-ui, sans-serif',
         });
 
         const id = `mermaid-${Date.now()}`;
@@ -185,10 +194,10 @@ export function MermaidViewer({ syntax }: MermaidViewerProps) {
 
       {/* Full-bleed canvas */}
       <div className="relative rounded-md border border-border-default bg-surface-1">
-        {/* Rendering spinner overlay */}
+        {/* Rendering overlay */}
         {rendering && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center bg-surface-1/80 backdrop-blur-sm">
-            <LoadingSpinner label="Rendering diagram..." />
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-surface-1">
+            <LoadingSpinner label="rendering diagram" />
           </div>
         )}
 
@@ -214,28 +223,28 @@ export function MermaidViewer({ syntax }: MermaidViewerProps) {
         </div>
 
         {/* Floating zoom controls — bottom right */}
-        <div className="absolute bottom-3 right-3 z-10 flex items-center gap-1 rounded-md bg-surface-2/90 p-1 shadow-lg backdrop-blur-sm border border-border-default">
+        <div className="absolute bottom-3 right-3 z-10 flex items-center gap-1 rounded-md bg-surface-2 p-1 shadow-lg border border-border-default">
           <button
             type="button"
             onClick={() => zoom(0.2)}
-            className="rounded px-2.5 py-1 text-body text-text-secondary hover:bg-surface-3 hover:text-text-primary"
-            title="Zoom in"
+            aria-label="Zoom in"
+            className="rounded px-3 py-1.5 text-body text-text-secondary hover:bg-surface-3 hover:text-text-primary"
           >
             +
           </button>
           <button
             type="button"
             onClick={() => zoom(-0.2)}
-            className="rounded px-2.5 py-1 text-body text-text-secondary hover:bg-surface-3 hover:text-text-primary"
-            title="Zoom out"
+            aria-label="Zoom out"
+            className="rounded px-3 py-1.5 text-body text-text-secondary hover:bg-surface-3 hover:text-text-primary"
           >
             −
           </button>
           <button
             type="button"
             onClick={resetView}
-            className="rounded px-2.5 py-1 text-body text-text-secondary hover:bg-surface-3 hover:text-text-primary"
-            title="Reset view"
+            aria-label="Reset zoom"
+            className="rounded px-3 py-1.5 text-body text-text-secondary hover:bg-surface-3 hover:text-text-primary"
           >
             ⟳
           </button>
@@ -246,7 +255,7 @@ export function MermaidViewer({ syntax }: MermaidViewerProps) {
 
         {/* Floating legend overlay — bottom left */}
         {parsed.legend.length > 0 && (
-          <div className="absolute bottom-3 left-3 z-10 flex flex-wrap gap-x-3 gap-y-1 rounded-md bg-surface-2/80 px-3 py-2 text-caption font-mono text-text-tertiary backdrop-blur-sm border border-border-default">
+          <div className="absolute bottom-3 left-3 z-10 flex flex-wrap gap-x-3 gap-y-1 rounded-md bg-surface-2 px-3 py-2 text-caption font-mono text-text-tertiary border border-border-default">
             {parsed.legend.map((line, i) => (
               <span key={i}>{line}</span>
             ))}

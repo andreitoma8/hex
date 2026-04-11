@@ -53,13 +53,15 @@ const TYPE_STYLES: Record<string, string> = {
   abstract: 'bg-[var(--high)]/15 text-[var(--high)]',
 };
 
+const SEVERITY_ORDER: string[] = ['Critical', 'High', 'Medium', 'Low', 'Info', 'Gas'];
+
 const SEVERITY_COLORS: Record<string, string> = {
-  critical: 'bg-[var(--critical)]/15 text-[var(--critical)]',
-  high: 'bg-[var(--high)]/15 text-[var(--high)]',
-  medium: 'bg-[var(--medium)]/15 text-[var(--medium)]',
-  low: 'bg-[var(--low)]/15 text-[var(--low)]',
-  info: 'bg-[var(--info)]/15 text-[var(--info)]',
-  gas: 'bg-surface-3 text-text-secondary',
+  Critical: 'bg-[var(--critical)]/15 text-[var(--critical)]',
+  High: 'bg-[var(--high)]/15 text-[var(--high)]',
+  Medium: 'bg-[var(--medium)]/15 text-[var(--medium)]',
+  Low: 'bg-[var(--low)]/15 text-[var(--low)]',
+  Info: 'bg-[var(--info)]/15 text-[var(--info)]',
+  Gas: 'bg-surface-3 text-text-secondary',
 };
 
 // ─── Component ──────────────────────────────────────────────────────
@@ -173,18 +175,20 @@ export function ProgressClient({
           <div className="mt-1 text-caption text-text-secondary">nSLOC Reviewed</div>
         </div>
         <div className="rounded-md border border-border-default bg-surface-2 p-sp-4">
-          <div className="flex items-baseline gap-2">
-            <span className="text-display text-text-primary">{findingsTotal}</span>
-            {Object.entries(findingsBySeverity).map(([sev, count]) => (
-              <span
-                key={sev}
-                className={`inline-flex items-center rounded-sm px-1.5 py-0.5 text-caption font-medium ${SEVERITY_COLORS[sev] ?? 'bg-surface-3 text-text-secondary'}`}
-              >
-                {count} {sev}
-              </span>
-            ))}
-          </div>
+          <div className="text-display text-text-primary">{findingsTotal}</div>
           <div className="mt-1 text-caption text-text-secondary">Findings</div>
+          {Object.keys(findingsBySeverity).length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {SEVERITY_ORDER.filter((sev) => findingsBySeverity[sev]).map((sev) => (
+                <span
+                  key={sev}
+                  className={`inline-flex items-center rounded-md px-2 py-0.5 text-caption font-medium ${SEVERITY_COLORS[sev] ?? 'bg-surface-3 text-text-secondary'}`}
+                >
+                  {findingsBySeverity[sev]} {sev}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -267,7 +271,7 @@ export function ProgressClient({
                         onClick={() => toggleContract(c)}
                         className={`flex h-5 w-5 items-center justify-center rounded border transition-colors ${
                           isChecked
-                            ? 'border-[var(--accent)] bg-[var(--accent)] text-white'
+                            ? 'border-[var(--accent)] bg-[var(--accent)] text-surface-0'
                             : 'border-border-emphasis bg-surface-1 hover:border-[var(--accent)]'
                         }`}
                       >

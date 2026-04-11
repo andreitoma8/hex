@@ -94,7 +94,7 @@ export function parseSolidity(source: string, filePath?: string): ParseResult {
 
 /**
  * Cache for parseSolidity results, keyed by filePath.
- * Persists within a single Node process (e.g., during `solaudit analyze`),
+ * Persists within a single Node process (e.g., during `hex analyze`),
  * saving redundant re-parses when multiple commands process the same files.
  */
 const parseCache = new Map<string, ParseResult>();

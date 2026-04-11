@@ -160,7 +160,7 @@ All tools analyze the local codebase and need context generation and comment str
 
 #### Step 6 — Tool preparation
 
-6a. Run `npx solaudit context` once to generate codebase context (shared by all tools).
+6a. Run `npx hex context` once to generate codebase context (shared by all tools).
 
 6b. Read `config.json` → `project.scope` to get the list of in-scope files. This is the authoritative scope — every tool must be constrained to these files.
 

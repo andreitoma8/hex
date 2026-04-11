@@ -50,7 +50,7 @@ export default function AccessPage() {
     return (
       <div>
         <h2 className="mb-sp-5 text-title font-semibold text-text-primary">Access Control</h2>
-        <NotYetGenerated command="solaudit access" />
+        <NotYetGenerated command="hex access" />
       </div>
     );
   }
@@ -109,6 +109,7 @@ export default function AccessPage() {
         anyoneFnKeys={anyoneFnKeys}
         anyoneRole={anyoneRole ?? null}
         otherRoles={otherRoles}
+        allRoles={roles}
       />
     </div>
   );

@@ -38,7 +38,7 @@ export const ConfigSchema = z.object({
     exclude: z.array(z.string()).default([]),
   }),
   settings: z.object({
-    output_dir: z.string().default('.solaudit'),
+    output_dir: z.string().default('.hex'),
     ai_model: z.string().default('claude-sonnet-4-20250514'),
     finding_template: z.string().default('default'),
     ai_tools: z.array(z.lazy(() => AiToolSchema)).optional(),
