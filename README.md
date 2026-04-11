@@ -284,12 +284,13 @@ claude
 ```
 
 This orchestrator skill:
-1. Presents a checkbox-style tool selection prompt (pick which AI tools to run — solidity-auditor, sc-auditor, plamen)
-2. Runs a preflight check for each tool — verifies env vars, skill installation, and system dependencies, then presents a summary table of any missing items. For plamen, offers auto-install if not found.
-3. Runs non-plamen skills (solidity-auditor, sc-auditor) **sequentially** in the orchestrator context with type-aware instructions (skill-file tools follow their SKILL.md methodology; MCP-server tools discover and use their MCP tools)
-4. Runs plamen after non-plamen tools complete
-5. Normalizes all findings and batch-writes them to `tracking.json` with `status: "unverified"`
-6. Runs `/compare-findings` automatically and prints a coverage gap summary
+1. Presents a checkbox-style tool selection prompt (pick which AI tools to run — solidity-auditor, sc-auditor, plamen, auditagent)
+2. Runs a preflight check for each tool — verifies env vars, skill installation, and system dependencies, then presents a summary table of any missing items. For plamen and auditagent, offers auto-install if not found.
+3. Runs auditagent first (cloud-based async scanner from Nethermind — triggers a 30-60 min scan, collects results on subsequent runs)
+4. Runs non-plamen skills (solidity-auditor, sc-auditor) **sequentially** in the orchestrator context with type-aware instructions (skill-file tools follow their SKILL.md methodology; MCP-server tools discover and use their MCP tools)
+5. Runs plamen after non-plamen tools complete
+6. Normalizes all findings and batch-writes them to `tracking.json` with `status: "unverified"`
+7. Runs `/compare-findings` automatically and prints a coverage gap summary
 
 **Step 4.2 — Compare findings**
 
@@ -506,6 +507,10 @@ All Hex outputs live in a single directory inside the project (default: `.hex/`,
 │   │   ├── findings.json
 │   │   ├── metadata.json
 │   │   └── _scope.txt       # Generated scope file for plamen
+│   ├── auditagent/
+│   │   ├── raw-output.md    # Findings markdown from aa findings --all
+│   │   ├── findings.json
+│   │   └── metadata.json    # Includes scan_id
 │   └── <other-tool>/      # Additional tools write here
 │       ├── raw-output.md
 │       ├── findings.json
