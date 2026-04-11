@@ -12,6 +12,7 @@ Read these files from the output directory:
 - `config.json` — for docs URL, scope, ERC/EIP info
 - `stats.json` — for ERC/EIP usage list
 - `invariants.md` — for cross-reference with invariant analysis (if available)
+- `attack-surface.json` — for token interactions (which tokens the protocol sends/receives) and external dependencies
 
 Run: `npx hex context` to get the full codebase.
 
@@ -58,12 +59,29 @@ Then for each standard, verify:
 - Are required events emitted in the correct circumstances?
 - Are required error conditions handled?
 
+**For EACH standard detected, you MUST fetch the canonical spec.** Do not skip this step even if you believe you know the standard well. After fetching, extract ALL `MUST`, `SHOULD`, and `MAY` requirements into a checklist, then systematically verify each one against the implementation.
+
 Known gotchas to check:
-- **ERC-20:** return values on transfer/approve, zero-amount transfers
-- **ERC-4626:** rounding direction (up vs down) per the spec, preview vs actual amounts
-- **ERC-721:** safeTransferFrom callback behavior
-- **ERC-2612:** permit deadline, nonce handling
-- **ERC-1155:** batch operation semantics
+- **ERC-20:** return values on transfer/approve, zero-amount transfers, approval race condition
+- **ERC-4626:** rounding direction (up vs down) per the spec, preview vs actual amounts, maxDeposit/maxMint/maxWithdraw/maxRedeem return values
+- **ERC-721:** safeTransferFrom callback behavior, approve/getApproved semantics
+- **ERC-2612:** permit deadline, nonce handling, domain separator chain ID
+- **ERC-1155:** batch operation semantics, balanceOf requirements
+
+### Weird Token Compatibility Check
+
+For every contract that interacts with ERC-20 tokens (check `attack-surface.json` `token_interactions`), verify handling of non-standard token behaviors. This is critical because protocols rarely restrict which tokens can be used, and many deployed tokens have non-standard behaviors.
+
+For each behavior below, classify as CONFORMS (handled correctly), DEVIATES (not handled, tokens with this behavior could be used), PARTIAL (some code paths handle it), or UNVERIFIABLE (depends on token whitelist configuration):
+
+- **Fee-on-transfer tokens** (e.g., STA, PAXG): Does the protocol calculate received amounts using `balanceAfter - balanceBefore`, or does it trust the transfer amount parameter? If the latter, accounting will be wrong for fee-on-transfer tokens.
+- **Rebasing tokens** (e.g., stETH, aTokens): Does the protocol cache token balances that may become stale between transactions? Does internal accounting track shares or absolute amounts?
+- **Blocklist tokens** (e.g., USDC, USDT): Can a blocked/frozen address cause denial of service by being unable to receive transfers in a batch or loop operation? Can a blocklisted user prevent liquidation or withdrawal for others?
+- **Double-entry point tokens** (e.g., legacy SNX via ProxyERC20): Could the same underlying token be counted twice through different entry points? Does the protocol deduplicate token addresses?
+- **Low-decimal tokens** (e.g., USDC with 6, GUSD with 2, WBTC with 8): Are decimal conversions handled correctly? Is there precision loss with very small amounts that could be exploited through repeated small operations?
+- **Upgradeable tokens** (e.g., USDT, USDC): Is there risk that token behavior changes post-deployment (e.g., adding fee-on-transfer, changing decimals)?
+- **No-revert-on-failure tokens** (e.g., ZRX, BAT): Does the protocol check return values on transfer/approve, or use `SafeERC20`/`safeTransfer`? Unchecked calls to these tokens silently fail.
+- **Tokens with non-standard decimals**: Does the protocol hardcode 18 decimals, or read `decimals()` dynamically? Hardcoded assumptions break with non-18-decimal tokens.
 
 ## Conformance Classification
 
