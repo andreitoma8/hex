@@ -392,12 +392,13 @@ export const AiResultFileSchema = z.object({
 // ─── AI Run Status ─────────────────────────────────────────────────
 
 export const AiToolStatusSchema = z.object({
-  status: z.enum(['completed', 'running', 'failed', 'not_started']),
+  status: z.enum(['completed', 'running', 'failed', 'not_started', 'pending_scan']),
   ran_at: z.string().optional(),
   started_at: z.string().optional(),
   pid: z.number().optional(),
   findings_count: z.number().optional(),
   error: z.string().optional(),
+  scan_id: z.string().optional(),
 });
 
 export const AiStatusSchema = z.object({

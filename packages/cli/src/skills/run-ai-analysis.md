@@ -23,11 +23,12 @@ Read these files from the output directory:
      [
        { "name": "solidity-auditor", "type": "skill", "invocation": "/solidity-auditor deep", "install_url": "https://github.com/pashov/skills", "install_type": "skill-file", "skill_path": "solidity-auditor", "output_format": "markdown", "enabled": true, "long_running": false, "description": "Pashov solidity-auditor Claude Code skill" },
        { "name": "sc-auditor", "type": "skill", "invocation": "/security-auditor src/", "install_url": "https://github.com/Archethect/sc-auditor", "install_type": "mcp-server", "output_format": "markdown", "enabled": true, "long_running": false, "requires_env": ["SOLODIT_API_KEY"], "dependencies": [{ "binary": "slither", "install_cmd": "pip install slither-analyzer", "required": false }, { "binary": "aderyn", "install_cmd": "cargo install aderyn", "required": false }, { "binary": "forge", "install_cmd": "curl -L https://foundry.paradigm.xyz | bash && foundryup", "required": false }], "description": "Archethect sc-auditor MCP server with Solodit integration" },
-       { "name": "plamen", "type": "skill", "invocation": "/plamen core", "install_type": "manual", "output_format": "markdown", "enabled": true, "long_running": true, "dependencies": [{ "binary": "python3", "install_cmd": "Install Python 3.11-3.12 from https://python.org", "required": true }], "description": "Plamen autonomous security auditor — multi-agent analysis across 8 audit phases" }
+       { "name": "plamen", "type": "skill", "invocation": "/plamen core", "install_type": "manual", "output_format": "markdown", "enabled": true, "long_running": true, "dependencies": [{ "binary": "python3", "install_cmd": "Install Python 3.11-3.12 from https://python.org", "required": true }], "description": "Plamen autonomous security auditor — multi-agent analysis across 8 audit phases" },
+       { "name": "auditagent", "type": "cli", "invocation": "aa scan", "install_url": "https://github.com/NethermindEth/auditagent-cli", "install_type": "manual", "output_format": "markdown", "enabled": true, "long_running": true, "requires_env": ["AUDIT_AGENT_API_KEY"], "dependencies": [{ "binary": "aa", "install_cmd": "pip install git+https://github.com/NethermindEth/auditagent-cli.git", "required": true }], "description": "Nethermind auditagent — cloud-based AI security scanner (async, 30-60 min)" }
      ]
      ```
    - **If `ai_tools` exists**: check for missing default tools. Compare tool names in config against the built-in defaults above. For any default tool NOT present in config by name, append it with `enabled: true`. If new tools were added, print: "Added N new default tool(s) to your config: <names>" and persist the updated list to `config.json`.
-   - **Legacy cleanup**: if `ai_tools` contains an entry named `auditagent`, remove it and persist the updated list to `config.json`. Print: "Removed auditagent (no longer supported)".
+   - **Legacy cleanup**: if `ai_tools` contains an entry named `auditagent` with a stale schema (no `install_type` field, or `type` is `"skill"` instead of `"cli"`), remove it and let the default-sync logic re-add the current version. Print: "Upgraded auditagent config entry to latest schema".
 
 2. Use the **AskUserQuestion** tool to ask which tools to run. List each tool with a checkbox-style selection prompt. Example question:
    ```
@@ -36,6 +37,7 @@ Read these files from the output directory:
    [ ] solidity-auditor — Pashov solidity-auditor Claude Code skill
    [ ] sc-auditor — Archethect sc-auditor MCP server with Solodit integration
    [ ] plamen — Plamen autonomous security auditor (deploys 25-45 agents in core mode)
+   [ ] auditagent — Nethermind cloud AI scanner (async: triggers scan, collect results on next run)
 
    Reply with the tool names you want to run (comma-separated), or "all" to run everything.
    ```
@@ -129,6 +131,33 @@ Read these files from the output directory:
 
    > **Note:** This minimal install skips config merges (settings.json, mcp.json, CLAUDE.md), RAG database, and toolchain deps. For full setup including RAG and MCP servers, the user can run the interactive installer themselves: `! cd ~/.plamen && python3 plamen.py install`
 
+   **auditagent:** Check if auditagent-cli is installed and configured.
+
+   1. Check if `aa` binary exists: `which aa` (fallback: `which audit-agent`)
+   2. If **missing**: use **AskUserQuestion** to ask if the user wants to install. If yes:
+      ```bash
+      pip install git+https://github.com/NethermindEth/auditagent-cli.git
+      ```
+      Verify `aa --version` succeeds after install. If install fails (private repo access, no pip), print manual install instructions and skip auditagent for this run.
+   3. Check if `AUDIT_AGENT_API_KEY` env var is set. If not, print:
+      ```
+      AUDIT_AGENT_API_KEY is required. Get your key from:
+      https://app.auditagent.nethermind.io/profile?tab=api-keys
+      Then: export AUDIT_AGENT_API_KEY=<your-key>
+      ```
+      Mark auditagent as blocked.
+   4. Check if `auditagent.toml` exists in the project root. If missing, run:
+      ```bash
+      aa init
+      ```
+      This creates the config with auto-detected project settings (Foundry/Hardhat/Truffle). Print: "Initialized auditagent.toml"
+   5. Check `<output_dir>/ai-status.json` for an existing auditagent entry with `status: "pending_scan"` and a `scan_id`. If found, print:
+      ```
+      Found pending auditagent scan: <scan_id>
+      Will check status and retrieve findings if complete.
+      ```
+   6. If user declines install or API key is missing, skip auditagent for this run
+
 3. For all selected tools, also check:
    - **Env vars**: check `requires_env` vars exist (e.g. `SOLODIT_API_KEY`). Print how to obtain & set them if missing.
    - **System dependencies**: for each entry in `dependencies` array:
@@ -178,9 +207,96 @@ All tools analyze the local codebase and need context generation and comment str
      - If the line has code before the comment (e.g. `uint x = 1; // @audit rounding`), remove only the `// @audit...` portion, keeping the code
    - Print: "Stripped N @audit comments from M files (will restore via git checkout)"
 
-#### Step 7 — Run local CLI tools
+#### Step 7 — Run CLI tools
 
-For each enabled `type: "cli"` tool with `long_running: false` that passed preflight:
+##### Step 7a — Run auditagent (if selected)
+
+auditagent is a cloud-based async scanner. Unlike all other tools, a single run of the skill cannot both trigger a scan and collect results. Execution follows a two-phase pattern across separate skill invocations.
+
+1. Record `tool_start = Date.now()`
+2. Update `<output_dir>/ai-status.json` setting auditagent's status to `"running"` with `started_at` set to the current ISO timestamp
+
+3. **Check for existing scan state.** Read `<output_dir>/ai-status.json` → `tools.auditagent`:
+
+   **Case A: `status: "pending_scan"` with a `scan_id`** — A scan was previously triggered. Check its status:
+   ```bash
+   aa scan --status <scan_id>
+   ```
+   - If scan is **complete**: proceed to step 5 (fetch findings)
+   - If scan is **still running**: print "Auditagent scan `<scan_id>` is still in progress (started at `<started_at>`). Skipping — re-run /run-ai-analysis later to collect results." Update `ai-status.json` keeping `status: "pending_scan"` and the existing `scan_id`. **Skip auditagent for this run** — do NOT block other tools.
+   - If scan **failed**: print the error. Update `ai-status.json` with `status: "failed"` and the error message. Use **AskUserQuestion** to ask if the user wants to retry (trigger a new scan) or skip.
+
+   **Case B: No existing scan** (`status` is `"not_started"` or absent) — Use **AskUserQuestion** to ask:
+   ```
+   auditagent requires a cloud scan that takes 30-60+ minutes.
+
+   Options:
+   1. Start a new scan (will complete in background — re-run this skill to collect results)
+   2. Enter an existing scan_id (if you already triggered one)
+   3. Skip auditagent for this run
+
+   Choose [1/2/3]:
+   ```
+
+   - If **option 1** (new scan):
+     a. Get scope files from `config.json` → `project.scope` — these are the authoritative scope, not `auditagent.toml`
+     b. Run: `aa scan --quality auditor <scope-files...>` (auditor-quality deep scan)
+     c. Parse the `scan_id` from stdout (look for a UUID in the output)
+     d. Update `<output_dir>/ai-status.json`:
+        ```json
+        { "auditagent": { "status": "pending_scan", "started_at": "<ISO timestamp>", "scan_id": "<scan_id>" } }
+        ```
+     e. Print: "Auditagent scan triggered: `<scan_id>`. This will take 30-60 minutes. Re-run /run-ai-analysis after the scan completes to collect findings."
+     f. **Skip further auditagent processing** — proceed to other tools.
+
+   - If **option 2** (existing scan_id):
+     a. Use **AskUserQuestion** to get the scan_id from the user
+     b. Run: `aa link <scan_id>`
+     c. Run: `aa scan --status <scan_id>`
+     d. If complete → proceed to step 5
+     e. If still running → save to `ai-status.json` as `pending_scan` with the `scan_id` and skip
+     f. If failed → report error and skip
+
+   - If **option 3** (skip): skip auditagent entirely, proceed to next tool.
+
+4. **If scan is not yet complete, skip to Step 7b.** Do not block other tools.
+
+5. **Fetch findings from completed scan:**
+   ```bash
+   aa findings --all
+   ```
+   This outputs all findings with full descriptions and saves them as a markdown file in the `.auditagent/` folder.
+
+6. **Save raw output:**
+   Copy the saved markdown file from `.auditagent/` to `<output_dir>/ai-results/auditagent/raw-output.md`
+
+7. **Normalize findings** into `<output_dir>/ai-results/auditagent/findings.json` using the `AiResultFile` format.
+
+   Parse the markdown output: findings are grouped by severity headings. For each finding extract:
+   - `id`: `auditagent-001`, `auditagent-002`, etc. (sequential)
+   - `tool`: `"auditagent"`
+   - `title`: finding title
+   - `severity`: mapped from the severity group heading (Critical, High, Medium, Low, Info)
+   - `description`: full finding description
+   - `affected_code`: `[{ "file": "<file>", "snippet": "<relevant code>" }]` — extract file references from the finding body
+   - `confidence`: default to `"medium"` (cloud AI analysis without local verification)
+   - `category`: extract from finding type/category if available
+   - `raw_category`: preserve original category label from auditagent
+
+8. **Write metadata:**
+   ```json
+   { "ran_at": "<ISO timestamp>", "duration_seconds": <seconds>, "scan_id": "<scan_id>" }
+   ```
+   Note: `duration_seconds` should be calculated from the original `started_at` (when scan was triggered) to now, even if it spans multiple sessions.
+
+9. **Update `ai-status.json`:**
+   Set auditagent to `status: "completed"` with `findings_count` and `scan_id`.
+
+10. Print: "Completed auditagent — N findings (scan `<scan_id>`)"
+
+##### Step 7b — Run other CLI tools
+
+For each enabled `type: "cli"` tool with `long_running: false` that passed preflight (excluding auditagent):
    - Run CLI command via bash, passing the scope files as arguments where the invocation template supports it
    - Same normalization flow as step 8
 
@@ -310,6 +426,8 @@ After ALL tools have completed and been normalized, write all findings to `track
     - Duplicates detected
     - Novel findings requiring review
     - Any tools that were skipped
+    - If auditagent scan was newly triggered: "auditagent: scan `<scan_id>` started — results available in ~30-60 min"
+    - If auditagent scan is still pending: "auditagent: scan `<scan_id>` pending — re-run to collect results"
 
 ## Why Sequential Execution?
 

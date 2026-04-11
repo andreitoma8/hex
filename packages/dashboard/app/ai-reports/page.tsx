@@ -192,6 +192,16 @@ export default function AiReportsPage() {
         run_status: 'running',
         started_at: status.started_at,
       });
+    } else if (status?.status === 'pending_scan') {
+      hasAnyData = true;
+      toolMetas.push({
+        name: dir,
+        ran_at: '',
+        duration_seconds: undefined,
+        total_findings: 0,
+        run_status: 'pending_scan',
+        started_at: status.started_at,
+      });
     }
   }
 

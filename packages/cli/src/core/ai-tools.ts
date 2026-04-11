@@ -47,4 +47,19 @@ export const DEFAULT_AI_TOOLS: AiTool[] = [
     ],
     description: 'Plamen autonomous security auditor — multi-agent analysis across 8 audit phases',
   },
+  {
+    name: 'auditagent',
+    type: 'cli',
+    invocation: 'aa scan',
+    install_url: 'https://github.com/NethermindEth/auditagent-cli',
+    install_type: 'manual',
+    output_format: 'markdown',
+    enabled: true,
+    long_running: true,
+    requires_env: ['AUDIT_AGENT_API_KEY'],
+    dependencies: [
+      { binary: 'aa', install_cmd: 'pip install git+https://github.com/NethermindEth/auditagent-cli.git', required: true },
+    ],
+    description: 'Nethermind auditagent — cloud-based AI security scanner (async, 30-60 min)',
+  },
 ];
