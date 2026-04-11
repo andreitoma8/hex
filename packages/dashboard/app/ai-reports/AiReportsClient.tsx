@@ -125,6 +125,11 @@ function ComparisonTable({ rows, toolMetas }: { rows: SourceRow[]; toolMetas: To
                 <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-[var(--medium)]" />
                 Running
               </span>
+            ) : tm.run_status === 'pending_scan' ? (
+              <span className="inline-flex items-center gap-1.5 text-[var(--low)]">
+                <span className="inline-block h-2 w-2 rounded-full bg-[var(--low)]" />
+                Scan pending
+              </span>
             ) : (
               <>
                 {tm.duration_seconds != null && (
