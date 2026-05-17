@@ -1,6 +1,10 @@
 'use client';
 
 import { Fragment, useState } from 'react';
+import {
+  CONFORMANCE_STATUS_BADGE,
+  CONFORMANCE_STATUS_ROW_BG,
+} from '@/lib/conformance-tokens';
 
 interface ConformanceCheck {
   id: string;
@@ -12,34 +16,23 @@ interface ConformanceCheck {
   source?: string;
   severity_hint?: string;
   code_location?: { file: string; line_start: number; line_end: number };
+  spec_url?: string;
+  spec_anchor?: string;
 }
 
 interface ConformanceTableProps {
   checks: ConformanceCheck[];
 }
 
-const STATUS_BADGE_STYLES: Record<string, string> = {
-  DEVIATES: 'bg-[var(--critical)]/15 text-[var(--critical)]',
-  PARTIAL: 'bg-[var(--medium)]/15 text-[var(--medium)]',
-  UNVERIFIABLE: 'bg-accent/15 text-accent',
-  UNDOCUMENTED: 'bg-[var(--neutral)]/15 text-[var(--neutral)]',
-  CONFORMS: 'bg-[var(--success)]/15 text-[var(--success)]',
-};
-
-const STATUS_ROW_BG: Record<string, string> = {
-  DEVIATES: 'bg-[var(--critical)]/5',
-  PARTIAL: 'bg-[var(--medium)]/5',
-  UNVERIFIABLE: 'bg-accent/5',
-  UNDOCUMENTED: 'bg-surface-1',
-  CONFORMS: 'bg-[var(--success)]/5',
-};
+const STATUS_BADGE_STYLES = CONFORMANCE_STATUS_BADGE as Record<string, string>;
+const STATUS_ROW_BG = CONFORMANCE_STATUS_ROW_BG as Record<string, string>;
 
 const SEVERITY_STYLES: Record<string, string> = {
-  Critical: 'bg-[var(--critical)]/15 text-[var(--critical)]',
-  High: 'bg-[var(--high)]/15 text-[var(--high)]',
-  Medium: 'bg-[var(--medium)]/15 text-[var(--medium)]',
-  Low: 'bg-[var(--low)]/15 text-[var(--low)]',
-  Info: 'bg-[var(--info)]/15 text-[var(--info)]',
+  Critical: 'bg-[var(--critical)]/18 text-[var(--critical)]',
+  High: 'bg-[var(--high)]/18 text-[var(--high)]',
+  Medium: 'bg-[var(--medium)]/18 text-[var(--medium)]',
+  Low: 'bg-[var(--low)]/18 text-[var(--low)]',
+  Info: 'bg-[var(--info)]/18 text-[var(--info)]',
 };
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -76,7 +69,8 @@ export function ConformanceTable({ checks }: ConformanceTableProps) {
         <button
           type="button"
           onClick={() => setStatusFilter(null)}
-          className={`rounded-sm px-3 py-1.5 text-caption font-medium ${
+          aria-pressed={!statusFilter}
+          className={`rounded-md px-3 py-1.5 text-caption font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
             !statusFilter ? 'bg-accent text-surface-0' : 'bg-surface-3 text-text-secondary hover:text-text-primary'
           }`}
         >
@@ -85,13 +79,15 @@ export function ConformanceTable({ checks }: ConformanceTableProps) {
         {statuses.map((status) => {
           const count = checks.filter((c) => c.status === status).length;
           if (count === 0) return null;
+          const isActive = statusFilter === status;
           return (
             <button
               key={status}
               type="button"
-              onClick={() => setStatusFilter(statusFilter === status ? null : status)}
-              className={`rounded-sm px-3 py-1.5 text-caption font-medium ${
-                statusFilter === status ? 'bg-accent text-surface-0' : 'bg-surface-3 text-text-secondary hover:text-text-primary'
+              onClick={() => setStatusFilter(isActive ? null : status)}
+              aria-pressed={isActive}
+              className={`rounded-md px-3 py-1.5 text-caption font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
+                isActive ? 'bg-accent text-surface-0' : 'bg-surface-3 text-text-secondary hover:text-text-primary'
               }`}
             >
               {status} <span className="opacity-60">{count}</span>
@@ -188,6 +184,19 @@ export function ConformanceTable({ checks }: ConformanceTableProps) {
                                 {check.code_location.line_end !== check.code_location.line_start &&
                                   `-${check.code_location.line_end}`}
                               </code>
+                            </div>
+                          )}
+                          {check.spec_url && (
+                            <div>
+                              <span className="text-caption text-text-tertiary">Spec: </span>
+                              <a
+                                href={check.spec_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-caption text-accent hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent rounded-sm"
+                              >
+                                {check.spec_anchor ?? check.spec_url.replace(/^https?:\/\//, '')}
+                              </a>
                             </div>
                           )}
                         </div>

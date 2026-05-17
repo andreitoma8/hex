@@ -2,6 +2,20 @@ import type { ParsedContract } from '../parsers/solidity-parser.js';
 import type { SlitherFunctionSummary } from '../parsers/slither.js';
 import type { AccessFunction, Role, RoleFunctionRef } from '../types/index.js';
 
+type RoleKind = Role['kind'];
+
+// Modifiers that read protocol state rather than caller identity.
+// Surfaced separately so auditors can find them, but not flagged as access control.
+const STATE_CHECK_MODIFIERS = new Set([
+  'whenNotPaused', 'whenPaused', 'initializer', 'reinitializer',
+  'onlyInitializing', 'whileActive', 'onlyActive', 'whileInactive',
+]);
+
+// Modifiers that protect call patterns rather than identity (reentrancy etc.).
+const GUARD_MODIFIERS = new Set([
+  'nonReentrant', 'nonreentrant', 'noReentrant',
+]);
+
 // Known OpenZeppelin access control patterns
 const OZ_ACCESS_PATTERNS: Record<string, { role: string; description: string }> = {
   Ownable: { role: 'owner', description: 'Contract deployer / admin (OpenZeppelin Ownable)' },
@@ -17,11 +31,25 @@ const KNOWN_ACCESS_MODIFIERS = new Set([
   'onlyAuthorized', 'onlyManager',
 ]);
 
-// Non-access-control modifiers (should not be treated as access control)
+// Non-access-control modifiers (should not be treated as access control gates).
+// Kept for the existing modifier-skip behaviour in `interpretRoles`; the
+// classification of state-check vs guard is done via STATE_CHECK_MODIFIERS /
+// GUARD_MODIFIERS above so we can tell them apart in the role schema.
 const NON_ACCESS_MODIFIERS = new Set([
-  'nonReentrant', 'whenNotPaused', 'whenPaused', 'initializer',
-  'reinitializer', 'onlyInitializing',
+  ...STATE_CHECK_MODIFIERS,
+  ...GUARD_MODIFIERS,
 ]);
+
+function classifyModifier(modifier: string, isOzBacked: boolean): { kind: RoleKind; isLikelyAccessControl: boolean } {
+  if (isOzBacked) return { kind: 'access_control', isLikelyAccessControl: true };
+  if (KNOWN_ACCESS_MODIFIERS.has(modifier)) return { kind: 'access_control', isLikelyAccessControl: true };
+  if (GUARD_MODIFIERS.has(modifier)) return { kind: 'guard', isLikelyAccessControl: false };
+  if (STATE_CHECK_MODIFIERS.has(modifier)) return { kind: 'state_check', isLikelyAccessControl: false };
+  // Naming heuristic: `only<X>` strongly implies caller identity, treat as access control
+  // but keep confidence low (warnings already flag this in interpretRoles).
+  if (/^only[A-Z]/.test(modifier)) return { kind: 'access_control', isLikelyAccessControl: true };
+  return { kind: 'unknown', isLikelyAccessControl: false };
+}
 
 /**
  * Extract Tier 1 raw facts: functions with their visibility and modifiers.
@@ -302,20 +330,24 @@ export function interpretRoles(
     let derivedFrom: 'slither' | 'solc-ast' | 'heuristic' = 'heuristic';
     let description = `Role inferred from modifier name '${modifier}'`;
     const warnings: string[] = [];
+    let isOzBacked = false;
 
     // Check if this modifier comes from a known OZ pattern
     if (modifier === 'onlyOwner' && ozDetected.has('Ownable')) {
       confidence = 'high';
       derivedFrom = slitherSummary ? 'slither' : 'solc-ast';
       description = 'Contract deployer / admin (OpenZeppelin Ownable)';
+      isOzBacked = true;
     } else if (modifier === 'onlyOwner' && ozDetected.has('Ownable2Step')) {
       confidence = 'high';
       derivedFrom = slitherSummary ? 'slither' : 'solc-ast';
       description = 'Contract admin with two-step transfer (OpenZeppelin Ownable2Step)';
+      isOzBacked = true;
     } else if (modifier === 'onlyRole') {
       confidence = 'medium';
       derivedFrom = 'solc-ast';
       description = 'Role-based access (OpenZeppelin AccessControl)';
+      isOzBacked = true;
     } else if (isKnown) {
       confidence = 'low';
       warnings.push('Custom modifier — role semantics inferred from name only');
@@ -324,6 +356,11 @@ export function interpretRoles(
       confidence = 'low';
       warnings.push(`Unknown modifier '${modifier}' — may not be an access control check`);
       warnings.push('Verify modifier body to confirm actual access check');
+    }
+
+    const { kind, isLikelyAccessControl } = classifyModifier(modifier, isOzBacked);
+    if (!isLikelyAccessControl) {
+      warnings.push(`Classified as '${kind}', not access control — hidden by default on the dashboard`);
     }
 
     roles.push({
@@ -335,6 +372,8 @@ export function interpretRoles(
       modifier,
       functions: funcs,
       warnings,
+      kind,
+      is_likely_access_control: isLikelyAccessControl,
     });
   }
 
@@ -362,6 +401,8 @@ export function interpretRoles(
       modifier: null,
       functions: unprotectedFuncs,
       warnings: [],
+      kind: 'access_control',
+      is_likely_access_control: true,
     });
   }
 

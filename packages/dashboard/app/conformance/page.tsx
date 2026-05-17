@@ -1,5 +1,10 @@
 import { readJsonFile } from '@/lib/data';
 import { NotYetGenerated } from '@/components/NotYetGenerated';
+import {
+  CONFORMANCE_STATUS_DOT,
+  CONFORMANCE_STATUS_TEXT,
+  type ConformanceStatus,
+} from '@/lib/conformance-tokens';
 import { ConformanceTable } from './ConformanceTable';
 
 // ─── Types matching CLI schema ──────────────────────────────────────
@@ -50,6 +55,8 @@ export interface ConformanceCheck {
   source?: string;
   severity_hint?: string;
   code_location?: { file: string; line_start: number; line_end: number };
+  spec_url?: string;
+  spec_anchor?: string;
 }
 
 const STATUS_ORDER: Record<string, number> = {
@@ -76,17 +83,24 @@ export default function ConformancePage() {
 
   let checks: ConformanceCheck[];
   if (data.items) {
-    checks = data.items.map((item) => ({
-      id: item.id,
-      requirement: item.spec_text,
-      status: item.status,
-      details: item.finding,
-      spec_section: item.source ?? '-',
-      confidence: item.confidence,
-      source: item.source,
-      severity_hint: item.severity_hint,
-      code_location: item.code_location,
-    }));
+    checks = data.items.map((item) => {
+      const loc = (item.spec_location ?? {}) as Record<string, unknown>;
+      const url = typeof loc.url === 'string' ? loc.url : undefined;
+      const anchor = typeof loc.section === 'string' ? loc.section : undefined;
+      return {
+        id: item.id,
+        requirement: item.spec_text,
+        status: item.status,
+        details: item.finding,
+        spec_section: item.source ?? '-',
+        confidence: item.confidence,
+        source: item.source,
+        severity_hint: item.severity_hint,
+        code_location: item.code_location,
+        spec_url: url,
+        spec_anchor: anchor,
+      };
+    });
   } else if (data.checks) {
     checks = data.checks.map((c) => ({
       id: c.id,
@@ -115,23 +129,7 @@ export default function ConformancePage() {
     undocumented: checks.filter((c) => c.status === 'UNDOCUMENTED').length,
   };
 
-  const STATUS_COLORS: Record<string, string> = {
-    DEVIATES: 'bg-[var(--critical)]',
-    PARTIAL: 'bg-[var(--medium)]',
-    UNVERIFIABLE: 'bg-accent',
-    UNDOCUMENTED: 'bg-[var(--neutral)]',
-    CONFORMS: 'bg-[var(--success)]',
-  };
-
-  const STATUS_TEXT: Record<string, string> = {
-    DEVIATES: 'text-[var(--critical)]',
-    PARTIAL: 'text-[var(--medium)]',
-    UNVERIFIABLE: 'text-accent',
-    UNDOCUMENTED: 'text-text-secondary',
-    CONFORMS: 'text-[var(--success)]',
-  };
-
-  const summaryEntries: Array<{ status: string; count: number }> = [
+  const summaryEntries: Array<{ status: ConformanceStatus; count: number }> = [
     { status: 'DEVIATES', count: summary.deviates },
     { status: 'PARTIAL', count: summary.partial },
     { status: 'UNVERIFIABLE', count: summary.unverifiable },
@@ -152,8 +150,8 @@ export default function ConformancePage() {
             key={status}
             className="flex items-center gap-2 rounded-md border border-border-default bg-surface-2 px-sp-4 py-sp-2"
           >
-            <span className={`inline-block h-2.5 w-2.5 rounded-full ${STATUS_COLORS[status]}`} />
-            <span className={`text-caption font-medium ${STATUS_TEXT[status]}`}>
+            <span className={`inline-block h-2.5 w-2.5 rounded-full ${CONFORMANCE_STATUS_DOT[status]}`} />
+            <span className={`text-caption font-medium ${CONFORMANCE_STATUS_TEXT[status]}`}>
               {status}
             </span>
             <span className="text-heading font-semibold text-text-primary">

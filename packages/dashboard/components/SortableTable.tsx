@@ -45,25 +45,22 @@ export function SortableTable<T>({ columns, data }: SortableTableProps<T>) {
                   className="px-sp-4 py-sp-2 font-medium"
                   style={{ width: header.getSize() !== 150 ? header.getSize() : undefined }}
                 >
-                  {header.isPlaceholder ? null : (
+                  {header.isPlaceholder ? null : header.column.getCanSort() ? (
                     <button
                       type="button"
-                      className={`inline-flex items-center gap-1 ${
-                        header.column.getCanSort()
-                          ? 'cursor-pointer select-none hover:text-text-secondary'
-                          : ''
-                      }`}
+                      className="inline-flex cursor-pointer select-none items-center gap-1 hover:text-text-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent rounded-sm"
                       onClick={header.column.getToggleSortingHandler()}
-                      disabled={!header.column.getCanSort()}
                     >
                       {flexRender(header.column.columnDef.header, header.getContext())}
                       {{
                         asc: <SortAscIcon />,
                         desc: <SortDescIcon />,
-                      }[header.column.getIsSorted() as string] ?? (
-                        header.column.getCanSort() ? <SortNeutralIcon /> : null
-                      )}
+                      }[header.column.getIsSorted() as string] ?? <SortNeutralIcon />}
                     </button>
+                  ) : (
+                    <span className="inline-flex items-center gap-1">
+                      {flexRender(header.column.columnDef.header, header.getContext())}
+                    </span>
                   )}
                 </th>
               ))}
@@ -84,10 +81,10 @@ export function SortableTable<T>({ columns, data }: SortableTableProps<T>) {
             table.getRowModel().rows.map((row) => (
               <tr
                 key={row.id}
-                className="h-9 bg-surface-1 hover:bg-surface-3"
+                className="min-h-9 bg-surface-1 hover:bg-surface-3"
               >
                 {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id} className="px-sp-4 py-sp-2 text-text-secondary">
+                  <td key={cell.id} className="px-sp-4 py-sp-2 text-text-secondary align-top">
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </td>
                 ))}

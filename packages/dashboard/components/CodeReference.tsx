@@ -44,7 +44,7 @@ export function CodeReference({ file, lineStart, lineEnd, snippet }: CodeReferen
       <button
         type="button"
         onClick={handleClick}
-        className="font-mono text-caption text-accent hover:underline"
+        className="font-mono text-caption text-accent hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent rounded-sm"
       >
         {label}
       </button>
@@ -66,7 +66,7 @@ export function CodeReference({ file, lineStart, lineEnd, snippet }: CodeReferen
                 type="button"
                 onClick={() => setModalOpen(false)}
                 aria-label="Close"
-                className="rounded p-1 text-text-tertiary hover:bg-surface-3 hover:text-text-primary"
+                className="rounded p-1 text-text-tertiary hover:bg-surface-3 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
               >
                 <svg className="h-5 w-5" aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />

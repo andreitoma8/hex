@@ -13,6 +13,16 @@ export const ConfidenceSchema = z.enum(['high', 'medium', 'low']);
 
 export const SeveritySchema = z.enum(['Critical', 'High', 'Medium', 'Low', 'Info']);
 
+export const LikelihoodSchema = z.enum(['High', 'Medium', 'Low']);
+
+export const ImpactSchema = z.enum(['Critical', 'High', 'Medium', 'Low']);
+
+export const SeverityReasoningSchema = z.object({
+  likelihood: LikelihoodSchema,
+  impact: ImpactSchema,
+  justification: z.string(),
+});
+
 export const DerivedFromSchema = z.enum([
   'solc-ast',
   'slither',
@@ -154,6 +164,13 @@ export const RoleFunctionRefSchema = z.object({
   function: z.string(),
 });
 
+export const RoleKindSchema = z.enum([
+  'access_control',
+  'state_check',
+  'guard',
+  'unknown',
+]);
+
 export const RoleSchema = z.object({
   role: z.string(),
   description: z.string(),
@@ -163,6 +180,8 @@ export const RoleSchema = z.object({
   modifier: z.string().nullable(),
   functions: z.array(RoleFunctionRefSchema),
   warnings: z.array(z.string()),
+  kind: RoleKindSchema.default('access_control'),
+  is_likely_access_control: z.boolean().default(true),
 });
 
 export const AccessControlSchema = z.object({
@@ -196,9 +215,24 @@ export const StateVariableSchema = z.object({
   storage_slot: z.number().int().nullable().optional(),
 });
 
+export const StorageCollisionVariableSchema = z.object({
+  contract: z.string(),
+  name: z.string(),
+  type: z.string(),
+});
+
+export const StorageCollisionSchema = z.object({
+  slot: z.number().int(),
+  offset: z.number().int().default(0),
+  variables: z.array(StorageCollisionVariableSchema),
+  severity: SeveritySchema.default('Critical'),
+  description: z.string(),
+});
+
 export const StateVarsSchema = z.object({
   variables: z.array(StateVariableSchema),
   storage_layout_source: z.enum(['compiler-artifact']).nullable(),
+  storage_collisions: z.array(StorageCollisionSchema).default([]),
 });
 
 // ─── External Calls ─────────────────────────────────────────────────
@@ -239,6 +273,7 @@ export const FindingSchema = z.object({
   id: z.string(),
   title: z.string(),
   severity: SeveritySchema,
+  severity_reasoning: SeverityReasoningSchema.optional(),
   category: z.string(),
   description: z.string(),
   root_cause: z.object({
@@ -280,10 +315,21 @@ export const TrackingSchema = z.object({
 
 // ─── Comparison ─────────────────────────────────────────────────────
 
+export const MatchAgreementSchema = z.enum(['same', 'overlapping', 'different']);
+
+export const MatchSignalsSchema = z.object({
+  contract: z.boolean(),
+  function: z.boolean(),
+  root_cause: MatchAgreementSchema,
+  attack_vector: MatchAgreementSchema,
+});
+
 export const ComparisonDuplicateSchema = z.object({
   ai_finding: z.string(),
   matches: z.string(),
   confidence: ConfidenceSchema,
+  match_signals: MatchSignalsSchema.optional(),
+  reasoning: z.string().optional(),
 });
 
 export const ComparisonNovelSchema = z.object({

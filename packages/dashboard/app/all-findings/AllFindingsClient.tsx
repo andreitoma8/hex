@@ -88,12 +88,70 @@ const columns: FilterableColumn<MergedFinding>[] = [
   },
 ];
 
+function MatchSignalsBlock({ item }: { item: MergedFinding }) {
+  if (!item.match_signals) return null;
+  const s = item.match_signals;
+  const Pair = ({ label, value }: { label: string; value: string }) => {
+    const tint =
+      value === 'same' || value === 'true'
+        ? 'bg-[var(--success)]/15 text-[var(--success)]'
+        : value === 'overlapping'
+          ? 'bg-[var(--medium)]/15 text-[var(--medium)]'
+          : 'bg-[var(--critical)]/15 text-[var(--critical)]';
+    return (
+      <span className="inline-flex items-center gap-1">
+        <span className="text-caption text-text-tertiary">{label}:</span>
+        <span className={`rounded-md px-2 py-0.5 text-caption font-medium ${tint}`}>{value}</span>
+      </span>
+    );
+  };
+  return (
+    <div className="rounded-md border border-border-subtle bg-surface-2 p-sp-3">
+      <h4 className="mb-2 text-caption font-medium uppercase text-text-tertiary">
+        Duplicate match{' '}
+        {item.match_confidence && (
+          <span className="ml-1 normal-case text-text-secondary">({item.match_confidence} confidence)</span>
+        )}
+      </h4>
+      <div className="flex flex-wrap gap-x-sp-4 gap-y-1">
+        <Pair label="contract" value={String(s.contract)} />
+        <Pair label="function" value={String(s.function)} />
+        <Pair label="root cause" value={s.root_cause} />
+        <Pair label="attack vector" value={s.attack_vector} />
+      </div>
+      {item.match_reasoning && (
+        <p className="mt-2 text-caption text-text-secondary">{item.match_reasoning}</p>
+      )}
+    </div>
+  );
+}
+
+function SeverityReasoningBlock({ finding }: { finding: NonNullable<MergedFinding['finding']> }) {
+  const r = finding.severity_reasoning;
+  if (!r) return null;
+  return (
+    <div className="rounded-md border border-border-subtle bg-surface-2 p-sp-3">
+      <h4 className="mb-2 text-caption font-medium uppercase text-text-tertiary">Severity reasoning</h4>
+      <div className="flex flex-wrap gap-x-sp-4 gap-y-1 mb-2">
+        <span className="text-caption text-text-secondary">
+          <span className="text-text-tertiary">likelihood</span> {r.likelihood}
+        </span>
+        <span className="text-caption text-text-secondary">
+          <span className="text-text-tertiary">impact</span> {r.impact}
+        </span>
+      </div>
+      <p className="text-body text-text-secondary">{r.justification}</p>
+    </div>
+  );
+}
+
 function FindingDetail({ item }: { item: MergedFinding }) {
   const finding = item.finding;
   if (!finding) {
     return (
-      <div className="text-body text-text-secondary">
-        <p>No detailed finding data available.</p>
+      <div className="text-body text-text-secondary space-y-sp-3">
+        <MatchSignalsBlock item={item} />
+        {!item.match_signals && <p>No detailed finding data available.</p>}
         {item.duplicates.length > 0 && (
           <p className="mt-2">Duplicates: {item.duplicates.join(', ')}</p>
         )}
@@ -103,6 +161,8 @@ function FindingDetail({ item }: { item: MergedFinding }) {
 
   return (
     <div className="space-y-sp-4 text-body">
+      <MatchSignalsBlock item={item} />
+      <SeverityReasoningBlock finding={finding} />
       {finding.description && (
         <div>
           <h4 className="mb-1 text-caption font-medium uppercase text-text-tertiary">Description</h4>

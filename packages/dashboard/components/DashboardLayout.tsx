@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { useEffect, useState } from 'react';
+import { LiveStatus } from './LiveStatus';
 
 /* ── Icon components ── */
 
@@ -149,7 +150,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         <div className="px-5 pb-4 pt-6">
           <div className="flex items-baseline gap-2">
             <span className="text-title font-semibold text-text-primary">Hex</span>
-            <span className="text-caption text-text-tertiary">v0.3.0</span>
+            <span className="text-caption text-text-tertiary">v0.3.2</span>
           </div>
         </div>
 
@@ -184,6 +185,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
         {/* Footer */}
         <div className="border-t border-border-subtle px-3 py-3 space-y-1">
+          <LiveStatus />
           <ThemeToggle />
           <div className="flex items-center gap-1.5 px-3 py-1 text-caption text-text-tertiary">
             <kbd className="rounded border border-border-default bg-surface-2 px-1.5 py-0.5 text-[11px]">⌘K</kbd>

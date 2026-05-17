@@ -336,7 +336,7 @@ auditagent is a cloud-based async scanner. Unlike all other tools, a single run 
      }
      ```
 
-     e. Print: "Auditagent scan triggered: `<scan_id>`. This will take 30-60 minutes. Re-run /run-ai-analysis after the scan completes to collect findings."
+     e. Print: "Auditagent scan triggered: `<scan_id>`. This will take 30-60 minutes. Re-run /run-ai-analysis after the scan completes to collect findings — or, in another terminal, run `hex ai-status --watch` to be notified automatically when the scan completes (polls every 5 minutes)."
      f. **Skip further auditagent processing** — proceed to other tools.
 
    - If **option 2** (existing scan_id):
@@ -526,8 +526,8 @@ After ALL tools have completed and been normalized, write all findings to `track
     - Duplicates detected
     - Novel findings requiring review
     - Any tools that were skipped
-    - If auditagent scan was newly triggered: "auditagent: scan `<scan_id>` started — results available in ~30-60 min"
-    - If auditagent scan is still pending: "auditagent: scan `<scan_id>` pending — re-run to collect results"
+    - If auditagent scan was newly triggered: "auditagent: scan `<scan_id>` started — results available in ~30-60 min. Run `hex ai-status --watch` to be notified automatically when the scan completes."
+    - If auditagent scan is still pending: "auditagent: scan `<scan_id>` pending — re-run /run-ai-analysis to collect results, or run `hex ai-status --watch` in another terminal for automatic polling."
 
 ## Why Sequential Execution?
 

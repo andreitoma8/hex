@@ -259,6 +259,8 @@ Claude reads the issue description, the validation memo, the PoC, and the releva
 
 Findings data is stored in `findings.json`, the canonical source of truth (used for deduplication, severity stats, and the dashboard report view).
 
+Every new finding also carries a structured `severity_reasoning` block — `likelihood`, `impact`, and a one-paragraph justification mapped to the Likelihood × Impact matrix — so the dashboard and `/compare-findings` can surface *why* a severity was chosen, not just *what* it is.
+
 *Recommended model: Sonnet*
 
 **Code block rules in findings**
@@ -301,7 +303,7 @@ claude
 
 Claude semantically compares each AI finding against your own findings. It matches on affected contract, function, root cause, and attack vector — not string matching. The output is:
 
-- **Duplicates** — AI findings that match your existing findings, with confidence level
+- **Duplicates** — AI findings that match your existing findings, with confidence level *and* `match_signals` (which of contract / function / root cause / attack vector agreed) plus a one-line reasoning. Auditors who disagree with a merge can see exactly which signal carried the call.
 - **Novel** — Genuinely new findings you didn't catch, ranked by likely severity
 - **Rejected** — Out of scope or clearly invalid, with explanation
 
@@ -359,6 +361,9 @@ All commands are run from within the project directory (or with `--project /path
 | `hex claude` | Copy skills to `.claude/skills/` for Claude Code discovery |
 | `hex update-skills` | Re-copy skill files from package (overwrites by default) |
 | `hex update-skills --keep-custom` | Skip existing skill files instead of overwriting |
+| `hex doctor` | Preflight check: node, forge, slither, solc, Claude Code, output-dir writability, project config |
+| `hex ai-status` | Show the latest status for async AI tools (currently `auditagent`) |
+| `hex ai-status --watch` | Poll every 5 minutes until all pending scans resolve (auditagent typically 30–60 min) |
 
 ---
 
@@ -461,6 +466,10 @@ Every analysis output includes confidence metadata so you know how much to trust
 **Medium confidence** — Derived from AST pattern matching or known library detection (e.g., recognizing OpenZeppelin Ownable). Reliable for standard patterns, but may miss custom implementations.
 
 **Low confidence** — Derived from naming heuristics (e.g., inferring a "keeper" role from a modifier named `onlyKeeper`). Use as a starting point, then verify manually.
+
+Access-control roles also carry a `kind` field (`access_control`, `state_check`, `guard`, or `unknown`) and an `is_likely_access_control` flag. The `/access` dashboard hides roles classified as `unknown` by default and exposes a "Show inferred / unknown modifiers" toggle so an `onlyDuringPause` doesn't pose as a permissioned role just because its modifier name starts with `only`.
+
+`hex state` also detects storage-slot collisions and inheritance-layout divergences from the compiler's storage layout, flagged with `Critical` severity in `state-vars.json` and rolled into `attack-surface.json`.
 
 On the dashboard, confidence is shown as colored badges. You can filter any analysis page by confidence level to quickly find entries that need your attention.
 

@@ -88,6 +88,7 @@ export const stateCommand = new Command('state')
       const stateVars: StateVars = {
         variables: result.variables,
         storage_layout_source: result.storageLayoutSource,
+        storage_collisions: result.storageCollisions,
       };
 
       const outPath = writeJsonOutput(outputDir, 'state-vars.json', stateVars);

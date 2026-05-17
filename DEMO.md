@@ -30,6 +30,10 @@ Step-by-step demo of all Hex functionality using Claude Code.
 
 It will ask you for scope, commit, chain, etc. For solmate something like `--scope "src/**/*.sol"` works. This runs init + a single `hex analyze` command that executes seven analysis commands (stats, deps, access, state, calls, patterns, constraints) **in parallel**, then runs surface after all complete. Slither and forge flatten results are cached across commands to avoid redundant work.
 
+`hex analyze` and `hex init` now render a live per-step progress grid in the terminal, so you can see which subcommand is hanging (Slither vs forge flatten vs solc) instead of staring at a single rotating spinner.
+
+If anything fails, `hex doctor` prints a labelled preflight table (node, forge, slither, solc, Claude Code, output dir, `.hex/config.json`) with one-line install hints. Run it whenever the analysis pipeline complains about a missing tool.
+
 ### Open the Dashboard
 
 Once init and analysis complete, open a separate terminal and start the dashboard:
@@ -111,6 +115,16 @@ To re-run deduplication manually after changes:
 ```
 /compare-findings
 ```
+
+Duplicates now carry `match_signals` (which of contract / function / root cause / attack vector agreed) and a short `reasoning` string. The `/all-findings` page renders both in the expanded row so you can spot-check or override a merge without re-running compare.
+
+If you started an `auditagent` scan, you don't have to remember to re-run `/run-ai-analysis` 30–60 minutes later. From a second terminal:
+
+```bash
+hex ai-status --watch
+```
+
+It polls every 5 minutes and prints a green log line when the scan finishes (or red when it fails). The dashboard's sidebar footer also shows a live "Updated Ns ago" indicator so you can tell at a glance whether the watcher SSE is still connected.
 
 For any novel finding it surfaces, validate interactively (asks whether you want a PoC or rational verification, and offers severity adjustment after writing):
 ```

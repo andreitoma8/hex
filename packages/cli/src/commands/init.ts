@@ -4,11 +4,13 @@ import path from 'node:path';
 import { glob } from 'glob';
 import { logger } from '../core/logger.js';
 import { createConfig } from '../core/config.js';
-import { normalizePath, makeRelative, getOutputDir, splitLines } from '../core/paths.js';
+import { normalizePath, getOutputDir } from '../core/paths.js';
 import { runForge, detectTools } from '../core/external-tools.js';
 import { parseSolidity, extractSolidityVersion } from '../parsers/solidity-parser.js';
 import { copySkillsToClaudeFormat, getClaudeSkillsDir } from '../core/skills.js';
 import { DEFAULT_AI_TOOLS } from '../core/ai-tools.js';
+import { ProgressTracker } from '../core/progress.js';
+import { HexError, reportError } from '../core/errors.js';
 
 export const initCommand = new Command('init')
   .description('Initialize a new audit project')
@@ -22,53 +24,64 @@ export const initCommand = new Command('init')
   .option('--exclude <globs>', 'Comma-separated exclude globs')
   .option('--no-verify', 'Skip build verification')
   .action(async (opts) => {
-    const spin = logger.spinner('Initializing audit project...');
+    const STEPS = [
+      'detect project',
+      'check tools',
+      'resolve scope',
+      'detect solidity version',
+      'create config',
+      'copy skills',
+      'verify build',
+      'write CLAUDE.md',
+    ];
+    const tracker = new ProgressTracker(STEPS);
+    tracker.start();
 
     try {
       const projectDir = path.resolve(opts.project ?? process.cwd());
 
       if (!fs.existsSync(projectDir)) {
-        throw new Error(`Project directory not found: ${projectDir}`);
+        tracker.update('detect project', 'failed', 'project dir missing');
+        throw new HexError('project.foundry-missing', `path: ${projectDir}`);
       }
 
-      // Detect project type
+      tracker.update('detect project', 'running');
       const isFoundry = fs.existsSync(path.join(projectDir, 'foundry.toml'));
       const isHardhat =
         fs.existsSync(path.join(projectDir, 'hardhat.config.ts')) ||
         fs.existsSync(path.join(projectDir, 'hardhat.config.js'));
+      const projectTypeDetail = isFoundry ? 'Foundry' : isHardhat ? 'Hardhat' : 'none detected';
+      tracker.update('detect project', 'ok', projectTypeDetail);
 
-      spin.text = 'Detecting project type...';
-      if (isFoundry) logger.info('Detected Foundry project');
-      else if (isHardhat) logger.info('Detected Hardhat project');
-      else logger.warn('No Foundry or Hardhat config detected');
-
-      // Check tool availability
-      spin.text = 'Checking external tools...';
+      tracker.update('check tools', 'running');
       const tools = await detectTools();
+      const toolDetails: string[] = [];
       for (const tool of tools) {
         if (tool.available) {
-          logger.info(`${tool.name}: ${tool.version}`);
+          toolDetails.push(`${tool.name} ok`);
         } else {
-          switch (tool.name) {
-            case 'forge':
-              logger.warn('forge not found — compilation verification and test coverage will be unavailable');
-              break;
-            case 'slither':
-              logger.warn('slither not found — access control, state variable, and external call analysis will be limited');
-              break;
-            case 'solc':
-              logger.warn('solc not found — storage layout extraction will be unavailable');
-              break;
-          }
+          toolDetails.push(`${tool.name} missing`);
         }
+      }
+      const allMissing = tools.every((t) => !t.available);
+      tracker.update('check tools', allMissing ? 'failed' : 'ok', toolDetails.join(', '));
+      if (!tools.find((t) => t.name === 'forge')?.available) {
+        logger.warn('forge not found — compilation verification and test coverage will be unavailable');
+      }
+      if (!tools.find((t) => t.name === 'slither')?.available) {
+        logger.warn('slither not found — access control, state variable, and external call analysis will be limited');
+      }
+      if (!tools.find((t) => t.name === 'solc')?.available) {
+        logger.warn('solc not found — storage layout extraction will be unavailable');
       }
 
       // Resolve scope globs
       if (!opts.scope) {
-        throw new Error('--scope is required. Specify which files are in audit scope.');
+        tracker.update('resolve scope', 'failed', '--scope missing');
+        throw new HexError('project.scope.empty');
       }
 
-      spin.text = 'Resolving scope files...';
+      tracker.update('resolve scope', 'running');
       const scopeGlobs = opts.scope.split(',').map((g: string) => g.trim());
       const excludeGlobs = opts.exclude ? opts.exclude.split(',').map((g: string) => g.trim()) : [];
 
@@ -82,25 +95,25 @@ export const initCommand = new Command('init')
         scopeFiles.push(...matches);
       }
 
-      // Deduplicate and validate
       const uniqueScope = [...new Set(scopeFiles)].sort();
       if (uniqueScope.length === 0) {
-        throw new Error(`No files matched scope globs: ${scopeGlobs.join(', ')}`);
+        tracker.update('resolve scope', 'failed', `no match for ${scopeGlobs.join(', ')}`);
+        throw new HexError('project.scope.unmatched', `globs: ${scopeGlobs.join(', ')}`);
       }
 
-      // Validate files exist
       for (const file of uniqueScope) {
         const fullPath = path.join(projectDir, file);
         if (!fs.existsSync(fullPath)) {
-          throw new Error(`Scope file does not exist: ${file}`);
+          tracker.update('resolve scope', 'failed', `missing file: ${file}`);
+          throw new HexError('project.scope.missing-file', `path: ${file}`);
         }
       }
-
-      logger.info(`Scope: ${uniqueScope.length} files`);
+      tracker.update('resolve scope', 'ok', `${uniqueScope.length} files`);
 
       // Detect Solidity version
-      spin.text = 'Detecting Solidity version...';
+      tracker.update('detect solidity version', 'running');
       let solidityVersion = '0.8.20'; // default
+      let versionSource = 'default';
 
       if (isFoundry) {
         const foundryToml = fs.readFileSync(
@@ -110,11 +123,13 @@ export const initCommand = new Command('init')
         const versionMatch = foundryToml.match(
           /solc[_-]version\s*=\s*["']?([\d.]+)/,
         );
-        if (versionMatch) solidityVersion = versionMatch[1];
+        if (versionMatch) {
+          solidityVersion = versionMatch[1];
+          versionSource = 'foundry.toml';
+        }
       }
 
-      if (solidityVersion === '0.8.20') {
-        // Scan pragmas from scope files
+      if (versionSource === 'default') {
         for (const file of uniqueScope.slice(0, 5)) {
           const source = fs.readFileSync(
             path.join(projectDir, file),
@@ -124,12 +139,12 @@ export const initCommand = new Command('init')
           const version = extractSolidityVersion(result.pragmas);
           if (version) {
             solidityVersion = version;
+            versionSource = 'pragma';
             break;
           }
         }
       }
-
-      logger.info(`Solidity version: ${solidityVersion}`);
+      tracker.update('detect solidity version', 'ok', `${solidityVersion} (${versionSource})`);
 
       // Detect commit hash
       let commit = opts.commit;
@@ -150,7 +165,7 @@ export const initCommand = new Command('init')
       const name = opts.name ?? path.basename(projectDir);
 
       // Create config
-      spin.text = 'Creating configuration...';
+      tracker.update('create config', 'running');
       const config = createConfig({
         name,
         projectDir,
@@ -164,12 +179,13 @@ export const initCommand = new Command('init')
       });
 
       const outputDir = getOutputDir(projectDir, config.settings.output_dir);
+      tracker.update('create config', 'ok', normalizePath(outputDir));
 
       // Copy skill files to .claude/skills/<name>/SKILL.md
-      spin.text = 'Copying skill files...';
+      tracker.update('copy skills', 'running');
       const claudeSkillsDir = getClaudeSkillsDir(projectDir);
       const skillsResult = copySkillsToClaudeFormat({ targetDir: claudeSkillsDir });
-      logger.info(`Copied ${skillsResult.updated + skillsResult.added} skill files to .claude/skills/`);
+      tracker.update('copy skills', 'ok', `${skillsResult.updated + skillsResult.added} skill(s)`);
 
       // Create subdirectories
       for (const subdir of ['validations', 'ai-results']) {
@@ -189,14 +205,16 @@ export const initCommand = new Command('init')
 
       // Optionally verify compilation
       if (opts.verify !== false && isFoundry) {
-        spin.text = 'Verifying compilation...';
+        tracker.update('verify build', 'running');
         const result = await runForge(projectDir, ['build']);
         if (result.exitCode === 0) {
-          logger.success('Project compiles successfully');
+          tracker.update('verify build', 'ok');
         } else {
-          logger.warn('Compilation failed (non-fatal):');
+          tracker.update('verify build', 'failed', 'forge build returned non-zero (non-fatal)');
           logger.dim(result.stderr.slice(0, 500));
         }
+      } else {
+        tracker.update('verify build', 'skipped', isFoundry ? '--no-verify' : 'not a Foundry project');
       }
 
       // Create CLAUDE.md for Claude Code skill discovery
@@ -268,9 +286,13 @@ Each skill builds on previous outputs. Run them in order for best results.
 - \`npx hex dashboard\` — Open browser dashboard at http://localhost:3000
 `;
         fs.writeFileSync(claudeMdPath, claudeMd, 'utf-8');
+        tracker.update('write CLAUDE.md', 'ok', normalizePath(claudeMdPath));
+      } else {
+        tracker.update('write CLAUDE.md', 'skipped', 'already exists');
       }
 
-      spin.succeed('Audit initialized');
+      tracker.finish();
+      logger.success('Audit initialized');
       logger.info(`Config: ${normalizePath(path.join(outputDir, 'config.json'))}`);
       logger.info(`Output: ${normalizePath(outputDir)}`);
       logger.info('');
@@ -279,8 +301,8 @@ Each skill builds on previous outputs. Run them in order for best results.
       logger.dim('  hex deps     # Build dependency graph');
       logger.dim('  hex access   # Map access control');
     } catch (err) {
-      spin.fail('Initialization failed');
-      logger.error(err instanceof Error ? err.message : String(err));
+      tracker.finish();
+      reportError(err);
       process.exit(1);
     }
   });

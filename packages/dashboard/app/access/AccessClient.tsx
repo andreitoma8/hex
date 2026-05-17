@@ -37,6 +37,20 @@ interface Role {
   modifier: string | null;
   functions: RoleFunctionRef[];
   warnings: string[];
+  kind?: 'access_control' | 'state_check' | 'guard' | 'unknown';
+  is_likely_access_control?: boolean;
+}
+
+const KIND_BADGE: Record<NonNullable<Role['kind']>, string> = {
+  access_control: 'bg-accent-subtle text-accent',
+  state_check: 'bg-[var(--medium)]/15 text-[var(--medium)]',
+  guard: 'bg-[var(--low)]/15 text-[var(--low)]',
+  unknown: 'bg-[var(--neutral)]/15 text-[var(--neutral)]',
+};
+
+function isLikely(role: Role): boolean {
+  // Default to true for backwards compatibility with older access-control.json files.
+  return role.is_likely_access_control ?? true;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────
@@ -181,12 +195,24 @@ export function AccessClient({
 }: AccessClientProps) {
   const [activeTab, setActiveTab] = useState<Tab>('All');
   const [showUnprotectedOnly, setShowUnprotectedOnly] = useState(false);
+  const [showInferred, setShowInferred] = useState(false);
   const anyoneSet = useMemo(() => new Set(anyoneFnKeys), [anyoneFnKeys]);
 
-  // Build function → roles lookup
+  const inferredRoles = useMemo(
+    () => otherRoles.filter((r) => !isLikely(r)),
+    [otherRoles],
+  );
+  const visibleRoles = useMemo(
+    () => (showInferred ? otherRoles : otherRoles.filter(isLikely)),
+    [otherRoles, showInferred],
+  );
+
+  // Build function → roles lookup — only count *likely* access control roles
+  // so a setter with `whenNotPaused` doesn't get tagged as "callable by paused".
   const roleLookup = useMemo(() => {
     const map = new Map<string, string[]>();
     for (const role of allRoles) {
+      if (!isLikely(role)) continue;
       for (const fn of role.functions) {
         const key = `${fn.contract}::${fn.function}`;
         const existing = map.get(key) ?? [];
@@ -287,15 +313,45 @@ export function AccessClient({
       {/* Role cards */}
       {otherRoles.length > 0 && (
         <div className="mb-sp-6">
-          <h3 className="mb-sp-3 text-heading font-medium text-text-primary">Roles</h3>
+          <div className="mb-sp-3 flex items-center justify-between gap-sp-3">
+            <h3 className="text-heading font-medium text-text-primary">
+              Roles
+              <span className="ml-2 text-caption font-normal text-text-tertiary">
+                {visibleRoles.length} shown · {inferredRoles.length} inferred / unknown hidden
+              </span>
+            </h3>
+            {inferredRoles.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowInferred((v) => !v)}
+                aria-pressed={showInferred}
+                className={`rounded-md px-3 py-1.5 text-caption font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
+                  showInferred
+                    ? 'bg-accent text-surface-0'
+                    : 'bg-surface-3 text-text-secondary hover:text-text-primary'
+                }`}
+              >
+                {showInferred ? 'Hide' : 'Show'} inferred / unknown ({inferredRoles.length})
+              </button>
+            )}
+          </div>
           <div className="grid gap-sp-3 sm:grid-cols-2">
-            {otherRoles.map((role) => (
+            {visibleRoles.map((role) => (
               <div
                 key={role.role}
-                className="rounded-md border border-border-default bg-surface-2 p-sp-4"
+                className={`rounded-md border bg-surface-2 p-sp-4 ${
+                  isLikely(role) ? 'border-border-default' : 'border-dashed border-border-emphasis opacity-90'
+                }`}
               >
-                <div className="mb-sp-2 flex items-center justify-between">
-                  <h4 className="text-heading font-medium text-text-primary">{role.role}</h4>
+                <div className="mb-sp-2 flex items-center justify-between gap-sp-2">
+                  <div className="flex items-center gap-sp-2">
+                    <h4 className="text-heading font-medium text-text-primary">{role.role}</h4>
+                    {role.kind && (
+                      <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-caption font-medium ${KIND_BADGE[role.kind]}`}>
+                        {role.kind.replace('_', ' ')}
+                      </span>
+                    )}
+                  </div>
                   <ConfidenceBadge level={role.confidence} derivedFrom={role.derived_from} />
                 </div>
                 <p className="mb-sp-3 text-body text-text-secondary">{role.description}</p>

@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { logger } from '../core/logger.js';
+import { ProgressTracker } from '../core/progress.js';
 import { statsCommand } from './stats.js';
 import { depsCommand } from './deps.js';
 import { accessCommand } from './access.js';
@@ -19,7 +20,9 @@ async function runStep(
   name: string,
   command: Command,
   args: string[],
+  tracker: ProgressTracker,
 ): Promise<StepResult> {
+  tracker.update(name, 'running');
   // Each step gets its own process.exit trap to avoid shared-state issues in parallel
   const originalExit = process.exit;
   let exitCalled = false;
@@ -32,15 +35,23 @@ async function runStep(
   try {
     await command.parseAsync(args, { from: 'user' });
     if (exitCalled) {
+      tracker.update(name, 'failed', 'non-zero exit');
       return { name, success: false, error: 'Command exited with non-zero code' };
     }
+    tracker.update(name, 'ok');
     return { name, success: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    tracker.update(name, 'failed', truncate(message, 60));
     return { name, success: false, error: message };
   } finally {
     process.exit = originalExit;
   }
+}
+
+function truncate(message: string, max: number): string {
+  const single = message.replace(/\s+/g, ' ').trim();
+  return single.length > max ? single.slice(0, max - 1) + '…' : single;
 }
 
 export const analyzeCommand = new Command('analyze')
@@ -69,30 +80,35 @@ export const analyzeCommand = new Command('analyze')
       { name: 'calls', command: callsCommand, args: baseArgs },
       { name: 'patterns', command: patternsCommand, args: baseArgs },
       { name: 'constraints', command: constraintsCommand, args: baseArgs },
+      { name: 'surface', command: surfaceCommand, args: baseArgs },
     ];
 
-    logger.info('Running analysis pipeline (7 commands in parallel, then surface)...\n');
+    const tracker = new ProgressTracker(phase1Steps.map((s) => s.name));
+    tracker.start();
 
-    const phase1Promises = phase1Steps.map((step) => runStep(step.name, step.command, step.args));
-    const phase1Results = await Promise.allSettled(phase1Promises);
+    const parallelSteps = phase1Steps.slice(0, -1);
+    const parallelPromises = parallelSteps.map((step) => runStep(step.name, step.command, step.args, tracker));
+    const phase1Results = await Promise.allSettled(parallelPromises);
 
     const results: StepResult[] = phase1Results.map((settled, i) => {
       if (settled.status === 'fulfilled') {
         return settled.value;
       }
-      return { name: phase1Steps[i].name, success: false, error: String(settled.reason) };
+      return { name: parallelSteps[i].name, success: false, error: String(settled.reason) };
     });
 
     // Phase 2: surface needs all other outputs
-    logger.info('\n── surface ──');
-    const surfaceResult = await runStep('surface', surfaceCommand, baseArgs);
+    const surfaceStep = phase1Steps[phase1Steps.length - 1];
+    const surfaceResult = await runStep(surfaceStep.name, surfaceStep.command, surfaceStep.args, tracker);
     results.push(surfaceResult);
-    console.log();
+
+    tracker.finish();
 
     // Summary
     const succeeded = results.filter((r) => r.success).length;
     const failed = results.filter((r) => !r.success);
 
+    console.log();
     console.log('─'.repeat(50));
     logger.info(`Analysis complete: ${succeeded}/${results.length} commands succeeded`);
 

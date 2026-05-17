@@ -34,6 +34,8 @@ interface Role {
   modifier: string | null;
   functions: RoleFunctionRef[];
   warnings: string[];
+  kind?: 'access_control' | 'state_check' | 'guard' | 'unknown';
+  is_likely_access_control?: boolean;
 }
 
 interface AccessControl {

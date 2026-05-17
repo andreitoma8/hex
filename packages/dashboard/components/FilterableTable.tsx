@@ -156,7 +156,8 @@ export function FilterableTable<T extends object>({
                       onClick={() =>
                         setColumnFilters((prev) => prev.filter((f) => f.id !== col.id))
                       }
-                      className={`rounded-sm px-3 py-1.5 text-caption font-medium ${
+                      aria-pressed={!currentFilter?.value}
+                      className={`rounded-md px-3 py-1.5 text-caption font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
                         !currentFilter?.value
                           ? 'bg-accent text-surface-0'
                           : 'bg-surface-3 text-text-secondary hover:text-text-primary'
@@ -168,6 +169,7 @@ export function FilterableTable<T extends object>({
                       const count = data.filter(
                         (r) => String((r as Record<string, unknown>)[col.accessorKey]) === opt,
                       ).length;
+                      const isActive = currentFilter?.value === opt;
                       return (
                         <button
                           key={opt}
@@ -175,12 +177,13 @@ export function FilterableTable<T extends object>({
                           onClick={() =>
                             setColumnFilters((prev) => {
                               const without = prev.filter((f) => f.id !== col.id);
-                              if (currentFilter?.value === opt) return without;
+                              if (isActive) return without;
                               return [...without, { id: col.id, value: opt }];
                             })
                           }
-                          className={`rounded-sm px-3 py-1.5 text-caption font-medium ${
-                            currentFilter?.value === opt
+                          aria-pressed={isActive}
+                          className={`rounded-md px-3 py-1.5 text-caption font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
+                            isActive
                               ? 'bg-accent text-surface-0'
                               : 'bg-surface-3 text-text-secondary hover:text-text-primary'
                           }`}

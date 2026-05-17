@@ -63,6 +63,7 @@ In the actual code:
 
 6. If the user provides a new severity:
    - Update the finding in `<output_dir>/findings.json`
+   - Update the `severity_reasoning` block as well — if you change `severity`, you MUST update `likelihood`, `impact`, or `justification` so the reasoning still maps to the new value. Never leave a stale `severity_reasoning` block behind.
    - Update `<output_dir>/tracking.json` if it has a severity field for this entry
 
 **If Invalid:**

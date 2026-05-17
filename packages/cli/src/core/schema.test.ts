@@ -1,10 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import {
   ConfigSchema,
-  StatsSchema,
   AccessControlSchema,
   FindingsSchema,
   EvidenceSchema,
+  ComparisonSchema,
+  RoleSchema,
+  StateVarsSchema,
 } from './schema.js';
 
 describe('ConfigSchema', () => {
@@ -105,6 +107,139 @@ describe('FindingsSchema', () => {
     };
 
     const result = FindingsSchema.safeParse(findings);
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts optional severity_reasoning with likelihood × impact mapping', () => {
+    const finding = {
+      id: 'F002',
+      title: 'With reasoning',
+      severity: 'Critical',
+      severity_reasoning: {
+        likelihood: 'High' as const,
+        impact: 'Critical' as const,
+        justification: 'Anyone can trigger; direct loss of all vault funds.',
+      },
+      category: 'Math',
+      description: 'd',
+      root_cause: { locations: [{ file: 'src/A.sol' }] },
+      poc: { status: 'passing' as const, file: 'test/A.t.sol', validation_memo: null },
+      recommendation: 'r',
+      references: { external_links: [] },
+      created_at: '2025-04-01T00:00:00Z',
+    };
+    const result = FindingsSchema.safeParse({ findings: [finding] });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('ComparisonSchema', () => {
+  it('accepts a duplicate with match_signals + reasoning', () => {
+    const dup = {
+      duplicates: [
+        {
+          ai_finding: 'solidity-auditor-001',
+          matches: 'F001',
+          confidence: 'high' as const,
+          match_signals: {
+            contract: true,
+            function: true,
+            root_cause: 'same' as const,
+            attack_vector: 'same' as const,
+          },
+          reasoning: 'Same share-inflation attack in Vault.deposit',
+        },
+      ],
+      novel: [],
+      rejected: [],
+    };
+    const result = ComparisonSchema.safeParse(dup);
+    expect(result.success).toBe(true);
+  });
+
+  it('still accepts old-format duplicates without match_signals', () => {
+    const result = ComparisonSchema.safeParse({
+      duplicates: [{ ai_finding: 'x-1', matches: 'F001', confidence: 'medium' }],
+      novel: [],
+      rejected: [],
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('RoleSchema', () => {
+  it('defaults kind to access_control and is_likely_access_control to true', () => {
+    const result = RoleSchema.safeParse({
+      role: 'owner',
+      description: 'Ownable',
+      confidence: 'high' as const,
+      derived_from: 'solc-ast' as const,
+      reasoning: 'Detected from OZ Ownable',
+      modifier: 'onlyOwner',
+      functions: [],
+      warnings: [],
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.kind).toBe('access_control');
+      expect(result.data.is_likely_access_control).toBe(true);
+    }
+  });
+
+  it('accepts explicit unknown kind for inferred modifiers', () => {
+    const result = RoleSchema.safeParse({
+      role: 'duringPause',
+      description: 'inferred',
+      confidence: 'low' as const,
+      derived_from: 'heuristic' as const,
+      reasoning: 'r',
+      modifier: 'onlyDuringPause',
+      functions: [],
+      warnings: ['inferred from name only'],
+      kind: 'unknown' as const,
+      is_likely_access_control: false,
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('StateVarsSchema', () => {
+  it('defaults storage_collisions to an empty array', () => {
+    const result = StateVarsSchema.safeParse({
+      variables: [],
+      storage_layout_source: null,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.storage_collisions).toEqual([]);
+    }
+  });
+
+  it('accepts a recorded collision', () => {
+    const result = StateVarsSchema.safeParse({
+      variables: [],
+      storage_layout_source: 'compiler-artifact' as const,
+      storage_collisions: [
+        {
+          slot: 0,
+          offset: 0,
+          variables: [
+            { contract: 'Proxy', name: '_owner', type: 'address' },
+            { contract: 'Impl', name: 'totalSupply', type: 'uint256' },
+          ],
+          severity: 'Critical' as const,
+          description: 'Proxy slot 0 vs implementation totalSupply',
+        },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+// `AccessControlSchema` is re-exported; touch it so the import is exercised
+describe('AccessControlSchema', () => {
+  it('parses an empty access-control payload', () => {
+    const result = AccessControlSchema.safeParse({ functions: [], roles: [] });
     expect(result.success).toBe(true);
   });
 });

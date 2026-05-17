@@ -140,20 +140,35 @@ export function ProgressClient({
     <>
       {/* A. Overall Progress Bar */}
       <div className="mb-sp-5 rounded-md border border-border-default bg-surface-2 p-sp-4">
-        <div className="mb-2 flex items-baseline justify-between">
+        <div className="mb-2 flex items-baseline justify-between gap-sp-2">
           <span className={`text-display font-semibold ${pctTextColor(overallPct)}`}>
             {overallPct.toFixed(0)}%
           </span>
-          <span className="text-caption text-text-tertiary">
-            Contract Review {contractPct.toFixed(0)}% | Steps {stepsPct.toFixed(0)}% | Triage {triagePct.toFixed(0)}%
+          <span
+            className="text-caption text-text-tertiary inline-flex items-center gap-1.5"
+            title="Overall progress is a weighted average: 70% nSLOC reviewed (contract review), 20% audit-step completion, 10% findings triage."
+            aria-label="Overall progress formula: 70% contract review by nSLOC, 20% step completion, 10% findings triage"
+          >
+            Contract Review {contractPct.toFixed(0)}% · Steps {stepsPct.toFixed(0)}% · Triage {triagePct.toFixed(0)}%
+            <svg className="h-3.5 w-3.5 text-text-tertiary" aria-hidden="true" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM7.25 7.25a.75.75 0 0 1 1.5 0v3.5a.75.75 0 0 1-1.5 0v-3.5zM8 4.5a.875.875 0 1 1 0 1.75A.875.875 0 0 1 8 4.5z" />
+            </svg>
           </span>
         </div>
         <div className="h-3 w-full overflow-hidden rounded-full bg-surface-3">
           <div
             className={`h-full rounded-full transition-all duration-300 ${pctBarColor(overallPct)}`}
             style={{ width: `${Math.min(overallPct, 100)}%` }}
+            role="progressbar"
+            aria-valuenow={Math.round(overallPct)}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label="Overall audit progress"
           />
         </div>
+        <p className="mt-2 text-caption text-text-tertiary">
+          Weighted: 70% nSLOC reviewed · 20% audit steps · 10% findings triage. Hover the breakdown for details.
+        </p>
       </div>
 
       {/* B. KPI Cards */}

@@ -2,10 +2,17 @@ import { readJsonFile, listSubdirs, readNestedJsonFile } from '@/lib/data';
 import { NotYetGenerated } from '@/components/NotYetGenerated';
 import { AllFindingsClient } from './AllFindingsClient';
 
+interface SeverityReasoning {
+  likelihood: 'High' | 'Medium' | 'Low';
+  impact: 'Critical' | 'High' | 'Medium' | 'Low';
+  justification: string;
+}
+
 interface Finding {
   id: string;
   title: string;
   severity: string;
+  severity_reasoning?: SeverityReasoning;
   category?: string;
   description?: string;
   root_cause?: {
@@ -56,11 +63,19 @@ interface AiResultFile {
   findings: AiResultFinding[];
 }
 
+interface MatchSignals {
+  contract: boolean;
+  function: boolean;
+  root_cause: 'same' | 'overlapping' | 'different';
+  attack_vector: 'same' | 'overlapping' | 'different';
+}
+
 interface ComparisonDuplicate {
   ai_finding: string;
   matches: string;
   confidence?: string;
   reasoning?: string;
+  match_signals?: MatchSignals;
 }
 
 interface ComparisonRejected {
@@ -91,6 +106,10 @@ export interface MergedFinding {
   poc_status: string;
   duplicates: string[];
   finding?: Finding;
+  /** Populated when this AI finding was merged into a canonical finding (Phase 4 dedup). */
+  match_signals?: MatchSignals;
+  match_reasoning?: string;
+  match_confidence?: string;
 }
 
 export default function AllFindingsPage() {
@@ -135,8 +154,10 @@ export default function AllFindingsPage() {
 
   // Build comparison.json lookup maps for Loop 3 fallback
   const aiDuplicateOf = new Map<string, string>();
+  const aiDuplicateMeta = new Map<string, ComparisonDuplicate>();
   for (const d of comparison?.duplicates ?? []) {
     aiDuplicateOf.set(d.ai_finding, d.matches);
+    aiDuplicateMeta.set(d.ai_finding, d);
   }
   const aiRejectedIds = new Set(
     (comparison?.rejected ?? []).map((r) => r.id),
@@ -219,6 +240,7 @@ export default function AllFindingsPage() {
       const matchedId = aiDuplicateOf.get(af.id);
       const isRejected = aiRejectedIds.has(af.id);
       const inherited = matchedId ? canonicalState.get(matchedId) : undefined;
+      const matchMeta = matchedId ? aiDuplicateMeta.get(af.id) : undefined;
 
       merged.push({
         id: af.id,
@@ -231,6 +253,9 @@ export default function AllFindingsPage() {
         poc_status: isRejected ? 'not_started' : matchedId ? (inherited?.poc_status ?? 'not_started') : 'not_started',
         duplicates: [],
         finding: aiResultsMap.get(af.id),
+        match_signals: matchMeta?.match_signals,
+        match_reasoning: matchMeta?.reasoning,
+        match_confidence: matchMeta?.confidence,
       });
     }
   }

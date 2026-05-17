@@ -117,8 +117,13 @@ Write to `<output_dir>/spec-conformance.json`:
       "id": "SC-001",
       "source": "natspec|erc_eip|external_docs|interface",
       "spec_text": "...",
-      "spec_url": "https://eips.ethereum.org/EIPS/eip-20 (for erc_eip source, null otherwise)",
-      "spec_location": {},
+      "spec_location": {
+        "url": "https://eips.ethereum.org/EIPS/eip-20#transfer (REQUIRED for erc_eip; recommended for external_docs when a stable section anchor is available)",
+        "section": "Section anchor or heading the requirement came from (e.g. 'transfer', 'Methods → balanceOf')",
+        "anchor": "Optional URL fragment to link directly to the requirement",
+        "file": "For natspec source: the contract file where the spec comment lives",
+        "line": "For natspec source: the line of the spec comment"
+      },
       "status": "CONFORMS|DEVIATES|PARTIAL|UNVERIFIABLE|UNDOCUMENTED",
       "finding": "...",
       "code_location": { "file": "...", "line_start": 0, "line_end": 0 },
@@ -128,5 +133,7 @@ Write to `<output_dir>/spec-conformance.json`:
   ]
 }
 ```
+
+For every `erc_eip` source item, the `spec_location.url` field MUST be populated and MUST point to the canonical eips.ethereum.org page (with a `#section` anchor when the requirement maps to a specific section). The dashboard renders this as a clickable link on `/conformance` so auditors can verify against the spec without re-fetching it. If you cannot find an anchor, link to the EIP root.
 
 The dashboard renders this JSON with structured tables, expandable details, and status filtering — no separate markdown file is needed.

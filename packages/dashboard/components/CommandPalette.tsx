@@ -110,7 +110,7 @@ export function CommandPalette() {
               <button
                 key={item.href}
                 type="button"
-                className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-body ${
+                className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-body focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent ${
                   i === selected
                     ? 'bg-accent-subtle text-accent'
                     : 'text-text-secondary hover:bg-surface-2 hover:text-text-primary'

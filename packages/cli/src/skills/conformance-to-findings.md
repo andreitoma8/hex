@@ -53,6 +53,7 @@ For each unprocessed item, apply the **write-finding Step 0 validation gate** lo
 Use the `write-finding` template to create the finding:
 
 - Use `severity_hint` from the conformance item as a starting point, but adjust based on your own Likelihood × Impact analysis
+- Populate `severity_reasoning.{likelihood, impact, justification}` per the `write-finding` rubric — the conformance hint alone is not justification. If you deviate from `severity_hint`, say so in `justification`.
 - Set `category` appropriately based on the deviation type
 - In `root_cause.locations`, use the `code_location` from the conformance item
 

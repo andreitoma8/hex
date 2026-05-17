@@ -85,6 +85,17 @@ Use this matrix as an equally important tool for determining severity. Cross-ref
 - **Medium:** Requires specific but realistic conditions, attacker needs moderate setup or timing, economically viable
 - **Low:** Requires unlikely conditions, complex multi-step attack, unprofitable, or depends on external factors rarely met
 
+### Required: Severity Reasoning Step
+
+Before you assign severity, you MUST work through the matrix in this order. Write each step into the finding's `severity_reasoning` field. Free-text justification is not enough — the schema requires `likelihood`, `impact`, and `justification` as separate values.
+
+1. **Likelihood scenario.** Describe in one or two sentences what an attacker must do to trigger the bug. Then choose one: `High` / `Medium` / `Low`.
+2. **Impact scenario.** Describe in one or two sentences what the worst realistic outcome is if the attack lands. Then choose one: `Critical` / `High` / `Medium` / `Low`.
+3. **Justification.** State explicitly: *"Likelihood × Impact = severity"*. If you deviate from the matrix (e.g., assigning High when the matrix says Medium), say so and explain why (existing protection, off-chain mitigation, etc.).
+4. Only after writing the reasoning should you set `severity`.
+
+Two findings with the same severity should be defensible against each other on this reasoning, not on the title or category alone.
+
 ## Template
 
 Write the finding following this exact structure:
@@ -94,6 +105,11 @@ Write the finding following this exact structure:
   "id": "F<NNN>",
   "title": "<concise, descriptive title>",
   "severity": "Critical|High|Medium|Low|Info",
+  "severity_reasoning": {
+    "likelihood": "High|Medium|Low",
+    "impact": "Critical|High|Medium|Low",
+    "justification": "<one-paragraph explanation that maps the likelihood × impact pair to the assigned severity, calling out any deviation from the matrix>"
+  },
   "category": "<e.g., Math / Rounding, Access Control, Reentrancy, Oracle Manipulation>",
   "description": "<clear, self-contained description covering what the vulnerability is, why it exists, and what the impact would be if exploited>",
   "root_cause": {
@@ -113,6 +129,8 @@ Write the finding following this exact structure:
   "created_at": "<ISO timestamp>"
 }
 ```
+
+The `severity_reasoning` block is required for every new finding. The dashboard and `/compare-findings` will surface it when comparing across auditors and AI agents.
 
 **Recommendation must be prose only.** Do not include code snippets, code blocks, or inline code in the `recommendation` field. Describe the fix in plain language. Code examples belong only in `root_cause.locations[].snippet`.
 

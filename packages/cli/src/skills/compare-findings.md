@@ -59,7 +59,13 @@ Write to `<output_dir>/comparison.json`:
       "ai_finding": "<source>-<id>",
       "matches": "F001",
       "confidence": "high|medium|low",
-      "reasoning": "Both describe the same share inflation attack in Vault.deposit"
+      "match_signals": {
+        "contract": true,
+        "function": true,
+        "root_cause": "same",
+        "attack_vector": "same"
+      },
+      "reasoning": "Both describe the same share inflation attack in Vault.deposit; root cause is share-price manipulation via direct asset transfer; attack vector identical (first deposit + donation)."
     }
   ],
   "rejected": [
@@ -70,6 +76,17 @@ Write to `<output_dir>/comparison.json`:
   ]
 }
 ```
+
+### Recording match signals (REQUIRED for every duplicate)
+
+For every entry in `duplicates`, populate `match_signals` so an auditor can later question the merge without re-reading both findings:
+
+- `contract` — `true` if both findings name the same contract; `false` if the AI finding mis-locates the issue
+- `function` — `true` if both name the same function (or both are clearly contract-level)
+- `root_cause` — `"same"` (identical underlying bug), `"overlapping"` (shared cause but different framing), or `"different"` (you matched them anyway — say why in `reasoning`)
+- `attack_vector` — same vocabulary as `root_cause`, but applied to the exploitation path
+
+Use `reasoning` to explain the merge in one sentence per `match_signal`. If `confidence` is `"medium"` or `"low"`, the reasoning MUST identify which signal failed (e.g., "different attack vector but same root cause — auditor may want to verify"). The dashboard renders these so auditors can override duplicates without re-running comparison.
 
 Novel findings (everything not in `duplicates` or `rejected`) are implicit — do NOT include a `novel` array.
 
