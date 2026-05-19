@@ -4,6 +4,8 @@ A toolkit for Solidity smart contract auditors. Hex combines Claude Code skills,
 
 Hex does not replace your expertise. It automates the mechanical parts of auditing (parsing, stat collection, diagramming, PoC scaffolding, finding write-ups) so you can spend your time on what actually matters: reading code and thinking about what can break.
 
+![Hex dashboard — VaultX Protocol home page with KPI strip, AI-generated overview, and contract architecture](dashboard.png)
+
 ## How It Works
 
 You drive Hex through Claude Code. Type `/init-audit` and Claude runs the whole pipeline. Three components do the work behind the scenes off a shared project directory:
