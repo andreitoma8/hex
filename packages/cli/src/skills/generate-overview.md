@@ -41,9 +41,7 @@ Read `.hex/attack-surface.json` for:
 
 ## Task
 
-Write a protocol overview that foregrounds trust assumptions and security-critical design decisions. Write for an experienced Solidity auditor who needs to quickly understand what they're looking at, who holds power, and what can go wrong.
-
-Be precise and technical. Reference specific contract names and functions where relevant.
+Write a protocol overview that explais what the protocol is, what it aims to do, and foregrounds trust assumptions and security-critical design decisions. Identify and explain who holds power, and what can go wrong. Be precise and technical. Reference specific contract names and functions where relevant.
 
 ### Protocol-Type Specific Guidance
 
@@ -72,7 +70,7 @@ Write the overview to `<output_dir>/overview.md` with this format:
 # Protocol Overview: [Name]
 
 ## Purpose
-[1-2 sentences: what the protocol does, target users, the problem it solves]
+[1-2 Paragraphs: what the protocol does, target users, the problem it solves, architecture]
 
 ## Key Contracts
 

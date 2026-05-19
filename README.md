@@ -98,8 +98,6 @@ The goal of this phase is to build a mental model of the protocol before you rea
 
 Claude reads the full codebase, any documentation you linked, and all the structured analysis already generated (stats, access control, state variables, external calls, dependencies). It writes a 2–3 paragraph overview of what the protocol does, how it works, and what the key contracts are. The overview is saved to `.hex/overview.md` and displayed on the dashboard home page.
 
-*Recommended model: Sonnet*
-
 **1.2 — Stats, access, state, calls, patterns, constraints, surface**
 
 Already generated during `/init-audit`. View them on the dashboard:
@@ -119,8 +117,6 @@ All pages support filtering by confidence level so you can focus on entries that
 
 Generates a Mermaid architecture diagram showing concrete contracts grouped into zones, with semantic symbols (🏦 Vault, 💰 Token, 🔮 Oracle, 🔒 Governance, 📦 Storage), colour-coded nodes, interaction-typed edge labels (delegatecall, external call, access-controlled), an overview header, and a visual legend. Max ~15 nodes per diagram — large protocols are automatically split into focused diagrams. Viewable on `/diagram` with zoom and pan controls.
 
-*Recommended model: Sonnet*
-
 **1.4 — Flow Charts**
 
 ```
@@ -128,8 +124,6 @@ Generates a Mermaid architecture diagram showing concrete contracts grouped into
 ```
 
 Generates Mermaid flow charts for every significant path through the protocol, grouped by user type (anyone, owner, keeper, etc.), value flows (deposits, withdrawals, fee collection), and admin operations. Distinct node shapes (stadium for start/end, cylinder for state changes, rhombus for decisions), swim-lane subgraphs per contract, plain-English labels. Every decision diamond shows both success and revert paths. Only in-scope contracts get flows — out-of-scope contracts appear only as external call targets.
-
-*Recommended model: Opus*
 
 **1.5 — Invariants**
 
@@ -145,8 +139,6 @@ Claude reads the full codebase, documentation, and all prior analysis outputs (e
 
 Each invariant gets a confidence rating. Output is saved to `.hex/invariants.md` and displayed on `/invariants`.
 
-*Recommended model: Opus*
-
 **1.6 — Spec Conformance**
 
 ```
@@ -161,8 +153,6 @@ Checks whether the code actually does what it claims to do. Claude cross-referen
 - **ERC/EIP compliance** — does the ERC-4626 implementation follow the rounding rules? Does ERC-20 handle zero-amount transfers?
 
 Each check is classified `CONFORMS`, `DEVIATES`, `PARTIAL`, `UNVERIFIABLE`, or `UNDOCUMENTED`. Deviations are potential findings. ERC items include `spec_location.url` so the `/conformance` dashboard can link back to the exact EIP section. Results land in `.hex/spec-conformance.json` and render on `/conformance`.
-
-*Recommended model: Opus*
 
 ---
 
@@ -201,8 +191,6 @@ Claude will:
 
 If Claude concludes the issue is not valid, it explains why in the validation memo and stops. The reasoning is always preserved so nothing is lost.
 
-*Recommended model: Opus*
-
 **3.2 — Write the Finding**
 
 After a PoC passes:
@@ -222,8 +210,6 @@ Claude reads the issue description, the validation memo, the PoC, and the releva
 
 `findings.json` is the canonical source of truth used for deduplication, severity stats, and the dashboard report view.
 
-*Recommended model: Sonnet*
-
 **Code-block rules in findings**
 
 When the AI includes code snippets in a finding, it follows strict rules:
@@ -240,8 +226,6 @@ When the AI includes code snippets in a finding, it follows strict rules:
 ```
 
 Batch-validates every `DEVIATES` or `PARTIAL` item from `/check-spec-conformance` and converts the real ones into structured findings. Items it rejects get a validation memo explaining why so nothing disappears silently.
-
-*Recommended model: Sonnet*
 
 ---
 
@@ -281,8 +265,6 @@ Claude semantically compares each AI finding against your own. It matches on aff
 
 Results land in `.hex/comparison.json` and the master tracking table updates.
 
-*Recommended model: Sonnet*
-
 **4.3 — Validate new findings**
 
 For each novel finding the AI agents surfaced:
@@ -292,8 +274,6 @@ For each novel finding the AI agents surfaced:
 ```
 
 Claude independently traces the described attack path in the code and decides if it's valid. If valid, it generates a PoC and writes a finding. If invalid, it explains why. If uncertain, it flags specific questions for you to investigate.
-
-*Recommended model: Opus*
 
 **4.4 — All Findings**
 
