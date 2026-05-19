@@ -126,6 +126,68 @@ function MatchSignalsBlock({ item }: { item: MergedFinding }) {
   );
 }
 
+function relativeTime(iso: string): string {
+  const then = new Date(iso).getTime();
+  const now = Date.now();
+  const seconds = Math.round((now - then) / 1000);
+  if (seconds < 60) return 'just now';
+  if (seconds < 3600) return `${Math.round(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.round(seconds / 3600)}h ago`;
+  return `${Math.round(seconds / 86400)}d ago`;
+}
+
+function GithubBlock({ item }: { item: MergedFinding }) {
+  const gh = item.github;
+  if (!gh) return null;
+  const issueLabel = `#${gh.issue_number}`;
+  const stateTint =
+    gh.state === 'open'
+      ? 'bg-[var(--success)]/15 text-[var(--success)]'
+      : 'bg-[var(--neutral)]/15 text-[var(--neutral)]';
+  const comments = (gh.comments ?? []).slice(-5);
+  return (
+    <div className="rounded-md border border-border-subtle bg-surface-2 p-sp-3">
+      <div className="mb-2 flex items-center gap-sp-2 text-caption">
+        <span className="font-medium uppercase text-text-tertiary">GitHub</span>
+        <span className={`rounded-md px-2 py-0.5 font-medium ${stateTint}`}>{gh.state}</span>
+        {gh.issue_url ? (
+          <a
+            href={gh.issue_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-accent hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent rounded-sm"
+          >
+            {issueLabel}
+          </a>
+        ) : (
+          <span className="font-mono text-text-secondary">{issueLabel}</span>
+        )}
+        {gh.author && (
+          <span className="text-text-tertiary">by @{gh.author}</span>
+        )}
+        {gh.last_synced_at && (
+          <span className="ml-auto text-text-tertiary">synced {relativeTime(gh.last_synced_at)}</span>
+        )}
+      </div>
+      {comments.length > 0 ? (
+        <ul className="space-y-2">
+          {comments.map((c, i) => (
+            <li key={i} className="rounded-md bg-surface-1 px-sp-3 py-sp-2">
+              <div className="mb-1 flex items-center gap-sp-2 text-caption">
+                <span className="font-medium text-text-primary">@{c.author}</span>
+                <span className="text-text-tertiary">{relativeTime(c.created_at)}</span>
+              </div>
+              <p className="whitespace-pre-wrap text-caption text-text-secondary">{c.body}</p>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-caption text-text-tertiary">No comments on this issue yet.</p>
+      )}
+    </div>
+  );
+}
+
 function SeverityReasoningBlock({ finding }: { finding: NonNullable<MergedFinding['finding']> }) {
   const r = finding.severity_reasoning;
   if (!r) return null;
@@ -151,7 +213,8 @@ function FindingDetail({ item }: { item: MergedFinding }) {
     return (
       <div className="text-body text-text-secondary space-y-sp-3">
         <MatchSignalsBlock item={item} />
-        {!item.match_signals && <p>No detailed finding data available.</p>}
+        <GithubBlock item={item} />
+        {!item.match_signals && !item.github && <p>No detailed finding data available.</p>}
         {item.duplicates.length > 0 && (
           <p className="mt-2">Duplicates: {item.duplicates.join(', ')}</p>
         )}
@@ -162,6 +225,7 @@ function FindingDetail({ item }: { item: MergedFinding }) {
   return (
     <div className="space-y-sp-4 text-body">
       <MatchSignalsBlock item={item} />
+      <GithubBlock item={item} />
       <SeverityReasoningBlock finding={finding} />
       {finding.description && (
         <div>

@@ -164,3 +164,7 @@ All inserted audit comments must be full sentences starting with a capital lette
    - If an existing `// @audit-issue ...` comment is on the line directly above, **replace** it with `// @audit-issue-verified F<NNN> <short title>`.
    - Otherwise, **insert** `// @audit-issue-verified F<NNN> <short title>` on a new line directly above the matched line, using the same indentation.
    - `<NNN>` is the finding ID (e.g., `F001`) and `<short title>` is the finding's `title` field.
+
+## After writing
+
+If `settings.github.repo` is set in `config.json`, suggest the user run `/sync-github` to publish this finding to the team's GitHub repo and to pull in any new teammate findings. Do not run `/sync-github` automatically — the auditor should choose when to publish.

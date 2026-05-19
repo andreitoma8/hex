@@ -52,6 +52,13 @@ export const ConfigSchema = z.object({
     ai_model: z.string().default('claude-sonnet-4-20250514'),
     finding_template: z.string().default('default'),
     ai_tools: z.array(z.lazy(() => AiToolSchema)).optional(),
+    github: z.object({
+      repo: z.string(),
+      default_labels: z.array(z.string()).default(['hex', 'audit']),
+      severity_label_prefix: z.string().default('severity:'),
+      publish_status: z.array(z.enum(['verified', 'pending_validation']))
+        .default(['verified']),
+    }).optional(),
   }),
 });
 
@@ -269,6 +276,23 @@ export const FindingLocationSchema = z.object({
   snippet: z.string().optional(),
 });
 
+export const GithubCommentSchema = z.object({
+  id: z.number().int().optional(),
+  author: z.string(),
+  body: z.string(),
+  created_at: z.string(),
+  url: z.string().optional(),
+});
+
+export const GithubLinkSchema = z.object({
+  issue_number: z.number().int(),
+  issue_url: z.string(),
+  state: z.enum(['open', 'closed']).default('open'),
+  last_synced_at: z.string(),
+  sync_status: z.enum(['in_sync', 'local_ahead', 'remote_ahead', 'conflict']).default('in_sync'),
+  comments: z.array(GithubCommentSchema).default([]),
+});
+
 export const FindingSchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -289,6 +313,7 @@ export const FindingSchema = z.object({
     external_links: z.array(z.string()),
   }),
   created_at: z.string(),
+  github: GithubLinkSchema.optional(),
 });
 
 export const FindingsSchema = z.object({
@@ -449,4 +474,17 @@ export const AiToolStatusSchema = z.object({
 
 export const AiStatusSchema = z.object({
   tools: z.record(z.string(), AiToolStatusSchema),
+});
+
+// ─── GitHub Sync Status ────────────────────────────────────────────
+
+export const GithubSyncStatusSchema = z.object({
+  repo: z.string(),
+  last_synced_at: z.string(),
+  pushed: z.number().int().default(0),
+  updated: z.number().int().default(0),
+  pulled: z.number().int().default(0),
+  teammate_findings: z.number().int().default(0),
+  duplicates_detected: z.number().int().default(0),
+  errors: z.array(z.string()).default([]),
 });

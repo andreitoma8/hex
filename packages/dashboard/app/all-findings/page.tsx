@@ -8,6 +8,24 @@ interface SeverityReasoning {
   justification: string;
 }
 
+export interface GithubComment {
+  author: string;
+  body: string;
+  created_at: string;
+  url?: string;
+}
+
+export interface GithubLink {
+  issue_number: number;
+  issue_url: string;
+  state: 'open' | 'closed';
+  last_synced_at: string;
+  sync_status?: 'in_sync' | 'local_ahead' | 'remote_ahead' | 'conflict';
+  comments?: GithubComment[];
+  /** Author login, populated for teammate findings pulled from external/github/. */
+  author?: string;
+}
+
 interface Finding {
   id: string;
   title: string;
@@ -23,6 +41,7 @@ interface Finding {
   references?: {
     external_links: string[];
   };
+  github?: GithubLink;
   [key: string]: unknown;
 }
 
@@ -60,6 +79,7 @@ interface AiResultFinding {
 
 interface AiResultFile {
   tool: string;
+  ran_at?: string;
   findings: AiResultFinding[];
 }
 
@@ -110,6 +130,8 @@ export interface MergedFinding {
   match_signals?: MatchSignals;
   match_reasoning?: string;
   match_confidence?: string;
+  /** Surfaced for findings synced to GitHub (local with github block, or teammate-only). */
+  github?: GithubLink;
 }
 
 export default function AllFindingsPage() {
@@ -132,11 +154,16 @@ export default function AllFindingsPage() {
     findingsMap.set(f.id, f);
   }
 
-  // Build AI results map from all ai-results/<tool>/findings.json
+  // Build AI results map from ai-results/<tool>/findings.json AND external/<source>/findings.json.
+  // External sources (currently just `github`) share the `AiResultFile` shape but represent
+  // teammates or other non-AI feeds — the dashboard renders them identically.
   const aiResultsMap = new Map<string, Finding>();
-  const toolDirs = listSubdirs('ai-results');
-  for (const dir of toolDirs) {
-    const results = readNestedJsonFile<AiResultFile>(`ai-results/${dir}/findings.json`);
+  const externalSourceOf = new Map<string, string>(); // finding id → source dir name (e.g. "github")
+  const toolDirs = listSubdirs('ai-results').map((d) => ({ dir: d, root: 'ai-results' }));
+  const externalDirs = listSubdirs('external').map((d) => ({ dir: d, root: 'external' }));
+  const allSourceDirs = [...toolDirs, ...externalDirs];
+  for (const { dir, root } of allSourceDirs) {
+    const results = readNestedJsonFile<AiResultFile>(`${root}/${dir}/findings.json`);
     if (!results) continue;
     for (const af of results.findings) {
       aiResultsMap.set(af.id, {
@@ -149,6 +176,9 @@ export default function AllFindingsPage() {
           locations: af.affected_code.map((ac) => ({ file: ac.file, snippet: ac.snippet })),
         },
       });
+      if (root === 'external') {
+        externalSourceOf.set(af.id, dir);
+      }
     }
   }
 
@@ -207,6 +237,7 @@ export default function AllFindingsPage() {
       poc_status: t.poc_status,
       duplicates: t.duplicates ?? [],
       finding,
+      github: finding?.github,
     });
   }
 
@@ -223,16 +254,17 @@ export default function AllFindingsPage() {
       poc_status: f.poc?.status ?? 'not_started',
       duplicates: [],
       finding: f,
+      github: f.github,
     });
   }
 
-  // Add AI findings not already present via tracking, using comparison.json as fallback
-  for (const dir of toolDirs) {
-    const results = readNestedJsonFile<AiResultFile>(`ai-results/${dir}/findings.json`);
+  // Add findings from AI tools and external sources not already present via tracking.
+  for (const { dir, root } of allSourceDirs) {
+    const results = readNestedJsonFile<AiResultFile>(`${root}/${dir}/findings.json`);
     if (!results) continue;
     for (const af of results.findings) {
       if (seenIds.has(af.id)) continue;
-      // Backward compat: skip if this AI finding was already tracked under a synthetic novel ID
+      // Backward compat: skip if this finding was already tracked under a synthetic novel ID
       const bridgedId = novelOriginalToTrackingId.get(af.id);
       if (bridgedId && seenIds.has(bridgedId)) continue;
       seenIds.add(af.id);
@@ -241,6 +273,7 @@ export default function AllFindingsPage() {
       const isRejected = aiRejectedIds.has(af.id);
       const inherited = matchedId ? canonicalState.get(matchedId) : undefined;
       const matchMeta = matchedId ? aiDuplicateMeta.get(af.id) : undefined;
+      const isExternal = root === 'external';
 
       merged.push({
         id: af.id,
@@ -256,6 +289,15 @@ export default function AllFindingsPage() {
         match_signals: matchMeta?.match_signals,
         match_reasoning: matchMeta?.reasoning,
         match_confidence: matchMeta?.confidence,
+        // For external/github teammate findings, surface the issue link if we can derive it
+        github: isExternal && dir === 'github' && /^github-(\d+)$/.test(af.id)
+          ? {
+              issue_number: Number(af.id.replace('github-', '')),
+              issue_url: '',
+              state: 'open',
+              last_synced_at: results.ran_at ?? '',
+            }
+          : undefined,
       });
     }
   }

@@ -11,12 +11,15 @@ description: "Semantically compare your findings against AI agent results"
 Read these files from the output directory:
 - `findings.json` — your own findings (canonical source of truth)
 - All files in `ai-results/` — external AI agent outputs (JSON format)
+- All files in `external/` — non-AI external sources (e.g. `external/github/findings.json` from `/sync-github`). Treat these as `AiResultFile` for shape, but record their origin separately (see below).
 - `tracking.json` — current tracking state (if exists)
 - `config.json` — for scope information
 
+Sources whose tool field is `"github"` are *teammate findings*, not AI findings. They are still compared and deduplicated identically, but in `reasoning` you should phrase merges as "teammate filed this on GitHub" rather than "AI tool flagged this", so an auditor reviewing the merge knows whether to ping a person or re-validate a model output.
+
 ## Task
 
-For each finding from an external AI agent:
+For each finding from an external AI agent or external source:
 
 ### 1. Semantic Matching
 Determine if this describes the same vulnerability as any existing finding.

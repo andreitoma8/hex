@@ -7,6 +7,8 @@ import {
   ComparisonSchema,
   RoleSchema,
   StateVarsSchema,
+  GithubLinkSchema,
+  GithubSyncStatusSchema,
 } from './schema.js';
 
 describe('ConfigSchema', () => {
@@ -241,6 +243,117 @@ describe('AccessControlSchema', () => {
   it('parses an empty access-control payload', () => {
     const result = AccessControlSchema.safeParse({ functions: [], roles: [] });
     expect(result.success).toBe(true);
+  });
+});
+
+describe('GithubLinkSchema', () => {
+  it('accepts a populated finding link with comments', () => {
+    const result = GithubLinkSchema.safeParse({
+      issue_number: 42,
+      issue_url: 'https://github.com/nethermind/audit-vaultx/issues/42',
+      state: 'open' as const,
+      last_synced_at: '2026-05-19T12:00:00Z',
+      sync_status: 'in_sync' as const,
+      comments: [
+        {
+          author: 'alice',
+          body: 'lgtm — verified locally',
+          created_at: '2026-05-19T11:55:00Z',
+          url: 'https://github.com/nethermind/audit-vaultx/issues/42#issuecomment-1',
+        },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('defaults state to open and comments to []', () => {
+    const result = GithubLinkSchema.safeParse({
+      issue_number: 7,
+      issue_url: 'https://github.com/x/y/issues/7',
+      last_synced_at: '2026-05-19T12:00:00Z',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.state).toBe('open');
+      expect(result.data.comments).toEqual([]);
+    }
+  });
+});
+
+describe('ConfigSchema.settings.github', () => {
+  it('defaults default_labels and publish_status when only repo is set', () => {
+    const result = ConfigSchema.safeParse({
+      project: {
+        name: 'Test',
+        project_dir: '/test',
+        commit: 'abc',
+        solidity_version: '0.8.20',
+        scope: ['src/A.sol'],
+      },
+      settings: { github: { repo: 'nethermind/audit-vaultx' } },
+    });
+    expect(result.success).toBe(true);
+    if (result.success && result.data.settings.github) {
+      expect(result.data.settings.github.default_labels).toEqual(['hex', 'audit']);
+      expect(result.data.settings.github.publish_status).toEqual(['verified']);
+    }
+  });
+
+  it('is optional — configs without github still validate', () => {
+    const result = ConfigSchema.safeParse({
+      project: {
+        name: 'Test',
+        project_dir: '/test',
+        commit: 'abc',
+        solidity_version: '0.8.20',
+        scope: ['src/A.sol'],
+      },
+      settings: {},
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.settings.github).toBeUndefined();
+  });
+});
+
+describe('FindingSchema.github round-trip', () => {
+  it('accepts a finding carrying a github link', () => {
+    const result = FindingsSchema.safeParse({
+      findings: [
+        {
+          id: 'F010',
+          title: 'Linked to GitHub',
+          severity: 'High' as const,
+          category: 'Access Control',
+          description: 'd',
+          root_cause: { locations: [{ file: 'src/A.sol' }] },
+          poc: { status: 'not_started' as const, file: null, validation_memo: null },
+          recommendation: 'r',
+          references: { external_links: [] },
+          created_at: '2026-05-19T00:00:00Z',
+          github: {
+            issue_number: 99,
+            issue_url: 'https://github.com/x/y/issues/99',
+            state: 'open' as const,
+            last_synced_at: '2026-05-19T01:00:00Z',
+          },
+        },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('GithubSyncStatusSchema', () => {
+  it('applies defaults for counters', () => {
+    const result = GithubSyncStatusSchema.safeParse({
+      repo: 'nethermind/audit-vaultx',
+      last_synced_at: '2026-05-19T12:00:00Z',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.pushed).toBe(0);
+      expect(result.data.errors).toEqual([]);
+    }
   });
 });
 

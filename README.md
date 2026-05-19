@@ -231,6 +231,32 @@ Batch-validates every `DEVIATES` or `PARTIAL` item from `/check-spec-conformance
 
 ---
 
+### Phase 3.5 — Team mode (optional)
+
+When two or three auditors share an engagement, syncing findings through GitHub Issues keeps everyone on the same page without anyone setting up a server.
+
+Set `settings.github.repo` in `.hex/config.json` (the audit firm's internal repo, e.g. `nethermind/audit-vaultx`) and authenticate the `gh` CLI once on your machine:
+
+```bash
+gh auth login
+```
+
+Hex itself never stores GitHub credentials — `/sync-github` drives the `gh` CLI directly. Then, after writing a verified finding:
+
+```
+/sync-github
+```
+
+One invocation does both directions:
+
+- **Pulls** every issue from the configured repo with the `hex` label, classifies each by a hidden `<!-- hex-finding-id: F<NNN> -->` footer, attaches comments and state to your matching local findings, and writes teammates' issues to `.hex/external/github/findings.json` so they show up in `/all-findings` with `source: github` and the author's GitHub login.
+- **Pushes** every local finding whose tracking status is in `settings.github.publish_status` (default: `verified`) as a new issue, or updates an existing issue if the finding already has a `github.issue_number`. The body is rendered from the finding's description, `severity_reasoning`, code locations, and recommendation; labels are applied for severity, source, and status.
+- **Deduplicates** by calling `/compare-findings`, so teammates filing the same bug surface as duplicates with the same `match_signals` you already see for AI tools.
+
+The dashboard's `/all-findings` page shows GitHub issues inline alongside manual and AI-tool findings. Expand a row to see the issue link, state, the last few comments, and (for your local findings) the synced `github.issue_number`. The sidebar gains a second indicator under LiveStatus showing how long ago `/sync-github` last ran.
+
+Comments stay on GitHub — Hex never posts, edits, or deletes comments. Auditors discuss inside GitHub itself.
+
 ### Phase 4 — Re-audit with AI
 
 After your manual review is complete, run external AI audit agents as a second pass to catch anything you might have missed.
@@ -308,6 +334,7 @@ Each skill has a recommended model — switch your Claude Code model before invo
 | `run-ai-analysis` | 4.1 | Opus | Orchestrates all configured AI audit tools with preflight checks |
 | `compare-findings` | 4.2 | Sonnet | Semantic dedup of your findings vs AI agent findings (with `match_signals`) |
 | `validate-ai-finding` | 4.3 | Opus | Interactively verifies a novel AI finding (PoC vs rational, severity adjustment) |
+| `sync-github` | 3.5 | Sonnet | Two-way sync between local findings and GitHub Issues — pulls teammate issues, pushes your verified findings, then runs `/compare-findings` |
 
 ### Where Skills Live
 

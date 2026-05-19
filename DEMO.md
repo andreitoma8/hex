@@ -103,6 +103,18 @@ After running `/check-spec-conformance`, you can batch-convert deviations:
 ```
 Processes all DEVIATES and PARTIAL conformance items, validates each, and writes findings or rejection memos.
 
+### Phase 3.5 — Team mode (optional)
+
+If your firm runs two or three auditors on the same engagement, sync findings through a shared GitHub repo. Set `settings.github.repo` in `.hex/config.json` (e.g. `nethermind/audit-vaultx`), run `gh auth login` once on your machine, then:
+
+```
+/sync-github
+```
+
+One run pushes your verified findings as GitHub Issues and pulls teammates' issues back into `.hex/external/github/`. The `/all-findings` dashboard page shows them as another source alongside `manual` and the AI tools. `/compare-findings` is invoked automatically so duplicates against teammates surface the same way they do for AI tools — with `match_signals` you can review.
+
+Hex itself never stores GitHub credentials; the skill drives the `gh` CLI directly. Comments stay on GitHub — Hex pulls them for display in the dashboard expand row but never posts.
+
 ### Phase 4 — AI Cross-check
 
 Run all configured AI audit tools with a single command:
