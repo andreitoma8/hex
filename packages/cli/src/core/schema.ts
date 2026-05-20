@@ -13,16 +13,6 @@ export const ConfidenceSchema = z.enum(['high', 'medium', 'low']);
 
 export const SeveritySchema = z.enum(['Critical', 'High', 'Medium', 'Low', 'Info']);
 
-export const LikelihoodSchema = z.enum(['High', 'Medium', 'Low']);
-
-export const ImpactSchema = z.enum(['Critical', 'High', 'Medium', 'Low']);
-
-export const SeverityReasoningSchema = z.object({
-  likelihood: LikelihoodSchema,
-  impact: ImpactSchema,
-  justification: z.string(),
-});
-
 export const DerivedFromSchema = z.enum([
   'solc-ast',
   'slither',
@@ -297,7 +287,6 @@ export const FindingSchema = z.object({
   id: z.string(),
   title: z.string(),
   severity: SeveritySchema,
-  severity_reasoning: SeverityReasoningSchema.optional(),
   category: z.string(),
   description: z.string(),
   root_cause: z.object({

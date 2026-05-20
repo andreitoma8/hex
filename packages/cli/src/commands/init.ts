@@ -284,6 +284,56 @@ Each skill builds on previous outputs. Run them in order for best results.
 - \`npx hex context\` — Assemble full codebase context for AI prompts
 - \`npx hex context --target <Contract>\` — Focused context for a single contract
 - \`npx hex dashboard\` — Open browser dashboard at http://localhost:3000
+
+## Writing Style (applies to every skill that produces text)
+
+Anything you write into \`.hex/\` files (findings, overview, invariants, spec conformance) ends up in front of a security team or in a public report. Write like a senior auditor, not like an AI model showing off. The detectable patterns below are off-limits:
+
+### Banned punctuation and words
+
+- **No em dashes (—)** anywhere. Use commas, parentheses, semicolons, or split into separate sentences. This is the single biggest AI tell in audit reports.
+- **No en dashes (–) in prose either.** Hyphens are fine for compounds (\`fee-on-transfer\`).
+- Avoid these words: *delve, moreover, furthermore, seamlessly, cutting-edge, revolutionize, unlock the potential, streamline, in essence, at its core, it is worth noting, indeed, harness, underscore, illuminate, pivotal, groundbreaking, multifaceted, robust (outside technical contexts), holistic, paradigm, synergy, empower, foster, facilitate*.
+- Avoid metaphorical *navigate*, *landscape*, *benchmark* (as a verb).
+- Avoid filler openings: *In today's world*, *When it comes to*, *In this article*, *As previously mentioned*, *It goes without saying*.
+
+### Structure
+
+- Don't force the rule of three. If two points cover it, stop at two.
+- Don't start consecutive paragraphs with the same syntactic pattern.
+- Skip the intro-body-summary shape. Not every paragraph needs a topic sentence and a wrap-up.
+- Don't pad bullet points to make the list look fuller.
+
+### Sentences
+
+- Vary sentence length. Mix short with long.
+- Don't use parallel grammatical construction across three or more consecutive sentences.
+- One present-participle opener per page max (\`Showcasing...\`, \`Leveraging...\`).
+- Don't over-hedge with *it could be said*, *one might argue*, *perhaps it is fair to say*.
+
+### Recommendation tone (specific to findings)
+
+Recommendations are suggestions, not orders. The protocol team owns the fix; you propose direction.
+
+- Start with *Consider...*, *One option is...*, *The team may want to...*, *It would be worth...*.
+- Avoid *Replace X with Y*, *You must...*, *Always do...*, *Never do...*.
+- If you point at a specific pattern (e.g. reentrancy guard, checks-effects-interactions), present it as the common fix rather than the only fix. The team may have constraints you can't see.
+
+### Tone
+
+- Match formality to context, not to a corporate default.
+- Be direct and specific over vaguely positive.
+- Use concrete numbers and details over generic descriptors.
+- Don't restate or summarise what you just said.
+- Don't add trailing summaries unless asked.
+
+### Content
+
+- Prefer specific facts over generic claims.
+- Don't pad with unnecessary comprehensiveness. Say what needs saying, then stop.
+- Avoid rhetorical questions as transitions.
+
+Apply these to every skill output without being reminded.
 `;
         fs.writeFileSync(claudeMdPath, claudeMd, 'utf-8');
         tracker.update('write CLAUDE.md', 'ok', normalizePath(claudeMdPath));

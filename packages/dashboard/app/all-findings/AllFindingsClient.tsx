@@ -188,25 +188,6 @@ function GithubBlock({ item }: { item: MergedFinding }) {
   );
 }
 
-function SeverityReasoningBlock({ finding }: { finding: NonNullable<MergedFinding['finding']> }) {
-  const r = finding.severity_reasoning;
-  if (!r) return null;
-  return (
-    <div className="rounded-md border border-border-subtle bg-surface-2 p-sp-3">
-      <h4 className="mb-2 text-caption font-medium uppercase text-text-tertiary">Severity reasoning</h4>
-      <div className="flex flex-wrap gap-x-sp-4 gap-y-1 mb-2">
-        <span className="text-caption text-text-secondary">
-          <span className="text-text-tertiary">likelihood</span> {r.likelihood}
-        </span>
-        <span className="text-caption text-text-secondary">
-          <span className="text-text-tertiary">impact</span> {r.impact}
-        </span>
-      </div>
-      <p className="text-body text-text-secondary">{r.justification}</p>
-    </div>
-  );
-}
-
 function FindingDetail({ item }: { item: MergedFinding }) {
   const finding = item.finding;
   if (!finding) {
@@ -226,7 +207,6 @@ function FindingDetail({ item }: { item: MergedFinding }) {
     <div className="space-y-sp-4 text-body">
       <MatchSignalsBlock item={item} />
       <GithubBlock item={item} />
-      <SeverityReasoningBlock finding={finding} />
       {finding.description && (
         <div>
           <h4 className="mb-1 text-caption font-medium uppercase text-text-tertiary">Description</h4>

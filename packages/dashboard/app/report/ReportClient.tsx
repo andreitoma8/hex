@@ -3,17 +3,10 @@
 import { useState } from 'react';
 import { SeverityBadge } from '@/components/SeverityBadge';
 
-interface SeverityReasoning {
-  likelihood: 'High' | 'Medium' | 'Low';
-  impact: 'Critical' | 'High' | 'Medium' | 'Low';
-  justification: string;
-}
-
 interface Finding {
   id: string;
   title: string;
   severity: string;
-  severity_reasoning?: SeverityReasoning;
   category?: string;
   description?: string;
   root_cause?: {
@@ -42,11 +35,6 @@ function findingToMarkdown(f: Finding): string {
 
   if (f.description) {
     lines.push(`**Description**: ${f.description}`);
-    lines.push('');
-  }
-
-  if (f.severity_reasoning) {
-    lines.push(`**Severity reasoning**: Likelihood ${f.severity_reasoning.likelihood} · Impact ${f.severity_reasoning.impact}. ${f.severity_reasoning.justification}`);
     lines.push('');
   }
 
@@ -137,22 +125,6 @@ export function ReportClient({ findings }: { findings: Finding[] }) {
           {/* Description */}
           {finding.description && (
             <p className="mb-sp-3 text-body text-text-secondary">{finding.description}</p>
-          )}
-
-          {/* Severity reasoning */}
-          {finding.severity_reasoning && (
-            <div className="mb-sp-3 rounded-md border border-border-subtle bg-surface-1 p-sp-3">
-              <div className="mb-1 flex items-center gap-sp-3 text-caption">
-                <span className="font-medium uppercase text-text-tertiary">Severity reasoning</span>
-                <span className="text-text-secondary">
-                  Likelihood <span className="text-text-primary">{finding.severity_reasoning.likelihood}</span>
-                </span>
-                <span className="text-text-secondary">
-                  Impact <span className="text-text-primary">{finding.severity_reasoning.impact}</span>
-                </span>
-              </div>
-              <p className="text-body text-text-secondary">{finding.severity_reasoning.justification}</p>
-            </div>
           )}
 
           {/* Code locations */}

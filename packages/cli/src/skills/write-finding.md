@@ -67,7 +67,7 @@ Assess severity directly based on impact and exploitability:
 
 ### Likelihood × Impact Matrix
 
-Use this matrix as an equally important tool for determining severity. Cross-reference the direct definitions above with the matrix to ensure consistent severity mapping.
+Use this matrix as a sanity check on the direct definitions above. Cross-reference both before assigning a severity.
 
 | | Low Impact | Medium Impact | High Impact |
 |---|---|---|---|
@@ -85,17 +85,6 @@ Use this matrix as an equally important tool for determining severity. Cross-ref
 - **Medium:** Requires specific but realistic conditions, attacker needs moderate setup or timing, economically viable
 - **Low:** Requires unlikely conditions, complex multi-step attack, unprofitable, or depends on external factors rarely met
 
-### Required: Severity Reasoning Step
-
-Before you assign severity, you MUST work through the matrix in this order. Write each step into the finding's `severity_reasoning` field. Free-text justification is not enough — the schema requires `likelihood`, `impact`, and `justification` as separate values.
-
-1. **Likelihood scenario.** Describe in one or two sentences what an attacker must do to trigger the bug. Then choose one: `High` / `Medium` / `Low`.
-2. **Impact scenario.** Describe in one or two sentences what the worst realistic outcome is if the attack lands. Then choose one: `Critical` / `High` / `Medium` / `Low`.
-3. **Justification.** State explicitly: *"Likelihood × Impact = severity"*. If you deviate from the matrix (e.g., assigning High when the matrix says Medium), say so and explain why (existing protection, off-chain mitigation, etc.).
-4. Only after writing the reasoning should you set `severity`.
-
-Two findings with the same severity should be defensible against each other on this reasoning, not on the title or category alone.
-
 ## Template
 
 Write the finding following this exact structure:
@@ -105,11 +94,6 @@ Write the finding following this exact structure:
   "id": "F<NNN>",
   "title": "<concise, descriptive title>",
   "severity": "Critical|High|Medium|Low|Info",
-  "severity_reasoning": {
-    "likelihood": "High|Medium|Low",
-    "impact": "Critical|High|Medium|Low",
-    "justification": "<one-paragraph explanation that maps the likelihood × impact pair to the assigned severity, calling out any deviation from the matrix>"
-  },
   "category": "<e.g., Math / Rounding, Access Control, Reentrancy, Oracle Manipulation>",
   "description": "<clear, self-contained description covering what the vulnerability is, why it exists, and what the impact would be if exploited>",
   "root_cause": {
@@ -122,7 +106,7 @@ Write the finding following this exact structure:
     "file": "<test file path or null>",
     "validation_memo": "<memo path or null>"
   },
-  "recommendation": "<concrete, implementable fix>",
+  "recommendation": "<a suggested direction phrased as 'Consider...', not a prescriptive fix>",
   "references": {
     "external_links": []
   },
@@ -130,9 +114,16 @@ Write the finding following this exact structure:
 }
 ```
 
-The `severity_reasoning` block is required for every new finding. The dashboard and `/compare-findings` will surface it when comparing across auditors and AI agents.
+### Recommendation tone
 
-**Recommendation must be prose only.** Do not include code snippets, code blocks, or inline code in the `recommendation` field. Describe the fix in plain language. Code examples belong only in `root_cause.locations[].snippet`.
+Phrase recommendations as suggestions, not commands. The auditor proposes direction; the protocol team owns the implementation. Concretely:
+
+- Start with `Consider...`, `One option is...`, `The team may want to...`, `It would be worth...`, or similar hedged language.
+- Avoid `Replace X with Y`, `You must...`, `Always do...`, `Never do...` — these read as orders.
+- If you point at a specific pattern (e.g., reentrancy guard, checks-effects-interactions), present it as the most common fix rather than the only one. The team may have constraints you can't see.
+- Keep the recommendation under three sentences when possible. If a fix needs more discussion, that belongs in the description.
+
+**Recommendation must be prose only.** Do not include code snippets, code blocks, or inline code in the `recommendation` field. Code examples belong only in `root_cause.locations[].snippet`.
 
 ## Code Block Formatting Rules (STRICT)
 

@@ -2,12 +2,6 @@ import { readJsonFile, listSubdirs, readNestedJsonFile } from '@/lib/data';
 import { NotYetGenerated } from '@/components/NotYetGenerated';
 import { AllFindingsClient } from './AllFindingsClient';
 
-interface SeverityReasoning {
-  likelihood: 'High' | 'Medium' | 'Low';
-  impact: 'Critical' | 'High' | 'Medium' | 'Low';
-  justification: string;
-}
-
 export interface GithubComment {
   author: string;
   body: string;
@@ -30,7 +24,6 @@ interface Finding {
   id: string;
   title: string;
   severity: string;
-  severity_reasoning?: SeverityReasoning;
   category?: string;
   description?: string;
   root_cause?: {

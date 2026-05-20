@@ -203,12 +203,11 @@ After a PoC passes:
 
 Claude reads the issue description, the validation memo, the PoC, and the relevant code, then writes a structured finding entry to `.hex/findings.json` with:
 
-- Severity (Critical / High / Medium / Low / Info, directly assessed).
-- A `severity_reasoning` block — `likelihood`, `impact`, and a one-paragraph justification mapped to the Likelihood × Impact matrix — so the dashboard and `/compare-findings` surface *why* a severity was chosen, not just *what* it is.
+- Severity (Critical / High / Medium / Low / Info), assessed against a likelihood × impact matrix the skill documents inline.
 - Description (self-contained: what the issue is, why it exists, what the impact would be).
 - Code locations with relevant snippets.
 - PoC reference.
-- Concrete recommendation.
+- A suggested recommendation phrased as a direction (`Consider...`), not a prescriptive fix. The protocol team owns the implementation; the auditor proposes the shape.
 
 `findings.json` is the canonical source of truth used for deduplication, severity stats, and the dashboard report view.
 
@@ -250,7 +249,7 @@ Hex itself never stores GitHub credentials — `/sync-github` drives the `gh` CL
 One invocation does both directions:
 
 - **Pulls** every issue from the configured repo with the `hex` label, classifies each by a hidden `<!-- hex-finding-id: F<NNN> -->` footer, attaches comments and state to your matching local findings, and writes teammates' issues to `.hex/external/github/findings.json` so they show up in `/all-findings` with `source: github` and the author's GitHub login.
-- **Pushes** every local finding whose tracking status is in `settings.github.publish_status` (default: `verified`) as a new issue, or updates an existing issue if the finding already has a `github.issue_number`. The body is rendered from the finding's description, `severity_reasoning`, code locations, and recommendation; labels are applied for severity, source, and status.
+- **Pushes** every local finding whose tracking status is in `settings.github.publish_status` (default: `verified`) as a new issue, or updates an existing issue if the finding already has a `github.issue_number`. The body is rendered from the finding's description, code locations, and recommendation; labels are applied for severity, source, and status.
 - **Deduplicates** by calling `/compare-findings`, so teammates filing the same bug surface as duplicates with the same `match_signals` you already see for AI tools.
 
 The dashboard's `/all-findings` page shows GitHub issues inline alongside manual and AI-tool findings. Expand a row to see the issue link, state, the last few comments, and (for your local findings) the synced `github.issue_number`. The sidebar gains a second indicator under LiveStatus showing how long ago `/sync-github` last ran.
@@ -312,7 +311,7 @@ View the complete picture on `/all-findings`:
 - PoC status: passing, failing, not started.
 - Duplicate mapping: which AI findings correspond to which of yours, with the `match_signals` expanded.
 - Summary stats: total findings by status.
-- Expandable rows with full finding detail (including `severity_reasoning`).
+- Expandable rows with full finding detail.
 
 ---
 
@@ -329,7 +328,7 @@ Each skill has a recommended model — switch your Claude Code model before invo
 | `identify-invariants` | 1.5 | Opus | Three-pass invariant identification (docs → code → compare) |
 | `check-spec-conformance` | 1.6 | Opus | Verifies code matches docs, NatSpec, interfaces, ERC/EIPs |
 | `generate-poc` | 3.1 | Opus | Validates issue reasoning, then writes and runs PoC test |
-| `write-finding` | 3.2 | Sonnet | Writes structured finding (incl. severity_reasoning) to JSON |
+| `write-finding` | 3.2 | Sonnet | Writes structured finding to JSON, with hedged `Consider...` recommendation tone |
 | `conformance-to-findings` | 3.3 | Sonnet | Batch-converts spec conformance deviations into validated findings |
 | `run-ai-analysis` | 4.1 | Opus | Orchestrates all configured AI audit tools with preflight checks |
 | `compare-findings` | 4.2 | Sonnet | Semantic dedup of your findings vs AI agent findings (with `match_signals`) |
@@ -402,8 +401,8 @@ The dashboard runs locally at `http://localhost:3000` and auto-refreshes when ou
 | Invariants | `/invariants` | Identified invariants and doc/code discrepancies |
 | Spec Conformance | `/conformance` | Code vs spec check results, deviations first, with clickable spec links |
 | AI Reports | `/ai-reports` | Per-tool AI audit results with consensus badges |
-| Report | `/report` | Verified findings with `severity_reasoning` and copy-to-clipboard (HackMD markdown format) |
-| All Findings | `/all-findings` | Merged table of all findings + tracking data with filters; expand a row to see `match_signals` and severity reasoning |
+| Report | `/report` | Verified findings with copy-to-clipboard (HackMD markdown format) |
+| All Findings | `/all-findings` | Merged table of all findings + tracking data with filters; expand a row to see `match_signals` and any GitHub thread |
 
 ---
 
@@ -448,7 +447,7 @@ All Hex outputs live in a single directory inside the project (default: `.hex/`,
 │   ├── diagram.mmd          # System architecture diagram
 │   └── flow-*.mmd           # Flow charts (one per flow)
 ├── progress.json            # Audit progress tracking (contract review state)
-├── findings.json            # Canonical finding data (includes severity_reasoning)
+├── findings.json            # Canonical finding data
 ├── validations/             # Issue validation memos
 │   ├── A001_memo.md
 │   └── A003_memo.md

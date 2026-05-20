@@ -112,27 +112,6 @@ describe('FindingsSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  it('accepts optional severity_reasoning with likelihood × impact mapping', () => {
-    const finding = {
-      id: 'F002',
-      title: 'With reasoning',
-      severity: 'Critical',
-      severity_reasoning: {
-        likelihood: 'High' as const,
-        impact: 'Critical' as const,
-        justification: 'Anyone can trigger; direct loss of all vault funds.',
-      },
-      category: 'Math',
-      description: 'd',
-      root_cause: { locations: [{ file: 'src/A.sol' }] },
-      poc: { status: 'passing' as const, file: 'test/A.t.sol', validation_memo: null },
-      recommendation: 'r',
-      references: { external_links: [] },
-      created_at: '2025-04-01T00:00:00Z',
-    };
-    const result = FindingsSchema.safeParse({ findings: [finding] });
-    expect(result.success).toBe(true);
-  });
 });
 
 describe('ComparisonSchema', () => {

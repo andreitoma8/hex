@@ -199,12 +199,6 @@ Issue body (write to a temp file, then `--body-file`):
 
 <finding.description>
 
-### Severity reasoning
-- **Likelihood:** <finding.severity_reasoning.likelihood>
-- **Impact:** <finding.severity_reasoning.impact>
-
-<finding.severity_reasoning.justification>
-
 ### Affected code
 
 <for each finding.root_cause.locations[]>
@@ -226,9 +220,7 @@ Issue body (write to a temp file, then `--body-file`):
 <!-- hex-finding-id: <finding.id> -->
 ```
 
-The HTML comment footer at the very bottom is **the round-trip identity key**. Never omit it.
-
-Skip the `### Severity reasoning` block if `severity_reasoning` is absent on the finding.
+The HTML comment footer at the very bottom is **the round-trip identity key**. Never omit it. Use the finding's actual ID verbatim (whatever the producer chose: `F001`, `VX-003`, etc.).
 
 **2c. Build the label set.**
 
