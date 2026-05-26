@@ -1,6 +1,6 @@
 {
   "name": "hex-audit",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "type": "module",
   "description": "CLI toolkit for Solidity smart contract auditors",
   "bin": {
@@ -13,6 +13,8 @@
     "build:cli": "tsc && npm run copy-skills",
     "build:dashboard": "next build dashboard",
     "copy-skills": "node -e \"const fs=require('fs');const p=require('path');fs.cpSync(p.join('src','skills'),p.join('dist','skills'),{recursive:true})\"",
+    "clean:next-cache": "node -e \"const fs=require('fs');for (const d of ['dashboard/.next/cache','dashboard/.next/trace','dashboard/.next/types']) fs.rmSync(d,{recursive:true,force:true})\"",
+    "prepack": "npm run build && npm run clean:next-cache",
     "dev:cli": "tsc --watch",
     "dev:dashboard": "next dev dashboard",
     "test": "vitest run",

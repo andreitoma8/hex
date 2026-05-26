@@ -10,11 +10,10 @@ Thumbs.db
 dist/**/*.d.ts.map
 dist/**/*.js.map
 
-# Next.js webpack cache + trace files balloon the tarball — `next start`
-# doesn't need them, only the build output under server/ and static/.
-dashboard/.next/cache/
-dashboard/.next/trace
-dashboard/.next/types/
+# Note: `dashboard/.next/cache/`, `trace`, and `types/` would also belong here,
+# but `package.json`'s `files` whitelist overrides .npmignore for paths it
+# enumerates. We delete those subtrees in the `prepack` script instead so they
+# never make it into the tarball regardless of `files` configuration.
 
 # Other stuff we don't want to ship
 .hex/
