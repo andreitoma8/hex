@@ -45,8 +45,19 @@ const NAV_LINKS = [
     label: 'Stats',
     description: 'Contract metrics, nSLOC, coverage',
     icon: (
-      <svg className="h-5 w-5" aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />
+      <svg
+        className="h-5 w-5"
+        aria-hidden="true"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={1.5}
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"
+        />
       </svg>
     ),
   },
@@ -55,8 +66,19 @@ const NAV_LINKS = [
     label: 'Access Control',
     description: 'Roles, permissions, visibility',
     icon: (
-      <svg className="h-5 w-5" aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+      <svg
+        className="h-5 w-5"
+        aria-hidden="true"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={1.5}
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z"
+        />
       </svg>
     ),
   },
@@ -65,28 +87,40 @@ const NAV_LINKS = [
     label: 'External Calls',
     description: 'Cross-contract calls, trust levels',
     icon: (
-      <svg className="h-5 w-5" aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+      <svg
+        className="h-5 w-5"
+        aria-hidden="true"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={1.5}
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"
+        />
       </svg>
     ),
   },
   {
-    href: '/report',
-    label: 'Report',
-    description: 'Audit findings report',
+    href: '/issues',
+    label: 'Issues',
+    description: 'Potential, verified, invalid, and duplicate issues',
     icon: (
-      <svg className="h-5 w-5" aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
-      </svg>
-    ),
-  },
-  {
-    href: '/invariants',
-    label: 'Invariants',
-    description: 'Protocol invariants and properties',
-    icon: (
-      <svg className="h-5 w-5" aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
+      <svg
+        className="h-5 w-5"
+        aria-hidden="true"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={1.5}
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"
+        />
       </svg>
     ),
   },
@@ -95,8 +129,19 @@ const NAV_LINKS = [
     label: 'Diagram',
     description: 'Contract architecture visualization',
     icon: (
-      <svg className="h-5 w-5" aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 3.75H6A2.25 2.25 0 0 0 3.75 6v1.5M16.5 3.75H18A2.25 2.25 0 0 1 20.25 6v1.5m0 9V18A2.25 2.25 0 0 1 18 20.25h-1.5m-9 0H6A2.25 2.25 0 0 1 3.75 18v-1.5M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+      <svg
+        className="h-5 w-5"
+        aria-hidden="true"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={1.5}
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M7.5 3.75H6A2.25 2.25 0 0 0 3.75 6v1.5M16.5 3.75H18A2.25 2.25 0 0 1 20.25 6v1.5m0 9V18A2.25 2.25 0 0 1 18 20.25h-1.5m-9 0H6A2.25 2.25 0 0 1 3.75 18v-1.5M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
+        />
       </svg>
     ),
   },
@@ -130,8 +175,13 @@ export default function HomePage() {
             <span className="rounded-md bg-surface-2 px-2.5 py-1 text-caption text-text-tertiary">
               {config.project.commit.slice(0, 8)}
             </span>
-            <span className="text-caption text-text-tertiary">Solidity {config.project.solidity_version}</span>
-            <span className="text-caption text-text-tertiary">{config.project.scope.length} file{config.project.scope.length !== 1 ? 's' : ''} in scope</span>
+            <span className="text-caption text-text-tertiary">
+              Solidity {config.project.solidity_version}
+            </span>
+            <span className="text-caption text-text-tertiary">
+              {config.project.scope.length} file{config.project.scope.length !== 1 ? 's' : ''} in
+              scope
+            </span>
           </div>
         )}
       </div>
@@ -142,7 +192,7 @@ export default function HomePage() {
         <KpiCard label="nSLOC" value={stats?.totals.nsloc?.toLocaleString()} href="/stats" />
         <KpiCard label="Functions" value={totalExternalFunctions} href="/functions" />
         <KpiCard label="Ext Calls" value={totalExternalCalls} href="/calls" />
-        <KpiCard label="Findings" value={totalFindings} href="/all-findings" />
+        <KpiCard label="Issues" value={totalFindings} href="/issues" />
       </div>
 
       {/* Overview */}
@@ -166,16 +216,12 @@ export default function HomePage() {
             href={item.href}
             className="group flex items-start gap-3 rounded-lg border border-border-subtle bg-surface-1 p-4 hover:border-border-default hover:bg-surface-2"
           >
-            <div className="shrink-0 text-text-tertiary group-hover:text-accent">
-              {item.icon}
-            </div>
+            <div className="shrink-0 text-text-tertiary group-hover:text-accent">{item.icon}</div>
             <div>
               <h3 className="text-heading font-medium text-text-primary group-hover:text-accent">
                 {item.label}
               </h3>
-              <p className="mt-0.5 text-caption text-text-secondary">
-                {item.description}
-              </p>
+              <p className="mt-0.5 text-caption text-text-secondary">{item.description}</p>
             </div>
           </Link>
         ))}
@@ -195,8 +241,12 @@ function KpiCard({
 }) {
   const isMuted = value == null;
   const inner = (
-    <div className={`rounded-lg border border-border-subtle bg-surface-1 p-4 ${href ? 'hover:border-border-default hover:bg-surface-2 cursor-pointer' : ''}`}>
-      <div className={`text-display scale-in ${isMuted ? 'text-text-tertiary' : 'text-text-primary'}`}>
+    <div
+      className={`rounded-lg border border-border-subtle bg-surface-1 p-4 ${href ? 'hover:border-border-default hover:bg-surface-2 cursor-pointer' : ''}`}
+    >
+      <div
+        className={`text-display scale-in ${isMuted ? 'text-text-tertiary' : 'text-text-primary'}`}
+      >
         {value ?? '--'}
       </div>
       <div className="mt-1 text-caption text-text-secondary">{label}</div>

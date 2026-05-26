@@ -24,6 +24,8 @@ import {
   ExternalCallSchema,
   FindingSchema,
   TrackingEntrySchema,
+  TrackingSourceSchema,
+  ResolutionSchema,
   SpecItemSchema,
 } from '../core/schema.js';
 
@@ -52,4 +54,6 @@ export type StateVariable = z.infer<typeof StateVariableSchema>;
 export type ExternalCall = z.infer<typeof ExternalCallSchema>;
 export type Finding = z.infer<typeof FindingSchema>;
 export type TrackingEntry = z.infer<typeof TrackingEntrySchema>;
+export type TrackingSource = z.infer<typeof TrackingSourceSchema>;
+export type Resolution = z.infer<typeof ResolutionSchema>;
 export type SpecItem = z.infer<typeof SpecItemSchema>;

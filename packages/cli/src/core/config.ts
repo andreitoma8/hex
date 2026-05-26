@@ -4,7 +4,6 @@ import { z } from 'zod';
 import { ConfigSchema } from './schema.js';
 import { normalizePath, getOutputDir } from './paths.js';
 import { readJsonFile, writeJsonOutput } from './output.js';
-import { DEFAULT_AI_TOOLS } from './ai-tools.js';
 
 export type Config = z.infer<typeof ConfigSchema>;
 
@@ -16,9 +15,7 @@ export function loadConfig(projectDir?: string): Config {
   const dir = projectDir ?? process.cwd();
   const configPath = findConfigFile(dir);
   if (!configPath) {
-    throw new Error(
-      `No config.json found. Run 'hex init' first.\nSearched in: ${dir}`,
-    );
+    throw new Error(`No config.json found. Run 'hex init' first.\nSearched in: ${dir}`);
   }
 
   const raw = readJsonFile<unknown>(configPath);
@@ -89,7 +86,6 @@ export function createConfig(options: CreateConfigOptions): Config {
       output_dir: options.outputDir ?? '.hex',
       ai_model: 'claude-sonnet-4-20250514',
       finding_template: 'default',
-      ai_tools: DEFAULT_AI_TOOLS,
     },
   };
 

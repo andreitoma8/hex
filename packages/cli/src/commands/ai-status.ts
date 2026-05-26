@@ -38,7 +38,10 @@ interface PollOutcome {
   error?: string;
 }
 
-function runAa(args: string[], cwd: string): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+function runAa(
+  args: string[],
+  cwd: string,
+): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   return new Promise((resolve) => {
     const child = spawn('aa', args, { cwd, shell: true, env: process.env });
     const stdout: Buffer[] = [];
@@ -78,11 +81,15 @@ async function checkAuditagent(toolStatus: AiToolStatus, projectDir: string): Pr
   return { status: 'completed' };
 }
 
-const CHECKERS: Record<string, (status: AiToolStatus, projectDir: string) => Promise<PollOutcome>> = {
-  auditagent: checkAuditagent,
-};
+const CHECKERS: Record<string, (status: AiToolStatus, projectDir: string) => Promise<PollOutcome>> =
+  {
+    auditagent: checkAuditagent,
+  };
 
-async function tick(projectDir: string, outputDir: string): Promise<{ changed: boolean; pending: number; completed: number }> {
+async function tick(
+  projectDir: string,
+  outputDir: string,
+): Promise<{ changed: boolean; pending: number; completed: number }> {
   const status = loadStatus(outputDir);
   let changed = false;
   let pending = 0;
@@ -105,7 +112,9 @@ async function tick(projectDir: string, outputDir: string): Promise<{ changed: b
       changed = true;
       if (outcome.status === 'completed') {
         completed++;
-        logger.success(`${name}: scan ${toolStatus.scan_id ?? ''} complete — run /run-ai-analysis to ingest findings`);
+        logger.success(
+          `${name}: scan ${toolStatus.scan_id ?? ''} complete — run /ingest-aa-report to ingest findings`,
+        );
       } else if (outcome.status === 'failed') {
         logger.error(`${name}: scan failed${outcome.error ? ` — ${outcome.error}` : ''}`);
       }
@@ -149,7 +158,9 @@ function printSummary(status: AiStatus): void {
 }
 
 export const aiStatusCommand = new Command('ai-status')
-  .description('Check status of async AI tool scans (e.g. auditagent). Use --watch to poll until all complete.')
+  .description(
+    'Check status of async AI tool scans (e.g. auditagent). Use --watch to poll until all complete.',
+  )
   .option('--project <dir>', 'Project directory')
   .option('--watch', 'Poll every 5 minutes until no scans remain pending')
   .option('--interval <ms>', 'Override poll interval in milliseconds')
@@ -175,7 +186,9 @@ export const aiStatusCommand = new Command('ai-status')
       printSummary(loadStatus(outputDir));
 
       if (watch && result.pending > 0) {
-        logger.info(`Watching for ${result.pending} pending scan(s) every ${Math.round(intervalMs / 1000)}s. Ctrl-C to stop.`);
+        logger.info(
+          `Watching for ${result.pending} pending scan(s) every ${Math.round(intervalMs / 1000)}s. Ctrl-C to stop.`,
+        );
         while (result.pending > 0) {
           await new Promise((resolve) => setTimeout(resolve, intervalMs));
           result = await tick(projectDir, outputDir);

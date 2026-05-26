@@ -29,6 +29,7 @@ export const updateSkillsCommand = new Command('update-skills')
       if (result.updated > 0) parts.push(`Updated: ${result.updated} skills`);
       if (result.added > 0) parts.push(`Added: ${result.added} new skills`);
       if (result.skipped > 0) parts.push(`Skipped: ${result.skipped} (--keep-custom)`);
+      if (result.removed > 0) parts.push(`Removed: ${result.removed} orphaned skills`);
 
       logger.success(parts.join(', ') || 'No skill files to process');
     } catch (err) {

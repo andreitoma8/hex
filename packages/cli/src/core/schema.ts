@@ -41,14 +41,31 @@ export const ConfigSchema = z.object({
     output_dir: z.string().default('.hex'),
     ai_model: z.string().default('claude-sonnet-4-20250514'),
     finding_template: z.string().default('default'),
-    ai_tools: z.array(z.lazy(() => AiToolSchema)).optional(),
-    github: z.object({
-      repo: z.string(),
-      default_labels: z.array(z.string()).default(['hex', 'audit']),
-      severity_label_prefix: z.string().default('severity:'),
-      publish_status: z.array(z.enum(['verified', 'pending_validation']))
-        .default(['verified']),
-    }).optional(),
+    ai: z
+      .object({
+        auditagent_scan_id: z.string().optional(),
+      })
+      .optional(),
+    github: z
+      .object({
+        repo: z.string(),
+        default_labels: z.array(z.string()).default(['hex', 'audit']),
+        severity_label_prefix: z.string().default('severity:'),
+        publish_status: z.array(z.enum(['verified', 'pending_validation'])).default(['verified']),
+      })
+      .optional(),
+    report: z
+      .object({
+        repository_url: z.string().optional(),
+        initial_commit: z.string().optional(),
+        final_commit: z.string().optional(),
+        initial_report_date: z.string().optional(),
+        final_report_date: z.string().optional(),
+        audit_type: z.string().default('Security Review'),
+        doc_assessment: z.enum(['High', 'Medium', 'Low']).optional(),
+        test_assessment: z.enum(['High', 'Medium', 'Low']).optional(),
+      })
+      .optional(),
   }),
 });
 
@@ -161,12 +178,7 @@ export const RoleFunctionRefSchema = z.object({
   function: z.string(),
 });
 
-export const RoleKindSchema = z.enum([
-  'access_control',
-  'state_check',
-  'guard',
-  'unknown',
-]);
+export const RoleKindSchema = z.enum(['access_control', 'state_check', 'guard', 'unknown']);
 
 export const RoleSchema = z.object({
   role: z.string(),
@@ -283,6 +295,14 @@ export const GithubLinkSchema = z.object({
   comments: z.array(GithubCommentSchema).default([]),
 });
 
+export const ResolutionSchema = z.enum([
+  'Fixed',
+  'Mitigated',
+  'Acknowledged',
+  'Not Fixed',
+  'Unresolved',
+]);
+
 export const FindingSchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -303,6 +323,8 @@ export const FindingSchema = z.object({
   }),
   created_at: z.string(),
   github: GithubLinkSchema.optional(),
+  update_from_client: z.string().optional(),
+  resolution: ResolutionSchema.optional(),
 });
 
 export const FindingsSchema = z.object({
@@ -311,15 +333,18 @@ export const FindingsSchema = z.object({
 
 // ─── Tracking ───────────────────────────────────────────────────────
 
+export const TrackingSourceSchema = z.enum(['manual', 'auditagent', 'conformance', 'github']);
+
 export const TrackingEntrySchema = z.object({
   id: z.string(),
   title: z.string(),
   severity: SeveritySchema,
-  source: z.string(),
+  source: TrackingSourceSchema,
   status: z.enum(['verified', 'pending_validation', 'rejected', 'duplicate', 'unverified']),
   poc_status: z.enum(['passing', 'failing', 'not_started']),
   poc_file: z.string().nullable(),
   duplicates: z.array(z.string()),
+  duplicate_of: z.string().nullable().optional(),
   notes: z.string(),
 });
 
@@ -400,29 +425,6 @@ export const SpecConformanceSchema = z.object({
   items: z.array(SpecItemSchema),
 });
 
-// ─── AI Tool Configuration ─────────────────────────────────────────
-
-export const AiToolDependencySchema = z.object({
-  binary: z.string(),
-  install_cmd: z.string(),
-  required: z.boolean().default(false),
-});
-
-export const AiToolSchema = z.object({
-  name: z.string(),
-  type: z.enum(['skill', 'cli']),
-  invocation: z.string(),
-  install_url: z.string().optional(),
-  install_type: z.enum(['skill-file', 'mcp-server', 'manual']).optional(),
-  skill_path: z.string().optional(),
-  output_format: z.enum(['markdown', 'json', 'stdout']),
-  enabled: z.boolean().default(true),
-  requires_env: z.array(z.string()).optional(),
-  dependencies: z.array(AiToolDependencySchema).optional(),
-  long_running: z.boolean().default(false),
-  description: z.string().optional(),
-});
-
 // ─── AI Result Findings ────────────────────────────────────────────
 
 export const AiResultFindingSchema = z.object({
@@ -431,10 +433,12 @@ export const AiResultFindingSchema = z.object({
   title: z.string(),
   severity: SeveritySchema,
   description: z.string(),
-  affected_code: z.array(z.object({
-    file: z.string(),
-    snippet: z.string().optional(),
-  })),
+  affected_code: z.array(
+    z.object({
+      file: z.string(),
+      snippet: z.string().optional(),
+    }),
+  ),
   confidence: ConfidenceSchema.optional(),
   category: z.string().optional(),
   raw_category: z.string().optional(),

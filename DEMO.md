@@ -1,16 +1,18 @@
 # Hex Demo Guide
 
-Step-by-step demo of all Hex functionality using Claude Code.
+Step-by-step demo of Hex's audit workflow using Claude Code.
 
 ## Setup
 
 1. Pick any Foundry project with Solidity contracts. If you don't have one handy:
+
    ```bash
    git clone https://github.com/transmissions11/solmate.git
    cd solmate
    ```
 
 2. Install skills (works before init — no config required):
+
    ```bash
    hex claude
    ```
@@ -20,134 +22,126 @@ Step-by-step demo of all Hex functionality using Claude Code.
    claude
    ```
 
-## Demo Flow (all inside Claude Code)
+## Demo flow (all inside Claude Code)
 
-### Phase 1 — Initialize & Analyze
+### Phase 1 — One-shot pre-review (`/init-audit`)
+
+Switch your Claude Code model to **Opus** for this one — it does all of the reasoning-heavy pre-review work in a single skill.
 
 ```
 /init-audit
 ```
 
-It will ask you for scope, commit, chain, etc. For solmate something like `--scope "src/**/*.sol"` works. This runs init + a single `hex analyze` command that executes seven analysis commands (stats, deps, access, state, calls, patterns, constraints) **in parallel**, then runs surface after all complete. Slither and forge flatten results are cached across commands to avoid redundant work.
+It asks for scope, commit, chain, and docs URL. For solmate something like `--scope "src/**/*.sol"` works. Then the skill runs end-to-end:
 
-`hex analyze` and `hex init` now render a live per-step progress grid in the terminal, so you can see which subcommand is hanging (Slither vs forge flatten vs solc) instead of staring at a single rotating spinner.
+1. **Dependency safety audit** — checks `package.json` install hooks, Foundry `lib/` submodules, `foundry.toml` (FFI, fs_permissions, remappings), plaintext secrets in `.env*`, suspicious VS Code extensions. Stops before compilation if anything looks risky.
+2. **`hex init` + `hex analyze`** — runs the seven deterministic analyses (stats, deps, access, state, calls, patterns, constraints) in parallel, plus surface last. Slither and forge flatten results are cached across commands.
+3. **Protocol overview** — writes a 2-3 paragraph `overview.md` (key contracts table, external deps, architecture notes).
+4. **System diagram** — `.hex/diagrams/diagram.mmd` Mermaid architecture with trust zones and semantic symbols. Split into multiple files if >15 nodes.
+5. **Flow charts** — `.hex/diagrams/flow-*.mmd` per archetype (deposit/withdraw, governance, liquidation, etc.) with distinct shapes per node role and explicit success+revert branches on every decision.
+6. **Spec conformance** — cross-references docs, NatSpec, interfaces, and ERC/EIPs (fetches canonical specs from `eips.ethereum.org`). Writes `spec-conformance.json`.
+7. **Materialize conformance items to the board** — every DEVIATES/PARTIAL spec item becomes a Potential card in `tracking.json` (source `conformance`).
 
-If anything fails, `hex doctor` prints a labelled preflight table (node, forge, slither, solc, Claude Code, output dir, `.hex/config.json`) with one-line install hints. Run it whenever the analysis pipeline complains about a missing tool.
+If anything fails, `hex doctor` prints a labelled preflight table (node, forge, slither, solc, Claude Code, output dir, `.hex/config.json`) with one-line install hints.
 
-### Open the Dashboard
+### Open the dashboard
 
-Once init and analysis complete, open a separate terminal and start the dashboard:
+In a separate terminal:
+
 ```bash
 hex dashboard
 ```
-Opens `http://localhost:3000` with live visualization of all outputs. Keep it open — every page fills in automatically as you progress through the audit.
+
+Opens `http://localhost:3000` with live refresh on every `.hex/` change. Keep it open as you work.
 
 Key pages:
-- `/progress` — Weighted progress bar, contract review checklist with nSLOC weighting, audit step indicators, findings KPI
-- `/stats` — Segmented control: Summary (KPI cards + ERC badges), Per-Contract, Coverage, Dependencies
-- `/access` — Segmented control: All / State-Changing / Read-Only / Unprotected, with role cards below
-- `/calls` — External call surface with filter pills for Trust and Call Type
-- `/functions` — Aggregated function view with filter pills and compact 36px rows
-- `/diagram` + `/flows` — Full-bleed canvas with auto-fit zoom, floating controls, loading spinner, and legend overlay
-- `/invariants` — Tabbed layout (From Docs | From Code | Discrepancies | Assumptions) with segmented control
-- `/conformance` — Status filter pills for quick filtering (DEVIATES, PARTIAL, etc.)
-- `/ai-reports` — Per-tool AI audit results with tabs, severity summary, expandable findings, consensus badges, and run status indicators
-- `/report` — Card-per-finding layout with severity accent borders, horizontal severity bar chart, and copy-to-clipboard button (HackMD markdown format)
-- `/all-findings` — Merged table with filter pills (severity, status, including unverified) and expandable details
 
-The dashboard has a fixed sidebar with always-visible theme toggle (Light / Dark / System). Apple-inspired design with consistent spacing, typography scale, and semantic color system. Code reference modals support Escape key to close.
+- `/progress` — Weighted progress bar (70% nSLOC reviewed, 20% audit steps, 10% findings triage), contract review checklist.
+- `/stats` — KPI cards, ERC badges, per-contract metrics, coverage, dependencies.
+- `/access` — Role → function matrix with "Show unprotected only" and "Show inferred / unknown modifiers" toggles.
+- `/state` — State variable inventory with reader/writer tracking and storage-collision warnings.
+- `/calls` — External call surface with filterable Trust column.
+- `/functions` — Aggregated function view.
+- `/diagram` and `/flows` — Full-bleed Mermaid canvas with auto-fit zoom and legend overlay.
+- `/conformance` — Conformance check results, deviations first, clickable spec links.
+- `/issues` — **The board.** Four columns: Potential / Verified / Invalid / Duplicate. Cards with severity, source badge, GitHub sync chip, duplicate signals. Drag a card to change column. Click to open a modal that edits severity, description, recommendation, resolution, and client update.
 
-### Phase 2 — Understand the Protocol
+### Phase 2 — Manual review + `/write-finding`
 
-```
-/generate-overview
-```
-Writes a protocol overview to `.hex/overview.md`.
+Read the code in your editor. Leave `// @audit-issue ...` comments above anything suspicious.
+
+When you have something concrete, point Claude at it:
 
 ```
-/generate-diagram
-```
-Generates a color-coded Mermaid architecture diagram with semantic symbols, zone groupings, interaction-typed edge labels (delegatecall, external call, access-controlled), overview header, and a visual legend. Max ~15 nodes per diagram — large protocols are split automatically.
-
-```
-/generate-flows
-```
-Generates Mermaid flow charts with distinct node shapes (stadium for start/end, cylinder for state changes, rhombus for decisions), swim-lane subgraphs, and plain-English labels. Every decision shows both success and revert paths. Only covers in-scope contracts. Includes overview header and visual legend. Max ~15 nodes per flow.
-
-```
-/identify-invariants
-```
-Three-pass analysis: docs, code, comparison. Outputs to `.hex/invariants.md`.
-
-```
-/check-spec-conformance
-```
-Cross-references code against docs, NatSpec, interfaces, and ERCs.
-
-### Phase 3 — Findings
-
-Point Claude at a potential issue in the code:
-```
-/generate-poc for the possible rounding error in share calculation in <file>
-```
-Validates the issue and writes a runnable test.
-
-```
-/write-finding for the rounding error issue
-```
-Writes a structured finding with severity, description, and recommendation.
-
-After running `/check-spec-conformance`, you can batch-convert deviations:
-```
-/conformance-to-findings
-```
-Processes all DEVIATES and PARTIAL conformance items, validates each, and writes findings or rejection memos.
-
-### Phase 3.5 — Team mode (optional)
-
-If your firm runs two or three auditors on the same engagement, sync findings through a shared GitHub repo. Set `settings.github.repo` in `.hex/config.json` (e.g. `nethermind/audit-vaultx`), run `gh auth login` once on your machine, then:
-
-```
-/sync-github
+/write-finding for the rounding error in src/Vault.sol
 ```
 
-One run pushes your verified findings as GitHub Issues and pulls teammates' issues back into `.hex/external/github/`. The `/all-findings` dashboard page shows them as another source alongside `manual` and the AI tools. `/compare-findings` is invoked automatically so duplicates against teammates surface the same way they do for AI tools — with `match_signals` you can review.
+`/write-finding` records the finding to `findings.json` and adds a tracking entry with status `pending_validation` and source `manual` — it shows up on the **Potential** column of the board. (No more "born verified" findings — every issue is validated explicitly.)
 
-Hex itself never stores GitHub credentials; the skill drives the `gh` CLI directly. Comments stay on GitHub — Hex pulls them for display in the dashboard expand row but never posts.
+### Phase 3 — Validate, ingest AI, sync GitHub
 
-### Phase 4 — AI Cross-check
+#### `/validate-issue` for any potential issue
 
-Run all configured AI audit tools with a single command:
+`/validate-issue` is source-agnostic. Pass an id (`F003`, `SC-007`, `AA-N002`, `github-42`) or a free-text reference:
+
 ```
-/run-ai-analysis
-```
-Starts with a checkbox-style tool selection prompt — pick which AI tools to run (solidity-auditor, sc-auditor, plamen, auditagent). Then runs preflight checks with type-aware auto-install: skill-file tools (solidity-auditor) clone and copy SKILL.md, MCP server tools (sc-auditor) clone/build/register in `.mcp.json`, plamen and auditagent offer auto-install if not found. auditagent is a cloud-based async scanner (Nethermind) that triggers a scan taking 30-60 minutes; on first run it starts the scan and saves the scan ID, on subsequent runs it checks status and collects findings when complete. The dashboard shows a "Scan pending" badge for auditagent while the cloud scan is in progress. All local tools run **sequentially in the orchestrator context** with type-aware instructions: skill-file tools follow their SKILL.md methodology phase by phase, MCP-server tools discover and call their MCP tools on every in-scope file. The dashboard shows live "running" status with a pulsing indicator while tools execute, and progressive results appear as each tool finishes. After all tools complete, the orchestrator normalizes findings into `.hex/ai-results/<tool>/findings.json` and batch-writes them to tracking as `unverified`. Then `/compare-findings` runs automatically to deduplicate and assess novelty.
-
-To re-run deduplication manually after changes:
-```
-/compare-findings
+/validate-issue F003
+/validate-issue for the rounding issue
 ```
 
-Duplicates now carry `match_signals` (which of contract / function / root cause / attack vector agreed) and a short `reasoning` string. The `/all-findings` page renders both in the expanded row so you can spot-check or override a merge without re-running compare.
+Claude traces the attack path in the code, writes a validation memo (always), and asks per-issue whether you want a PoC or memo-only. On valid → tracking entry promotes to `verified` and the card moves to Verified on the board. On invalid → tracking entry becomes `rejected` and the card moves to Invalid.
 
-If you started an `auditagent` scan, you don't have to remember to re-run `/run-ai-analysis` 30–60 minutes later. From a second terminal:
+#### `/ingest-aa-report` — Nethermind AuditAgent only
 
-```bash
-hex ai-status --watch
+Hex only integrates with **AuditAgent** (Nethermind's cloud scanner). You start a scan separately (Nethermind portal or `aa scan ...`) and paste the scan ID into Hex:
+
+```
+/ingest-aa-report <scan-id>
 ```
 
-It polls every 5 minutes and prints a green log line when the scan finishes (or red when it fails). The dashboard's sidebar footer also shows a live "Updated Ns ago" indicator so you can tell at a glance whether the watcher SSE is still connected.
+The skill checks status via `aa scan --status`. If the scan is still running it prints a status line and exits — you come back later. Run `hex ai-status --watch` in another terminal to be notified when the scan finishes.
 
-For any novel finding it surfaces, validate interactively (asks whether you want a PoC or rational verification, and offers severity adjustment after writing):
+When complete, the skill fetches findings, materializes them as Potential cards (`source: "auditagent"`), and runs **inline dedup** against existing entries. Auditagent findings that match a manual or conformance issue are flipped to `duplicate` and surface in the Duplicate column with `match_signals` (contract / function / root_cause / attack_vector).
+
+#### `/sync-issues` — team mode via GitHub Issues
+
+If `settings.github.repo` is configured in `.hex/config.json` (e.g. `nethermind/audit-vaultx`) and `gh auth login` has been run:
+
 ```
-/validate-ai-finding for <finding-id>
+/sync-issues
 ```
 
-## Key Points
+One run does both directions:
 
-- `/init-audit` works as the very first thing in Claude Code (no chicken-and-egg problem)
-- Open the dashboard right after init — it updates live as you progress
-- Every skill builds on all previous analysis outputs — later skills have richer context
-- Skills are native slash commands, no need to "read the skill file and follow it"
-- `/run-ai-analysis` runs each AI tool in its own subagent to keep context clean
-- `hex update-skills` updates skills after a package upgrade (overwrites by default, use `--keep-custom` to preserve modifications)
+- **Pulls** every issue with the `hex` label. Issues with the round-trip footer `<!-- hex-finding-id: F<NNN> -->` link back to local findings; issues without the footer are teammate findings, materialized as new tracking entries (`source: "github"`).
+- **Inline dedup, GitHub-canonical.** If a pulled GitHub issue matches a local potential, **the local entry becomes the duplicate** (`status: "duplicate"`, `duplicate_of: "github-<num>"`). Reason: a teammate has already filed it — your in-progress card is redundant.
+- **Pushes** local findings whose tracking status is in `settings.github.publish_status` (default `["verified"]`). Updates existing issues by `github.issue_number`, never creates labels.
+
+GitHub-sync state shows as a chip on each card on the board.
+
+### Phase 4 — Final deliverable (`/generate-overleaf`)
+
+```
+/generate-overleaf
+```
+
+Writes four `.txt` LaTeX section files to `.hex/overleaf/`:
+
+1. `executive_summary.txt` — `\section{Executive Summary}` with project synopsis, severity histogram, status histogram, summary table.
+2. `audited_files.txt` — `\section{Audited Files}` table of in-scope files (LoC, comments, ratio, blank, total).
+3. `summary_of_findings.txt` — `\section{Summary of Issues}` table linking to per-finding subsections.
+4. `findings.txt` — `\section{Issues}` with one `\subsection{[Sev] title}\label{issue:N}` per verified finding (description, code blocks via minted, recommendation, status, client update).
+
+The skill prompts once for any missing report metadata (initial/final commit, dates, doc/test assessment) and persists them under `settings.report.*` so reruns don't re-prompt. Upload the four files into your Nethermind Overleaf template's matching slots.
+
+Only `verified` findings make the cut. Duplicates, rejected, and pending entries are skipped.
+
+## Key points
+
+- `/init-audit` is now a single skill that runs everything pre-manual-review.
+- The board (`/issues`) is the only findings page. Cards are interactive: drag to change column, click to edit.
+- `/write-finding` records Potential issues — promote them via `/validate-issue` or by dragging on the board.
+- `/ingest-aa-report` takes a scan ID, never starts a scan.
+- `/sync-issues` treats GitHub as the source of truth — your local entry is the duplicate on a match.
+- `/generate-overleaf` is the final handoff to the LaTeX report.
+- `hex update-skills` re-syncs skills after a package upgrade and cleans up orphans from older versions.

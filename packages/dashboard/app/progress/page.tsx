@@ -43,7 +43,6 @@ const AUDIT_STEPS: { label: string; file: string }[] = [
   { label: 'External Calls', file: 'external-calls.json' },
   { label: 'Overview', file: 'overview.md' },
   { label: 'Diagram', file: 'diagrams/diagram.mmd' },
-  { label: 'Invariants', file: 'invariants.md' },
   { label: 'Spec Conformance', file: 'spec-conformance.json' },
   { label: 'Findings', file: 'findings.json' },
 ];
@@ -64,7 +63,9 @@ export default function ProgressPage() {
 
   const progress = readJsonFile<ProgressData>('progress.json');
   const findingsData = readJsonFile<{ findings: Finding[] }>('findings.json');
-  const trackingRaw = readJsonFile<{ findings?: TrackingEntry[]; issues?: TrackingEntry[] }>('tracking.json');
+  const trackingRaw = readJsonFile<{ findings?: TrackingEntry[]; issues?: TrackingEntry[] }>(
+    'tracking.json',
+  );
 
   // Derive audit step completion
   const auditSteps: ProgressClientProps['auditSteps'] = AUDIT_STEPS.map((step) => ({
@@ -84,13 +85,18 @@ export default function ProgressPage() {
   const trackingEntries = trackingRaw?.issues ?? trackingRaw?.findings ?? [];
   for (const t of trackingEntries) {
     const dedupeId = t.finding_id ?? t.id;
-    if (t.status !== 'rejected' && !allFindingIds.has(dedupeId) && !allFindingIds.has(t.id)) {
+    if (
+      t.status !== 'rejected' &&
+      t.status !== 'duplicate' &&
+      !allFindingIds.has(dedupeId) &&
+      !allFindingIds.has(t.id)
+    ) {
       allFindingIds.add(dedupeId);
       if (t.severity) {
         findingsBySeverity[t.severity] = (findingsBySeverity[t.severity] ?? 0) + 1;
       }
     }
-    if (t.status === 'verified' || t.status === 'confirmed' || t.status === 'mitigated') {
+    if (t.status === 'verified') {
       trackedFindingIds.add(dedupeId);
     }
   }

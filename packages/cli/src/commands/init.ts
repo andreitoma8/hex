@@ -8,7 +8,6 @@ import { normalizePath, getOutputDir } from '../core/paths.js';
 import { runForge, detectTools } from '../core/external-tools.js';
 import { parseSolidity, extractSolidityVersion } from '../parsers/solidity-parser.js';
 import { copySkillsToClaudeFormat, getClaudeSkillsDir } from '../core/skills.js';
-import { DEFAULT_AI_TOOLS } from '../core/ai-tools.js';
 import { ProgressTracker } from '../core/progress.js';
 import { HexError, reportError } from '../core/errors.js';
 
@@ -66,10 +65,14 @@ export const initCommand = new Command('init')
       const allMissing = tools.every((t) => !t.available);
       tracker.update('check tools', allMissing ? 'failed' : 'ok', toolDetails.join(', '));
       if (!tools.find((t) => t.name === 'forge')?.available) {
-        logger.warn('forge not found — compilation verification and test coverage will be unavailable');
+        logger.warn(
+          'forge not found — compilation verification and test coverage will be unavailable',
+        );
       }
       if (!tools.find((t) => t.name === 'slither')?.available) {
-        logger.warn('slither not found — access control, state variable, and external call analysis will be limited');
+        logger.warn(
+          'slither not found — access control, state variable, and external call analysis will be limited',
+        );
       }
       if (!tools.find((t) => t.name === 'solc')?.available) {
         logger.warn('solc not found — storage layout extraction will be unavailable');
@@ -116,13 +119,8 @@ export const initCommand = new Command('init')
       let versionSource = 'default';
 
       if (isFoundry) {
-        const foundryToml = fs.readFileSync(
-          path.join(projectDir, 'foundry.toml'),
-          'utf-8',
-        );
-        const versionMatch = foundryToml.match(
-          /solc[_-]version\s*=\s*["']?([\d.]+)/,
-        );
+        const foundryToml = fs.readFileSync(path.join(projectDir, 'foundry.toml'), 'utf-8');
+        const versionMatch = foundryToml.match(/solc[_-]version\s*=\s*["']?([\d.]+)/);
         if (versionMatch) {
           solidityVersion = versionMatch[1];
           versionSource = 'foundry.toml';
@@ -131,10 +129,7 @@ export const initCommand = new Command('init')
 
       if (versionSource === 'default') {
         for (const file of uniqueScope.slice(0, 5)) {
-          const source = fs.readFileSync(
-            path.join(projectDir, file),
-            'utf-8',
-          );
+          const source = fs.readFileSync(path.join(projectDir, file), 'utf-8');
           const result = parseSolidity(source, file);
           const version = extractSolidityVersion(result.pragmas);
           if (version) {
@@ -195,12 +190,10 @@ export const initCommand = new Command('init')
         }
       }
 
-      // Create per-tool ai-results subdirectories
-      for (const tool of DEFAULT_AI_TOOLS) {
-        const toolDir = path.join(outputDir, 'ai-results', tool.name);
-        if (!fs.existsSync(toolDir)) {
-          fs.mkdirSync(toolDir, { recursive: true });
-        }
+      // Create ai-results subdirectory for auditagent (the only supported AI tool)
+      const auditagentDir = path.join(outputDir, 'ai-results', 'auditagent');
+      if (!fs.existsSync(auditagentDir)) {
+        fs.mkdirSync(auditagentDir, { recursive: true });
       }
 
       // Optionally verify compilation
@@ -214,7 +207,11 @@ export const initCommand = new Command('init')
           logger.dim(result.stderr.slice(0, 500));
         }
       } else {
-        tracker.update('verify build', 'skipped', isFoundry ? '--no-verify' : 'not a Foundry project');
+        tracker.update(
+          'verify build',
+          'skipped',
+          isFoundry ? '--no-verify' : 'not a Foundry project',
+        );
       }
 
       // Create CLAUDE.md for Claude Code skill discovery

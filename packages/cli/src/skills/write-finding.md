@@ -1,73 +1,41 @@
 ---
-description: "Write a structured finding with severity, description, and recommendation"
+description: "Write a manual issue as a Potential card on the board (pending validation)"
 ---
 
 # Skill: Write Finding
 
 **Recommended model:** Sonnet
 
+This skill records a manual issue that the auditor has spotted during review. The issue lands on the dashboard's Issues board as a **Potential** card with `status: "pending_validation"` and `source: "manual"`. The auditor promotes it to Verified later (via drag-drop on the board, or by running `/validate-issue <id>` which produces a validation memo and optional PoC).
+
 ## Context Assembly
 
 Read:
-- The issue description provided by the auditor
-- The validation memo from `<output_dir>/validations/` (if exists)
-- The PoC file (if exists)
-- The relevant source code
-- `<output_dir>/findings.json` and `<output_dir>/tracking.json` — to determine next finding ID. Use the highest existing ID (F-prefixed) from **either** file and increment by 1. This ensures rejected or invalidated findings don't have their IDs reused.
+- The issue description provided by the auditor.
+- The relevant source code.
+- `<output_dir>/findings.json` and `<output_dir>/tracking.json` — to determine the next finding ID. Use the highest existing `F<NNN>` ID across both files and increment by 1. Rejected and invalid findings keep their IDs reserved.
 
-## Step 0: Validation Gate
+## Step 0: Duplicate gate
 
-Before writing a finding, verify the issue has been validated.
+Scan `findings.json` and `tracking.json` for any existing entry that covers the same vulnerability (same affected contract/function, same or overlapping root cause). If a match is found, warn the auditor:
 
-### 1. Look up the issue in `<output_dir>/tracking.json`
+> "This appears to duplicate `F<NNN>`: \<title\>. Proceed anyway?"
 
-Match the issue by title or description. Then act based on status:
-
-### 2. Duplicate check
-
-Before writing, scan `findings.json` for any finding that covers the same vulnerability (same affected contract/function, same or overlapping root cause). If a match is found, **warn the auditor**: "This appears to duplicate FXXX: <title>. Proceed anyway?" Only continue if confirmed.
-
-### 3. Act based on status
-
-**No tracking entry (new/manual finding) or `status: "pending_validation"`:**
-
-Validate by reasoning before proceeding — trace the attack path in the code step by step:
-1. **Is this actually exploitable?** Trace the exact execution path.
-2. **What are the preconditions?** What state must the system be in? What does the attacker need?
-3. **What would the impact be?** Quantify if possible (fund loss amount, DoS duration, etc.).
-4. **Are there existing protections?** Check for reentrancy guards, access control that blocks the attack path, input validation that blocks required preconditions, economic constraints that make the attack unprofitable.
-
-Then:
-- **If valid:** Write a validation memo to `<output_dir>/validations/<finding_id_or_short_name>_memo.md` (use the memo format from the `generate-poc` skill). Add or update the tracking entry with `status: "verified"`, `poc_status: "not_started"`. Proceed to write the finding.
-- **If invalid:** Write a validation memo explaining why. Add or update the tracking entry with `status: "rejected"`. **Stop — do not write the finding.** Inform the auditor of the rejection reason.
-
-**`status: "rejected"`:**
-
-**Stop — do not write the finding.** Inform the auditor that this issue was previously rejected. Point to the existing validation memo at `<output_dir>/validations/` if present.
-
-**`status: "verified"`:**
-
-Proceed to write the finding.
-
-### 4. PoC status handling
-
-Record whatever the current `poc_status` is in the finding's `poc` field. **Never auto-trigger PoC generation.** If `poc_status` is `"not_started"` or absent, set `poc.status: "not_started"` and `poc.file: null` in the finding.
-
----
+Only continue if confirmed.
 
 ## Severity Guide
 
 Assess severity directly based on impact and exploitability:
 
-- **Critical:** Direct fund loss or permanent protocol-breaking impact that anyone can trigger with no special conditions
-- **High:** Significant fund loss, privilege escalation, or severe DoS that requires specific but realistic conditions
-- **Medium:** Temporary DoS, griefing with economic cost, or incorrect accounting that compounds over time
-- **Low:** Minor issues with limited economic impact, requires unlikely conditions to exploit
-- **Info:** Gas inefficiency, cosmetic issues, best-practice deviations with no direct security impact
+- **Critical** — Direct fund loss or permanent protocol-breaking impact that anyone can trigger with no special conditions.
+- **High** — Significant fund loss, privilege escalation, or severe DoS that requires specific but realistic conditions.
+- **Medium** — Temporary DoS, griefing with economic cost, or incorrect accounting that compounds over time.
+- **Low** — Minor issues with limited economic impact, requires unlikely conditions to exploit.
+- **Info** — Gas inefficiency, cosmetic issues, best-practice deviations with no direct security impact.
 
 ### Likelihood × Impact Matrix
 
-Use this matrix as a sanity check on the direct definitions above. Cross-reference both before assigning a severity.
+Cross-reference both before assigning a severity.
 
 | | Low Impact | Medium Impact | High Impact |
 |---|---|---|---|
@@ -75,19 +43,13 @@ Use this matrix as a sanity check on the direct definitions above. Cross-referen
 | **Medium Likelihood** | Low | Medium | High |
 | **Low Likelihood** | Info | Low | Medium |
 
-**Impact definitions:**
-- **High:** Direct loss of funds, permanent corruption of protocol state, or complete bypass of critical access control
-- **Medium:** Temporary DoS, griefing with economic cost, incorrect accounting that compounds, or partial access control bypass
-- **Low:** Minor economic inefficiency, cosmetic issues, or deviations from best practices with no direct security consequence
+**Impact:** High = direct fund loss / permanent state corruption / full bypass of critical access control. Medium = temporary DoS, griefing with cost, incorrect accounting that compounds, or partial access bypass. Low = minor inefficiency, cosmetic, best-practice deviation.
 
-**Likelihood definitions:**
-- **High:** Anyone can trigger with no special conditions, preconditions are common or always met, attack is profitable
-- **Medium:** Requires specific but realistic conditions, attacker needs moderate setup or timing, economically viable
-- **Low:** Requires unlikely conditions, complex multi-step attack, unprofitable, or depends on external factors rarely met
+**Likelihood:** High = anyone can trigger with no preconditions; common conditions; profitable. Medium = specific but realistic conditions; moderate setup/timing; economically viable. Low = unlikely conditions; complex multi-step; unprofitable.
 
 ## Template
 
-Write the finding following this exact structure:
+Write the finding following this structure:
 
 ```json
 {
@@ -102,9 +64,9 @@ Write the finding following this exact structure:
     ]
   },
   "poc": {
-    "status": "passing|failing|not_started",
-    "file": "<test file path or null>",
-    "validation_memo": "<memo path or null>"
+    "status": "not_started",
+    "file": null,
+    "validation_memo": null
   },
   "recommendation": "<a suggested direction phrased as 'Consider...', not a prescriptive fix>",
   "references": {
@@ -116,24 +78,23 @@ Write the finding following this exact structure:
 
 ### Recommendation tone
 
-Phrase recommendations as suggestions, not commands. The auditor proposes direction; the protocol team owns the implementation. Concretely:
+Phrase recommendations as suggestions, not commands. The auditor proposes direction; the protocol team owns the implementation:
 
-- Start with `Consider...`, `One option is...`, `The team may want to...`, `It would be worth...`, or similar hedged language.
-- Avoid `Replace X with Y`, `You must...`, `Always do...`, `Never do...` — these read as orders.
-- If you point at a specific pattern (e.g., reentrancy guard, checks-effects-interactions), present it as the most common fix rather than the only one. The team may have constraints you can't see.
-- Keep the recommendation under three sentences when possible. If a fix needs more discussion, that belongs in the description.
+- Start with `Consider...`, `One option is...`, `The team may want to...`, `It would be worth...`.
+- Avoid `Replace X with Y`, `You must...`, `Always do...`, `Never do...`.
+- Keep under three sentences when possible. Detailed analysis belongs in the description.
 
-**Recommendation must be prose only.** Do not include code snippets, code blocks, or inline code in the `recommendation` field. Code examples belong only in `root_cause.locations[].snippet`.
+**Recommendation must be prose only.** No code snippets in the `recommendation` field. Code belongs in `root_cause.locations[].snippet`.
 
 ## Code Block Formatting Rules (STRICT)
 
 When including code snippets in the finding:
 
 ### Never modify original code
-The only allowed modifications are `@audit` / `@audit-issue` comments and `// ....` to indicate omitted lines.
+Only allowed modifications: `@audit` / `@audit-issue` comments and `// ....` to indicate omitted lines.
 
 ### Comment placement
-Always add comments on a **SEPARATE LINE ABOVE** the affected line. Never inline at end of line.
+Add comments on a **separate line above** the affected line. Never inline.
 
 **CORRECT:**
 ```solidity
@@ -147,15 +108,35 @@ All inserted audit comments must be full sentences starting with a capital lette
 
 ## Actions
 
-1. Append the finding to the `findings` array inside `<output_dir>/findings.json`. The file structure is `{ "findings": [...] }`. If the file doesn't exist, create it with this wrapper.
-2. Update `<output_dir>/tracking.json` with the new finding entry
+1. **Append the finding** to the `findings` array inside `<output_dir>/findings.json`. File structure is `{ "findings": [...] }` — create with this wrapper if missing.
+2. **Add a tracking entry** to `<output_dir>/tracking.json` with:
+   ```json
+   {
+     "id": "F<NNN>",
+     "title": "<same as finding>",
+     "severity": "<same as finding>",
+     "source": "manual",
+     "status": "pending_validation",
+     "poc_status": "not_started",
+     "poc_file": null,
+     "duplicates": [],
+     "notes": ""
+   }
+   ```
 3. **Annotate source files.** For each entry in `root_cause.locations[]`:
-   - Open the source file at the path in `file`.
-   - Find the first significant line of the `snippet` in the file (skip blank lines and `// ....` placeholders).
-   - If an existing `// @audit-issue ...` comment is on the line directly above, **replace** it with `// @audit-issue-verified F<NNN> <short title>`.
-   - Otherwise, **insert** `// @audit-issue-verified F<NNN> <short title>` on a new line directly above the matched line, using the same indentation.
-   - `<NNN>` is the finding ID (e.g., `F001`) and `<short title>` is the finding's `title` field.
+   - Open the source file at `file`.
+   - Find the first significant line of the `snippet` (skip blank lines and `// ....`).
+   - If an existing `// @audit-issue ...` comment is directly above, replace it with `// @audit-issue F<NNN> <short title>`.
+   - Otherwise insert `// @audit-issue F<NNN> <short title>` directly above, matching indentation.
+
+(The `@audit-issue-verified` annotation comes later, via `/validate-issue` once the issue is promoted to Verified.)
 
 ## After writing
 
-If `settings.github.repo` is set in `config.json`, suggest the user run `/sync-github` to publish this finding to the team's GitHub repo and to pull in any new teammate findings. Do not run `/sync-github` automatically — the auditor should choose when to publish.
+The finding now appears on the dashboard's `/issues` board as a Potential card. The auditor can:
+
+- Run `/validate-issue F<NNN>` to write a validation memo and optionally generate a PoC; on success the card moves to Verified.
+- Drag the card directly from Potential → Verified on the board if they're confident no PoC is needed (e.g., trivial Info-level issues).
+- Run `/sync-issues` if `settings.github.repo` is configured, to push verified findings to the team's GitHub repo.
+
+Do NOT run `/validate-issue` or `/sync-issues` automatically — those are auditor-driven decisions.

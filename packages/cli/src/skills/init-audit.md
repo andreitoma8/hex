@@ -1,144 +1,269 @@
 ---
-description: "Initialize a Solidity audit project and run the full analysis pipeline"
+description: "Initialize a Solidity audit project: deterministic analysis + protocol overview + system diagram + flow charts + spec conformance, all in one run"
 ---
 
 # Skill: Initialize Audit
 
-**Recommended model:** Sonnet
+**Recommended model:** Opus (this skill performs all reasoning-heavy pre-review work; switch to Opus before invoking)
 
-You are helping set up a new Solidity audit project using Hex.
+You are setting up a new Solidity audit project with Hex. This single skill replaces the old chain of `/init-audit` → `/generate-overview` → `/generate-diagram` → `/generate-flows` → `/check-spec-conformance`. By the time it finishes, every analysis page on the dashboard has data and every DEVIATES/PARTIAL spec item has been materialized as a Potential card on the issue board.
 
 ## Prerequisites
-- The auditor has cloned or received the client project
-- Node.js and npm are installed
-- Hex CLI is installed (`npm install -g hex`)
 
-## Steps
+- The auditor has cloned or received the client project.
+- Node.js and npm are installed.
+- Hex CLI is installed (`npm install -g hex-audit`).
 
-### 1. Gather Information
+## Phase 1 — Config + dependency safety
+
+### 1.1 Gather information
+
 Ask the auditor for:
-- **Project directory path** — where they cloned/received the client project (default: current directory)
-- **Scope** — which files are in audit scope (glob pattern or explicit list, e.g., `"src/core/**/*.sol,src/Vault.sol"`)
-- **Commit hash** — the specific commit being audited (default: HEAD)
-- **Chain** — target chain (default: ethereum)
-- **Documentation URL** — if available
+- **Project directory path** — where the client project lives (default: current directory).
+- **Scope** — glob or explicit list of files in audit scope (e.g., `src/core/**/*.sol`).
+- **Commit hash** — the specific commit being audited (default: HEAD).
+- **Chain** — target chain (default: ethereum).
+- **Documentation URL** — if available.
 
-### 2. Initialize
+### 1.2 Audit dependencies (BEFORE compiling)
+
+Build scripts and `npm install` hooks are a primary supply-chain attack vector. Check these **before** running `forge build`, `npm install`, or any compilation command:
+
+1. **`package.json` install hooks** — `preinstall`, `postinstall`, `prepare`, `prebuild`, `pretest` scripts that shell out, download from URLs, or touch files outside the project. Cross-reference with npmjs.com advisories.
+2. **Foundry `lib/` submodules** — inspect each `lib/*/foundry.toml` for `ffi = true`, broad `fs_permissions`, or `script` entries.
+3. **Root `foundry.toml`**:
+   - `ffi = true` → **HIGH RISK** (arbitrary system commands during build/test).
+   - `fs_permissions` broader than read-only on `./src` or `./out` → flag.
+   - Profile overrides differing from main profile → flag.
+4. **`remappings.txt`** — verify each target exists in `lib/`; flag shadowed paths, mismatched paths, or hijack vectors (a remap of `@openzeppelin/=lib/malicious-oz/`).
+5. **Suspicious files** — root-level `*.sh`, `*.py`, `Makefile` targets, `.github/` workflows.
+6. **Plaintext secrets** in `.env*` files (private keys, mnemonics, API keys). Do NOT log the values.
+7. **`.vscode/extensions.json`** — flag extension recommendations from unknown publishers.
+
+**If any build-time threats are found: STOP and warn before compilation.**
+
+After build safety passes, evaluate Solidity dependencies:
+- Identify well-known libs (OpenZeppelin, Solmate, Solady, PRBMath). Flag outdated versions with known advisories (OZ < 4.9.3, Solmate `SafeTransferLib` missing code-size check, etc.).
+- Flag typosquats (`@openzepplin` vs `@openzeppelin`).
+- Flag unused dependencies (in `lib/` or `node_modules/` but not imported by scope files).
+- Spot-check unknown packages for inline assembly, `selfdestruct`, `delegatecall` to hardcoded addresses.
+
+### 1.3 Initialize and analyze
+
 Run:
 ```bash
 npx hex init --project "<path>" --scope "<scope>" --commit <hash> --chain <chain> --docs "<url>"
-```
-
-### 3. Audit Dependencies
-
-**This step MUST happen before compilation** — build scripts and npm install hooks are a primary supply-chain attack vector. Audit projects come from external clients and could contain malicious dependencies that target the auditor's machine during compilation or introduce vulnerabilities into the audited code.
-
-#### A. Scan for build-time threats (auditor machine safety)
-
-Perform these checks **before** running `forge build`, `npm install`, or any compilation command:
-
-1. **Check `package.json` scripts** — look for `preinstall`, `postinstall`, `prepare`, `prebuild`, or `pretest` scripts that run arbitrary commands. Flag anything that shells out, downloads from URLs, or touches files outside the project. For any dependency with install hooks, cross-reference against npmjs.com advisories, Socket.dev, and Snyk vulnerability databases to check for known supply-chain compromises.
-2. **Check Foundry `lib/` submodules** — inspect each `lib/*/foundry.toml` for custom build profiles, `fs_permissions`, `ffi = true`, or `script` entries. These can execute arbitrary code during `forge build` or `forge test`.
-3. **Parse the root `foundry.toml`** in detail:
-   - **`ffi = true`** in any profile: flag as **HIGH RISK** — FFI allows Forge to execute arbitrary system commands during build and test. This is the single most dangerous Foundry setting.
-   - **`fs_permissions`**: flag overly broad access such as `[{access = "read-write", path = "./"}]` or permissions targeting parent directories (`../`). Read-only on `./src` or `./out` is normal; read-write on root or parent is suspicious.
-   - **Profile overrides**: check `[profile.ci]`, `[profile.default]`, and any custom profiles for settings that differ from the main profile (different `evm_version`, `optimizer_runs`, `solc_version`). Flag `evm_version` mismatches against the target chain in `config.json`.
-   - **`script` entries or `[rpc_endpoints]`**: flag hardcoded RPC URLs or script configurations that could execute during testing.
-4. **Validate `remappings.txt`** against actual `lib/` contents:
-   - For each remapping entry (e.g., `@openzeppelin/=lib/openzeppelin-contracts/`), verify the target directory actually exists in `lib/`.
-   - Flag **shadowed paths**: two remappings that resolve to the same directory (potential import confusion).
-   - Flag **mismatched paths**: remappings pointing to directories that don't exist, or pointing to unexpected locations different from the package they claim to represent.
-   - Flag **hijack vectors**: a remapping that shadows a well-known package name but points to a different library (e.g., `@openzeppelin/=lib/malicious-oz/`). Reference: Foundry issues #1855, #7080 document remapping hijack vectors.
-5. **Check Hardhat config** — look for unknown plugins, tasks that shell out, or custom compiler configurations that download binaries from non-standard sources.
-6. **Check for suspicious files** — scripts in root (`*.sh`, `*.py`, `Makefile` targets), `.github/` workflow files that might run during local dev.
-
-**If any build-time threats are found: STOP and warn the auditor before compilation.** Do not proceed with `forge build` or `npm install` until the auditor has reviewed and approved.
-
-#### B. Audit Solidity dependencies (code-level safety)
-
-After confirming build safety (or after the auditor approves):
-
-1. **Read `stats.json`** `dependencies` array (package, version, imports) and scan `lib/` or `node_modules/` on disk.
-2. **For each dependency**, evaluate:
-   - **Is it well-known?** (OpenZeppelin, Solmate, Solady, PRBMath, etc. are trusted. Unknown packages need scrutiny.)
-   - **Is it a typosquat or unofficial fork?** (e.g., `@openzepplin/contracts` vs `@openzeppelin/contracts`)
-   - **Is the version outdated?** Flag if a significantly newer version exists with security fixes.
-   - **Are there known vulnerabilities?** (e.g., OpenZeppelin < 4.9.3 Governor vulnerability, Solmate ERC-4626 rounding issues in early versions)
-   - **Version pinning** — `lib/` (Foundry git submodule) is pinned by commit, which is good. `node_modules/` with `^` ranges could resolve to different versions.
-3. **Auto-detect library versions and cross-reference advisories**:
-   - For each well-known library in `lib/`, read the submodule commit: `git -C lib/<pkg> rev-parse HEAD` or check `lib/<pkg>/package.json` for version.
-   - **OpenZeppelin**: Identify version. Check against GitHub Security Advisories for openzeppelin-contracts. Known issues: < 4.9.3 (Governor vulnerability), < 4.7.0 (ERC-1967 vulnerability).
-   - **Solmate**: Flag with **deprecation warning** — Solmate is no longer actively maintained. Recommend migration to Solady. Specifically flag `SafeTransferLib` for missing recipient code-size check (transfers to non-existent contracts silently succeed).
-   - **Solady**: Identify version. Flag versions before the `SafeTransferLib` code-size check fix if the project relies on transfer safety.
-   - **PRBMath**: Check for versions with known overflow edge cases.
-   - For any library with a known advisory, include the advisory URL and affected version range in the report.
-4. **Check for unused dependencies** — packages in `lib/` or `node_modules/` that are NOT imported by any scope file. These shouldn't be there and could contain malicious code that runs during compilation.
-5. **Spot-check unknown packages** — for any dependency that isn't a recognized library, read a few of its source files and look for suspicious patterns: inline assembly with `selfdestruct`, `delegatecall` to hardcoded addresses, obfuscated code, or functions that send ETH/tokens to hardcoded addresses.
-
-#### C. Output a dependency safety summary
-
-Classify each dependency into one of three tiers:
-
-- **Safe** — well-known, up-to-date, widely used
-- **Review recommended** — unknown package, outdated version, unusual source, or unpinned version
-- **Warning** — known vulnerability, typosquat candidate, suspicious build scripts, or FFI enabled
-
-**If any warnings are found, clearly flag them and ask the auditor to confirm before proceeding to compilation and analysis.**
-
-#### D. Scan for secrets and editor safety
-
-1. **Scan for plaintext secrets** — check `.env`, `.env.local`, `.env.production`, `.env.development`, and any `*.env` files for:
-   - Private key patterns: hex strings matching `0x[a-fA-F0-9]{64}` or unquoted 64-character hex
-   - Mnemonic phrases: sequences of 12 or more dictionary words (BIP-39 wordlist)
-   - API keys: patterns like `ETHERSCAN_API_KEY=`, `ALCHEMY_KEY=`, `INFURA_KEY=` with non-placeholder values
-   - If found: warn the auditor that the project contains plaintext secrets. Do NOT log the actual secret values.
-2. **Scan `.vscode/extensions.json`** (if it exists) for untrusted extension recommendations:
-   - Safe publishers: `JuanBlanco` (solidity), `NomicFoundation` (hardhat-solidity), `tintinweb` (solidity-visual-auditor), `esbenp` (prettier)
-   - Flag any extension recommendation from an unknown publisher — malicious VS Code extensions can exfiltrate code, inject backdoors, or steal credentials.
-
-### 4. Verify Compilation
-Check the output of init. If compilation verification failed, investigate:
-- Run `forge build` or `npx hardhat compile` directly
-- Check for missing dependencies (`forge install` or `npm install`)
-- Verify the Solidity version matches the project config
-
-### 5. Run Analysis Pipeline
-Run the full analysis in a single command:
-```bash
 npx hex analyze
 ```
 
-This runs stats → deps → access → state → calls in sequence, continuing on failure and reporting a summary at the end.
+`hex analyze` runs stats → deps → access → state → calls → patterns → constraints in parallel, then `surface` last. If a tool is missing (Slither, forge), the corresponding analysis is skipped — note the limitation and move on.
 
-Notes on individual commands:
-- **stats/deps**: These should always succeed (no external tool dependency).
-- **access**: Will work without Slither but with limited Tier 2 data. Note the limitation.
-- **state**: Will work without Slither/solc but with limited read/write and no storage layout data.
-- **calls**: Requires Slither. If Slither is not installed, it will be skipped automatically.
+## Phase 2 — Protocol overview
 
-### 6. Report Results
-After all commands complete, summarize:
-- Number of files and contracts in scope
-- Total nSLOC
-- Number of external/public functions
-- Number of state variables
-- Any warnings or limitations (missing tools, failed coverage, etc.)
+Read from the output directory (`.hex/`):
+- `config.json` — project name, scope, chain, docs URL.
+- `stats.json` — contracts, nSLOC, ERCs, dependencies.
+- `deps.json` — contract relationships and clusters.
 
-### 7. Start the Dashboard
-Offer to start the dashboard so the auditor can visualize the analysis:
+Run `npx hex context` to load the full codebase. If `config.json.project.docs_url` is set, fetch and read the documentation.
+
+Write a 2–3 paragraph overview to `.hex/overview.md` covering:
+1. **What the protocol does** — purpose, target users, the problem it solves.
+2. **Core mechanism** — deposit/withdraw flows, token economics, governance model.
+3. **Key contracts and their roles** — entry points, state holders, libraries.
+4. **Notable design patterns** — upgradeability, access control, external dependencies, oracle usage.
+
+Write for an experienced Solidity auditor. Be precise and technical. Reference specific contract names and functions where relevant.
+
+**Do NOT:**
+- List findings or security concerns (this is purely descriptive).
+- Speculate about vulnerabilities.
+- Include code snippets.
+- Add disclaimers about AI limitations.
+
+**Format:**
+
+```markdown
+# Protocol Overview: [Name]
+
+[2-3 paragraphs]
+
+## Key Contracts
+
+| Contract | Type | nSLOC | Role |
+|----------|------|-------|------|
+| ... | ... | ... | ... |
+
+## External Dependencies
+- [Package] v[version] — used for [purpose]
+
+## Architecture Notes
+- [Notable design decisions, patterns, or concerns to keep in mind during review]
+```
+
+## Phase 3 — System diagram
+
+Read `.hex/overview.md`, `.hex/patterns.json` (for `UPGRADEABLE`, `CROSS_CHAIN`, `DELEGATECALL`, `protocol_hints`), `.hex/attack-surface.json` (entry-point classification, token interactions, external deps), `.hex/access-control.json` (roles + modifiers).
+
+Detect the protocol archetype from `patterns.json` (Vault / Lending / Bridge / Governance / AMM / Staking). Multiple may apply.
+
+Write a Mermaid `graph TD` diagram to `.hex/diagrams/diagram.mmd`. Constraints:
+
+- **Only in-scope contracts** (per `config.json.project.scope`). Out-of-scope contracts may appear as simplified nodes if in-scope contracts interact with them; otherwise omit.
+- Skip interfaces, abstract contracts, and pure libraries.
+- **Maximum ~15 nodes per diagram.** If the protocol is larger, split into multiple files (`diagram-core.mmd`, `diagram-governance.mmd`, etc.) grouped by purpose.
+- Prefix contract labels with a semantic symbol where applicable:
+  - 🏦 Vault / ERC-4626, 💰 Token, 🔮 Oracle, 🔒 Timelock/access control, 📦 Storage, ⚡ Flash loan, 🌉 Bridge.
+- Define a classDef palette at the bottom of every diagram:
+  ```
+  classDef core fill:#a5d8ff,stroke:#1971c2,color:#000
+  classDef user fill:#b2f2bb,stroke:#2f9e44,color:#000
+  classDef admin fill:#ff8787,stroke:#c92a2a,color:#000
+  classDef ext fill:#ffd8a8,stroke:#e8590c,color:#000
+  classDef proxy fill:#d0bfff,stroke:#7048e8,color:#000,stroke-dasharray:5 5
+  classDef storage fill:#ffec99,stroke:#f08c00,color:#000
+  ```
+- Apply class by role: core logic → `core`, user-facing → `user`, admin/governance → `admin`, external deps → `ext`, proxy/upgradeable → `proxy`, storage/registry → `storage`.
+- Edge labels: type the interaction — `-->|external call|`, `-.->|delegatecall|`, `==>|access-controlled|`, `-.->|reads|`.
+- Include a short overview header comment (`%% System architecture for <Project>`) and a visual legend at the bottom showing each classDef with one-line meaning.
+
+## Phase 4 — Flow charts
+
+Same context as Phase 3, plus `.hex/external-calls.json`.
+
+For each archetype, generate at minimum:
+- **Value Flow** — how tokens/ETH move (deposits, withdrawals, fees, swaps).
+- **Permission Flow** — who can do what; role grant/revoke; admin operations.
+
+Archetype-specific flows (only generate when the archetype is detected):
+- **Vault**: deposit/mint, withdraw/redeem, strategy allocation, fee collection.
+- **Lending**: borrow, repay, liquidation (health check → liquidation → seizure → bad debt).
+- **Governance**: proposal lifecycle (create → vote → queue → execute), delegation.
+- **Bridge**: send (lock/burn → relay → finality → mint/unlock), receive/verify.
+- **AMM/DEX**: swap, add liquidity, remove liquidity, fee accrual.
+- **Staking**: stake, unstake, claim, compound.
+- Add an **upgrade flow** if any upgradeable proxies are detected.
+
+Write each flow to `.hex/diagrams/flow-<name>.mmd` (e.g., `flow-deposit.mmd`). Constraints per flow:
+
+- **In-scope contracts only.** Out-of-scope contracts may appear as `ext` nodes when called by in-scope code.
+- **Max ~15 nodes per flow.** Split if larger.
+- Distinct shapes by semantic role:
+  - Stadium `id(["Label"])` — entry point, success outcome, or revert
+  - Rectangle `id["Label"]` — internal step or external call
+  - Cylinder `id[("Label")]` — state change / storage mutation
+  - Rhombus `id{"Label"}` — decision / validation
+- Use the same classDef palette as the diagram, plus `entry`, `state`, `decision`, `reject`, `success` variants per flow needs.
+- **Every decision diamond shows BOTH the success and the revert path** — don't omit failure branches.
+- Use plain-English labels (`"Burns user shares"`, not `"_burn(msg.sender, shares)"`).
+- Wrap each contract's nodes in a `subgraph` swim-lane.
+
+## Phase 5 — Spec conformance
+
+Read `.hex/config.json` (docs URL, scope, ERCs), `.hex/stats.json` (ERC/EIP usage), `.hex/attack-surface.json` (token interactions).
+
+Cross-reference four sources:
+
+**5.1 External documentation.** Fetch `config.json.project.docs_url`. Extract every behavioral claim ("users can deposit X and receive Y", "fees capped at 10%", "only admin can pause"). For each claim, find the implementing code and verify match.
+
+**5.2 NatSpec.** For every function with `@notice`/`@dev`/`@param`/`@return`:
+- Does the function actually do what `@notice` says?
+- Are `@param` constraints accurate?
+- Does it return what `@return` claims?
+- Pay extra attention to conditional NatSpec ("reverts if…", "only when…").
+
+**5.3 Interface conformance.** For every interface the contract implements (explicit `is IFoo` or implicit):
+- All interface functions implemented?
+- Behavioral semantics of each function respected?
+
+**5.4 ERC/EIP compliance.** For each ERC/EIP in `stats.json.erc_eip_usage`:
+- **Fetch the canonical spec** via WebFetch from `https://eips.ethereum.org/EIPS/eip-<number>`. If the fetch fails, note `"spec_fetched": false` and fall back to training knowledge.
+- Extract every MUST/SHOULD/MAY requirement into a checklist; verify each against the implementation.
+
+Known gotchas:
+- **ERC-20**: return values on transfer/approve, zero-amount transfers, approval race.
+- **ERC-4626**: rounding direction per spec, preview vs actual, max* return values.
+- **ERC-721**: safeTransferFrom callbacks.
+- **ERC-2612**: permit deadline, nonce handling, domain separator chain ID.
+
+**Weird token compat.** For every contract interacting with ERC-20 tokens (check `attack-surface.json.token_interactions`), classify handling of:
+- Fee-on-transfer (balance-diff accounting vs trusting transfer amount).
+- Rebasing (shares vs absolute balances; stale balance caches).
+- Blocklist (DoS via blocked recipient in batches/loops; liquidation/withdrawal block).
+- Double-entry-point legacy tokens (dedup on contract address).
+
+### Output format
+
+Write `.hex/spec-conformance.json`:
+
+```json
+{
+  "checked_at": "<ISO-8601>",
+  "sources_checked": { "external_docs": true, "natspec": true, "interfaces": true, "erc_eip": ["ERC-20", "ERC-4626"] },
+  "summary": { "total_checks": N, "conforms": N, "deviates": N, "partial": N, "unverifiable": N, "undocumented": N },
+  "items": [
+    {
+      "id": "SC-001",
+      "source": "erc_eip" | "natspec" | "interface" | "external_docs",
+      "spec_text": "Verbatim text or paraphrase of the requirement",
+      "spec_location": { "type": "eip", "number": 4626, "section": "Specification", "url": "https://eips.ethereum.org/EIPS/eip-4626" },
+      "status": "CONFORMS" | "DEVIATES" | "PARTIAL" | "UNVERIFIABLE" | "UNDOCUMENTED",
+      "finding": "Plain-English explanation of what the code does vs what the spec demands.",
+      "code_location": { "file": "src/Vault.sol", "line_start": 120, "line_end": 145 },
+      "severity_hint": "Low",
+      "confidence": "high"
+    }
+  ]
+}
+```
+
+Also write a human-readable `.hex/spec-conformance.md` rendering the same data grouped by status (DEVIATES first, CONFORMS last).
+
+## Phase 6 — Materialize conformance items onto the board
+
+For every item in `spec-conformance.json.items` with `status` of `DEVIATES` or `PARTIAL`, append a tracking entry to `.hex/tracking.json` (creating the file if missing). Schema:
+
+```json
+{
+  "id": "<spec-item-id, e.g. SC-001>",
+  "title": "<spec-item.finding's first sentence, truncated to ~80 chars>",
+  "severity": "<spec-item.severity_hint, default 'Info' if absent>",
+  "source": "conformance",
+  "status": "pending_validation",
+  "poc_status": "not_started",
+  "poc_file": null,
+  "duplicates": [],
+  "notes": "<spec source + spec_location URL — so the board card has provenance>"
+}
+```
+
+These appear on the dashboard's Issues board as Potential cards immediately. The auditor validates them later with `/validate-issue <id>`.
+
+**Idempotency:** if a tracking entry with the same id already exists, leave it alone (the auditor may have already edited/promoted it).
+
+## Phase 7 — Report and start the dashboard
+
+Summarize:
+- Files / contracts in scope, total nSLOC.
+- Number of external/public functions, state variables.
+- Number of conformance DEVIATES/PARTIAL items materialized to the board.
+- Any warnings or limitations (missing tools, failed coverage, etc.).
+
+Then offer:
+
 ```bash
 npx hex dashboard
 ```
-This opens the dashboard in the browser at `http://localhost:3000`, showing all generated data with live refresh.
 
-Then ask: "Ready to generate the overview and diagrams? (These require AI analysis) You can also start the dashboard now with `hex dashboard` to visualize your analysis data."
+Opens `http://localhost:3000` with live refresh on `.hex/` changes.
 
-## Output
-The following files should now exist in the output directory:
-- `config.json` — project configuration
-- `stats.json` — codebase statistics
-- `deps.json` — dependency graph
-- `access-control.json` — access control mapping
-- `state-vars.json` — state variable inventory
-- `external-calls.json` — external call surface (if Slither available)
-- `.claude/skills/` — Claude Code skill files
+## Outputs (recap)
+
+After this skill finishes, the following exist in `.hex/`:
+
+- `config.json`, `stats.json`, `deps.json`, `access-control.json`, `state-vars.json`, `external-calls.json`, `patterns.json`, `constraints.json`, `attack-surface.json`
+- `overview.md`
+- `diagrams/diagram.mmd` (+ split diagrams if needed)
+- `diagrams/flow-*.mmd`
+- `spec-conformance.json`, `spec-conformance.md`
+- `tracking.json` — populated with conformance DEVIATES/PARTIAL items as Potential issues

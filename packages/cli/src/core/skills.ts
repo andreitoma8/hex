@@ -8,7 +8,8 @@ import path from 'node:path';
 export function getBundledSkillsDir(): string {
   return path.resolve(
     new URL('.', import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1'),
-    '..', 'skills',
+    '..',
+    'skills',
   );
 }
 
@@ -24,12 +25,16 @@ export function getClaudeSkillsDir(projectDir: string): string {
  *   <targetDir>/<name>/SKILL.md
  *
  * By default, overwrites existing skills. Use keepCustom=true to skip existing.
- * Returns { updated, added, skipped } counts.
+ * Skill directories under targetDir that no longer have a matching bundled
+ * skill are removed (so renames and deletions cleanly propagate across upgrades).
+ * Returns { updated, added, skipped, removed } counts.
  */
-export function copySkillsToClaudeFormat(opts: {
-  targetDir: string;
-  keepCustom?: boolean;
-}): { updated: number; added: number; skipped: number } {
+export function copySkillsToClaudeFormat(opts: { targetDir: string; keepCustom?: boolean }): {
+  updated: number;
+  added: number;
+  skipped: number;
+  removed: number;
+} {
   const { targetDir, keepCustom = false } = opts;
   const bundledDir = getBundledSkillsDir();
 
@@ -38,9 +43,12 @@ export function copySkillsToClaudeFormat(opts: {
   }
 
   const skillFiles = fs.readdirSync(bundledDir).filter((f) => f.endsWith('.md'));
+  const bundledNames = new Set(skillFiles.map((f) => f.replace(/\.md$/, '')));
+
   let updated = 0;
   let added = 0;
   let skipped = 0;
+  let removed = 0;
 
   for (const file of skillFiles) {
     const name = file.replace(/\.md$/, '');
@@ -65,5 +73,27 @@ export function copySkillsToClaudeFormat(opts: {
     }
   }
 
-  return { updated, added, skipped };
+  // Clean up orphaned skill directories: anything under targetDir that holds
+  // a SKILL.md but doesn't match a bundled skill name. We only remove
+  // <skillDir>/SKILL.md and the directory itself if empty afterwards — never
+  // sibling files the user might have added intentionally.
+  if (fs.existsSync(targetDir)) {
+    for (const entry of fs.readdirSync(targetDir)) {
+      if (bundledNames.has(entry)) continue;
+      const orphanDir = path.join(targetDir, entry);
+      const stat = fs.statSync(orphanDir);
+      if (!stat.isDirectory()) continue;
+      const skillPath = path.join(orphanDir, 'SKILL.md');
+      if (fs.existsSync(skillPath)) {
+        fs.rmSync(skillPath);
+        // Remove the directory only if it's now empty
+        if (fs.readdirSync(orphanDir).length === 0) {
+          fs.rmdirSync(orphanDir);
+        }
+        removed++;
+      }
+    }
+  }
+
+  return { updated, added, skipped, removed };
 }
