@@ -44,15 +44,9 @@ It asks for scope, commit, chain, and docs URL. For solmate something like `--sc
 
 If anything fails, `hex doctor` prints a labelled preflight table (node, forge, slither, solc, Claude Code, output dir, `.hex/config.json`) with one-line install hints.
 
-### Open the dashboard
+### Dashboard opens automatically
 
-In a separate terminal:
-
-```bash
-hex dashboard
-```
-
-Opens `http://localhost:3000` with live refresh on every `.hex/` change. Keep it open as you work.
+The last step of `/init-audit` launches `hex dashboard` in the background, so `http://localhost:3000` opens in your browser when the pipeline finishes. Live-refreshes on every `.hex/` change. If you ever need to start it manually, run `hex dashboard` in a second terminal.
 
 Key pages:
 
@@ -144,4 +138,4 @@ Only `verified` findings make the cut. Duplicates, rejected, and pending entries
 - `/ingest-aa-report` takes a scan ID, never starts a scan.
 - `/sync-issues` treats GitHub as the source of truth — your local entry is the duplicate on a match.
 - `/generate-overleaf` is the final handoff to the LaTeX report.
-- `hex update-skills` re-syncs skills after a package upgrade and cleans up orphans from older versions.
+- `hex update` upgrades the package and prompts to re-sync skills in one shot; `hex update-skills` re-syncs skills only.

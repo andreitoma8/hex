@@ -65,15 +65,9 @@ Claude will ask you for scope, commit, chain, and docs URL, then run the entire 
 
 By the time `/init-audit` finishes, every analysis page on the dashboard has data and the `/issues` board shows the conformance-derived items waiting for manual triage.
 
-### 4. Open the dashboard
+### 4. Dashboard opens automatically
 
-In a second terminal:
-
-```bash
-hex dashboard
-```
-
-Opens `http://localhost:3000`. Leave it open as you work — every page fills in automatically as Claude generates more analysis. Use `--port 8080` for a custom port or `--no-open` to skip the auto-open.
+`/init-audit` launches `hex dashboard` in the background as its last step, so `http://localhost:3000` opens in your browser when the pre-review pipeline finishes. Leave it open as you work — every page fills in automatically as Claude generates more analysis. If you ever need to start it manually, just run `hex dashboard` in a second terminal (`--port 8080` for a custom port, `--no-open` to skip the auto-open).
 
 ---
 
@@ -237,14 +231,16 @@ Skills use Claude Code's native skill format, stored in `.claude/skills/<name>/S
 
 **Customising skills:** Edit any `SKILL.md` file in place.
 
-**Updating skills after upgrading Hex:**
+**Upgrading Hex:**
 
 ```bash
-hex update-skills              # re-copy and overwrite all skill files (also removes orphans from older Hex versions)
+hex update                    # install latest hex-audit + prompt to re-sync skills (one command)
+hex update --check            # check for an available update without installing
+hex update-skills             # re-sync skills only (use if you've already npm-installed manually)
 hex update-skills --keep-custom  # skip existing skill files to preserve per-project modifications
 ```
 
-`update-skills` also removes orphaned skill directories that no longer correspond to a bundled skill — so an upgrade from older Hex (which had `generate-overview`, `identify-invariants`, `validate-ai-finding`, etc.) cleanly drops the stale folders.
+`hex update` detects how Hex was installed (global or local), runs the appropriate `npm install …@latest`, then asks whether to re-copy the bundled skill files into the current project's `.claude/skills/`. Both commands remove orphaned skill directories so renamed/deleted skills clean up across versions.
 
 ---
 
@@ -373,6 +369,9 @@ All commands run from within the project directory (or with `--project /path/to/
 | `hex context --estimate`          | Show token count without generating context                                                                    |
 | `hex dashboard`                   | Start local dashboard and open in browser                                                                      |
 | `hex dashboard --port 8080`       | Start dashboard on a custom port                                                                               |
+| `hex update`                      | Update hex-audit to the latest version on npm, then prompt to re-sync skills into the current project          |
+| `hex update --check`              | Check for an available update without installing                                                               |
+| `hex update --yes`                | Update and re-sync skills without the post-install prompt                                                      |
 | `hex update-skills`               | Re-copy skill files from package, removing orphans (overwrites by default)                                     |
 | `hex update-skills --keep-custom` | Skip existing skill files instead of overwriting                                                               |
 | `hex ai-status`                   | Show the latest status for AuditAgent scans                                                                    |

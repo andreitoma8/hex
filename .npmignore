@@ -1,0 +1,31 @@
+node_modules/
+.git/
+.github/
+*.tmp
+.DS_Store
+Thumbs.db
+
+# Dev-time only: source maps + build info we don't need at runtime
+*.tsbuildinfo
+dist/**/*.d.ts.map
+dist/**/*.js.map
+
+# Next.js webpack cache + trace files balloon the tarball — `next start`
+# doesn't need them, only the build output under server/ and static/.
+dashboard/.next/cache/
+dashboard/.next/trace
+dashboard/.next/types/
+
+# Other stuff we don't want to ship
+.hex/
+coverage/
+.env
+.env.local
+.prettierrc
+vitest.config.ts
+tsconfig.json
+src/
+
+# Test files inside the bundled dist (in case any slipped through)
+**/*.test.js
+**/*.test.d.ts

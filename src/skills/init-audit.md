@@ -1,5 +1,5 @@
 ---
-description: "Initialize a Solidity audit project: deterministic analysis + protocol overview + system diagram + flow charts + spec conformance, all in one run"
+description: 'Initialize a Solidity audit project: deterministic analysis + protocol overview + system diagram + flow charts + spec conformance, all in one run'
 ---
 
 # Skill: Initialize Audit
@@ -19,6 +19,7 @@ You are setting up a new Solidity audit project with Hex. This single skill repl
 ### 1.1 Gather information
 
 Ask the auditor for:
+
 - **Project directory path** — where the client project lives (default: current directory).
 - **Scope** — glob or explicit list of files in audit scope (e.g., `src/core/**/*.sol`).
 - **Commit hash** — the specific commit being audited (default: HEAD).
@@ -43,6 +44,7 @@ Build scripts and `npm install` hooks are a primary supply-chain attack vector. 
 **If any build-time threats are found: STOP and warn before compilation.**
 
 After build safety passes, evaluate Solidity dependencies:
+
 - Identify well-known libs (OpenZeppelin, Solmate, Solady, PRBMath). Flag outdated versions with known advisories (OZ < 4.9.3, Solmate `SafeTransferLib` missing code-size check, etc.).
 - Flag typosquats (`@openzepplin` vs `@openzeppelin`).
 - Flag unused dependencies (in `lib/` or `node_modules/` but not imported by scope files).
@@ -51,6 +53,7 @@ After build safety passes, evaluate Solidity dependencies:
 ### 1.3 Initialize and analyze
 
 Run:
+
 ```bash
 npx hex init --project "<path>" --scope "<scope>" --commit <hash> --chain <chain> --docs "<url>"
 npx hex analyze
@@ -61,6 +64,7 @@ npx hex analyze
 ## Phase 2 — Protocol overview
 
 Read from the output directory (`.hex/`):
+
 - `config.json` — project name, scope, chain, docs URL.
 - `stats.json` — contracts, nSLOC, ERCs, dependencies.
 - `deps.json` — contract relationships and clusters.
@@ -68,6 +72,7 @@ Read from the output directory (`.hex/`):
 Run `npx hex context` to load the full codebase. If `config.json.project.docs_url` is set, fetch and read the documentation.
 
 Write a 2–3 paragraph overview to `.hex/overview.md` covering:
+
 1. **What the protocol does** — purpose, target users, the problem it solves.
 2. **Core mechanism** — deposit/withdraw flows, token economics, governance model.
 3. **Key contracts and their roles** — entry points, state holders, libraries.
@@ -76,6 +81,7 @@ Write a 2–3 paragraph overview to `.hex/overview.md` covering:
 Write for an experienced Solidity auditor. Be precise and technical. Reference specific contract names and functions where relevant.
 
 **Do NOT:**
+
 - List findings or security concerns (this is purely descriptive).
 - Speculate about vulnerabilities.
 - Include code snippets.
@@ -91,13 +97,15 @@ Write for an experienced Solidity auditor. Be precise and technical. Reference s
 ## Key Contracts
 
 | Contract | Type | nSLOC | Role |
-|----------|------|-------|------|
-| ... | ... | ... | ... |
+| -------- | ---- | ----- | ---- |
+| ...      | ...  | ...   | ...  |
 
 ## External Dependencies
+
 - [Package] v[version] — used for [purpose]
 
 ## Architecture Notes
+
 - [Notable design decisions, patterns, or concerns to keep in mind during review]
 ```
 
@@ -132,10 +140,12 @@ Write a Mermaid `graph TD` diagram to `.hex/diagrams/diagram.mmd`. Constraints:
 Same context as Phase 3, plus `.hex/external-calls.json`.
 
 For each archetype, generate at minimum:
+
 - **Value Flow** — how tokens/ETH move (deposits, withdrawals, fees, swaps).
 - **Permission Flow** — who can do what; role grant/revoke; admin operations.
 
 Archetype-specific flows (only generate when the archetype is detected):
+
 - **Vault**: deposit/mint, withdraw/redeem, strategy allocation, fee collection.
 - **Lending**: borrow, repay, liquidation (health check → liquidation → seizure → bad debt).
 - **Governance**: proposal lifecycle (create → vote → queue → execute), delegation.
@@ -167,26 +177,31 @@ Cross-reference four sources:
 **5.1 External documentation.** Fetch `config.json.project.docs_url`. Extract every behavioral claim ("users can deposit X and receive Y", "fees capped at 10%", "only admin can pause"). For each claim, find the implementing code and verify match.
 
 **5.2 NatSpec.** For every function with `@notice`/`@dev`/`@param`/`@return`:
+
 - Does the function actually do what `@notice` says?
 - Are `@param` constraints accurate?
 - Does it return what `@return` claims?
 - Pay extra attention to conditional NatSpec ("reverts if…", "only when…").
 
 **5.3 Interface conformance.** For every interface the contract implements (explicit `is IFoo` or implicit):
+
 - All interface functions implemented?
 - Behavioral semantics of each function respected?
 
 **5.4 ERC/EIP compliance.** For each ERC/EIP in `stats.json.erc_eip_usage`:
+
 - **Fetch the canonical spec** via WebFetch from `https://eips.ethereum.org/EIPS/eip-<number>`. If the fetch fails, note `"spec_fetched": false` and fall back to training knowledge.
 - Extract every MUST/SHOULD/MAY requirement into a checklist; verify each against the implementation.
 
 Known gotchas:
+
 - **ERC-20**: return values on transfer/approve, zero-amount transfers, approval race.
-- **ERC-4626**: rounding direction per spec, preview vs actual, max* return values.
+- **ERC-4626**: rounding direction per spec, preview vs actual, max\* return values.
 - **ERC-721**: safeTransferFrom callbacks.
 - **ERC-2612**: permit deadline, nonce handling, domain separator chain ID.
 
 **Weird token compat.** For every contract interacting with ERC-20 tokens (check `attack-surface.json.token_interactions`), classify handling of:
+
 - Fee-on-transfer (balance-diff accounting vs trusting transfer amount).
 - Rebasing (shares vs absolute balances; stale balance caches).
 - Blocklist (DoS via blocked recipient in batches/loops; liquidation/withdrawal block).
@@ -241,21 +256,24 @@ These appear on the dashboard's Issues board as Potential cards immediately. The
 
 **Idempotency:** if a tracking entry with the same id already exists, leave it alone (the auditor may have already edited/promoted it).
 
-## Phase 7 — Report and start the dashboard
+## Phase 7 — Report and auto-launch the dashboard
 
 Summarize:
+
 - Files / contracts in scope, total nSLOC.
 - Number of external/public functions, state variables.
 - Number of conformance DEVIATES/PARTIAL items materialized to the board.
 - Any warnings or limitations (missing tools, failed coverage, etc.).
 
-Then offer:
+Then launch the dashboard in the background so the auditor's browser opens automatically. Run this Bash command with `run_in_background: true` so the skill returns control to the auditor while Next.js keeps serving the dashboard:
 
 ```bash
 npx hex dashboard
 ```
 
-Opens `http://localhost:3000` with live refresh on `.hex/` changes.
+Print a one-line confirmation after starting it: `Dashboard starting at http://localhost:3000 (live-refreshing as .hex/ changes).`
+
+Do NOT run the command in the foreground — that would block this skill's return. The dashboard's auto-open already handles the browser; you just need to launch the process and return.
 
 ## Outputs (recap)
 

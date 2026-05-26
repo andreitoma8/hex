@@ -1,6 +1,5 @@
 import { Command } from 'commander';
 import { spawn, exec } from 'node:child_process';
-import { createRequire } from 'node:module';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -15,34 +14,34 @@ export const dashboardCommand = new Command('dashboard')
   .action(async (opts) => {
     const projectDir = path.resolve(opts.project ?? process.cwd());
 
-    // Verify the project is initialized
     try {
       loadConfig(projectDir);
     } catch {
-      logger.error(
-        `No Hex project found in ${projectDir}. Run 'hex init' first.`,
-      );
+      logger.error(`No Hex project found in ${projectDir}. Run 'hex init' first.`);
       process.exit(1);
     }
 
-    // Resolve the dashboard package directory
-    const dashboardDir = resolveDashboardDir();
-    if (!dashboardDir) {
+    const dashboardDir = getDashboardDir();
+    if (!fs.existsSync(dashboardDir)) {
       logger.error(
-        'Could not find the dashboard package. Make sure hex-audit is installed correctly.',
+        `Could not find the dashboard at ${dashboardDir}. The hex-audit package may be corrupted; try \`hex update\` or reinstall.`,
       );
       process.exit(1);
     }
 
     const port = opts.port;
+    const prebuilt = fs.existsSync(path.join(dashboardDir, '.next'));
+    const mode = prebuilt ? 'start' : 'dev';
 
     logger.info(`Starting dashboard on http://localhost:${port}`);
     logger.info(`Project: ${projectDir}`);
+    if (!prebuilt) {
+      logger.dim('(dev mode — no .next/ found; first request may be slow)');
+    }
 
-    // Spawn next dev via npm run dev to use the dashboard's own next version
-    // Pass port via PORT env var for reliable cross-platform behavior
-    const child = spawn('npm', ['run', 'dev'], {
-      cwd: dashboardDir,
+    // Use the next binary that ships with this package.
+    const nextBin = resolveNextBin(dashboardDir);
+    const child = spawn(nextBin, [mode, dashboardDir, '--port', port], {
       stdio: 'inherit',
       shell: true,
       env: {
@@ -53,14 +52,12 @@ export const dashboardCommand = new Command('dashboard')
       },
     });
 
-    // Open browser after a short delay
     if (opts.open !== false) {
       setTimeout(() => {
         openBrowser(`http://localhost:${port}`);
       }, 2000);
     }
 
-    // Forward signals for clean shutdown
     const cleanup = () => {
       child.kill('SIGTERM');
     };
@@ -72,31 +69,27 @@ export const dashboardCommand = new Command('dashboard')
     });
   });
 
-function resolveDashboardDir(): string | null {
-  // Strategy 1: sibling package in monorepo
-  const cliDir = path.dirname(
-    fileURLToPath(import.meta.url),
-  );
-  // cliDir is something like .../packages/cli/dist/commands or .../packages/cli/src/commands
-  // Navigate up to packages/ then into dashboard/
-  const monorepoCandidate = path.resolve(cliDir, '..', '..', '..', 'dashboard');
-  if (
-    fs.existsSync(monorepoCandidate) &&
-    fs.existsSync(path.join(monorepoCandidate, 'package.json'))
-  ) {
-    return monorepoCandidate;
-  }
+function getPackageRoot(): string {
+  // After `tsc`, this file is at <pkg>/dist/commands/dashboard.js, so two
+  // `..` segments land us at the package root.
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  return path.resolve(here, '..', '..');
+}
 
-  // Strategy 2: installed as node_modules dependency
-  try {
-    const require = createRequire(import.meta.url);
-    const resolved = require.resolve('hex-dashboard/package.json');
-    return path.dirname(resolved);
-  } catch {
-    // not found
-  }
+function getDashboardDir(): string {
+  return path.join(getPackageRoot(), 'dashboard');
+}
 
-  return null;
+function resolveNextBin(dashboardDir: string): string {
+  // 1. Package root node_modules (installed location).
+  const pkgRoot = getPackageRoot();
+  const fromPkg = path.join(pkgRoot, 'node_modules', '.bin', 'next');
+  if (fs.existsSync(fromPkg)) return fromPkg;
+  // 2. Some pnpm/yarn layouts hoist into the dashboard's own node_modules.
+  const fromDash = path.join(dashboardDir, 'node_modules', '.bin', 'next');
+  if (fs.existsSync(fromDash)) return fromDash;
+  // 3. Last-resort: rely on PATH (e.g., `npx next`).
+  return 'next';
 }
 
 function openBrowser(url: string): void {

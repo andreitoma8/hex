@@ -1,18 +1,81 @@
 {
-  "name": "hex-monorepo",
-  "private": true,
-  "workspaces": [
-    "packages/*"
-  ],
+  "name": "hex-audit",
+  "version": "0.4.0",
+  "type": "module",
+  "description": "CLI toolkit for Solidity smart contract auditors",
+  "bin": {
+    "hex": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "npm run build --workspace=packages/cli",
-    "dev:cli": "npm run dev --workspace=packages/cli",
-    "dev:dashboard": "npm run dev --workspace=packages/dashboard",
-    "test": "npm run test --workspace=packages/cli",
+    "build": "tsc && npm run copy-skills && npm run build:dashboard",
+    "build:cli": "tsc && npm run copy-skills",
+    "build:dashboard": "next build dashboard",
+    "copy-skills": "node -e \"const fs=require('fs');const p=require('path');fs.cpSync(p.join('src','skills'),p.join('dist','skills'),{recursive:true})\"",
+    "dev:cli": "tsc --watch",
+    "dev:dashboard": "next dev dashboard",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "lint": "prettier --check .",
     "format": "prettier --write ."
   },
+  "files": [
+    "dist",
+    "dashboard/.next",
+    "dashboard/app",
+    "dashboard/components",
+    "dashboard/lib",
+    "dashboard/public",
+    "dashboard/next.config.mjs",
+    "dashboard/next-env.d.ts",
+    "dashboard/postcss.config.cjs",
+    "dashboard/tailwind.config.ts",
+    "dashboard/tsconfig.json",
+    "README.md",
+    "CLAUDE.md",
+    "DEMO.md"
+  ],
+  "keywords": [
+    "solidity",
+    "audit",
+    "smart-contracts",
+    "security"
+  ],
+  "license": "MIT",
   "engines": {
     "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@dnd-kit/core": "^6.1.0",
+    "@solidity-parser/parser": "^0.18.0",
+    "@tanstack/react-table": "^8.17.0",
+    "chalk": "^5.3.0",
+    "chokidar": "^3.6.0",
+    "commander": "^12.1.0",
+    "glob": "^10.3.10",
+    "mermaid": "^11.4.0",
+    "next": "14.2.5",
+    "next-themes": "^0.4.6",
+    "ora": "^8.0.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-markdown": "^9.0.1",
+    "rehype-highlight": "^7.0.0",
+    "remark-gfm": "^4.0.0",
+    "tiktoken": "^1.0.15",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@tailwindcss/typography": "^0.5.13",
+    "@types/node": "^20.11.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "autoprefixer": "^10.4.19",
+    "postcss": "^8.4.38",
+    "prettier": "^3.3.3",
+    "tailwindcss": "^3.4.4",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
   }
 }
