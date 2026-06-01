@@ -77,22 +77,32 @@ For conformance items, the "claim" is `spec_text` + the finding paragraph — i.
    >
    > Reply **1** or **2**.
 
-2. **If PoC chosen:** invoke the `generate-poc` skill flow (read the project test setup, write the PoC, run and iterate until it passes). Set `poc.status = "passing"`, `poc.file = "test/hex-pocs/<id>_<name>.t.sol"`.
+2. **If PoC chosen:** invoke the `generate-poc` skill flow (read the project test setup, write the PoC, run and iterate until it passes). Note the test path, e.g. `test/hex-pocs/<id>_<name>.t.sol`.
 
-3. **If memo-only chosen:** leave `poc.status = "not_started"`, `poc.file = null`.
+3. **If memo-only chosen:** no PoC file.
 
-4. If the issue source is **conformance**, **auditagent**, or **github** (no manual finding record yet), invoke the `write-finding` skill flow to materialize a structured finding into `<output_dir>/findings.json` — reusing the existing tracking id. If `source = "manual"`, the finding already exists; update its `poc` block in place.
+4. **Persist via the CLI — do not hand-edit `findings.json` or `tracking.json`.** The `hex issue` command is the single source of truth for board mutations; it materializes a `findings.json` entry from the source record (conformance / auditagent / github) when one does not exist yet, and routes fields correctly. Write the validation memo and the recommendation to temp files, then:
 
-5. Update the tracking entry: `status = "verified"`, `poc_status` per choice above, `poc_file` per choice above.
+   ```bash
+   # Land the editable fields (materializes a finding for conformance/auditagent/github ids):
+   npx hex issue patch <id> \
+     --severity <Severity> \
+     --description-file <output_dir>/validations/<id>_memo.md \
+     --recommendation-file /tmp/<id>_reco.md
+   # Promote to Verified:
+   npx hex issue move <id> --to verified
+   ```
 
-6. For source files in `root_cause.locations[]`, replace any `// @audit-issue F<NNN>` annotation with `// @audit-issue-verified F<NNN> <short title>` (matching indentation).
+   For a memo-only verdict, the same two commands apply (the PoC fields just stay unset). For `--description-file`, you may pass either the memo or a dedicated description file; prefer a clean description file if the memo is long.
 
-7. Use **AskUserQuestion** to ask:
+   Hex does not write `@audit-issue` comments into the client's source files — the board and finding record are the only place the issue lives.
+
+5. Use **AskUserQuestion** to ask:
    > Issue verified as **\<id\>** with severity **\<current severity\>**.
    >
    > Would you like to change the severity? Reply with the new severity (Critical / High / Medium / Low / Info), or **no** to keep it.
 
-8. If the user provides a new severity, update both `findings.json` and `tracking.json`.
+6. If the user provides a new severity, run `npx hex issue patch <id> --severity <NewSeverity>`.
 
 **Invalid:**
 
@@ -100,14 +110,14 @@ For conformance items, the "claim" is `spec_text` + the finding paragraph — i.
    - Is the attack path blocked? By what specifically (modifier, require, state check)?
    - Are the preconditions impossible? Why?
    - Is the impact assessment wrong? What actually happens?
-2. Update tracking: `status = "rejected"`.
-3. Do NOT write a finding to `findings.json`. The memo alone records the reasoning.
+2. Move it to the Invalid column: `npx hex issue move <id> --to invalid`.
+3. Do NOT write a finding body. The memo alone records the reasoning.
 
 **Uncertain:**
 
 1. List specific questions that need manual investigation.
 2. State what would confirm or deny the issue.
-3. Leave tracking `status` as-is. Append findings to the `notes` field describing the open questions.
+3. Leave the column as-is (no `hex issue move`). Record the open questions on the card: `npx hex issue patch <id> --notes "<open questions>"`.
 
 ## Output: validation memo
 

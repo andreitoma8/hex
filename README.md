@@ -110,7 +110,7 @@ When you have something concrete, file it as a Potential issue:
 /write-finding for the rounding error in src/Vault.sol
 ```
 
-`/write-finding` writes the finding to `findings.json` with the next sequential `F<NNN>` ID. The corresponding tracking entry has `status: "pending_validation"` and `source: "manual"`, so the card lands in the **Potential** column on the dashboard board.
+`/write-finding` allocates a uniform `H-NNN` id (all issues share one scheme regardless of origin; `source` is a separate field) and records the finding with `status: "pending_validation"` and `source: "manual"`, so the card lands in the **Potential** column. It does not write `@audit-issue` comments into the source — the board is the only place the issue lives.
 
 Phase 2 is where Hex gets out of your way. You think; the toolkit just gives you a place to record what you find.
 
@@ -126,19 +126,17 @@ Phase 2 is where Hex gets out of your way. You think; the toolkit just gives you
 - GitHub teammate entries materialized by `/sync-issues`.
 
 ```
-/validate-issue F003
-/validate-issue SC-007
-/validate-issue AA-N002
+/validate-issue H-003
 /validate-issue for the rounding issue in Vault.sol
 ```
 
-Claude reads the relevant source-of-truth (findings.json | ai-results/auditagent/findings.json | spec-conformance.json | external/github/findings.json), traces the attack path in the code, and writes a validation memo to `.hex/validations/<id>_memo.md`. Then it asks per issue:
+Claude reads the relevant source record, traces the attack path in the code, and writes a validation memo to `.hex/validations/<id>_memo.md`. Then it asks per issue:
 
 > The issue appears valid. PoC or memo-only?
 
 If PoC: invokes `/generate-poc` to produce a runnable test and iterates until it passes. If memo-only: skips PoC, just records the validation reasoning.
 
-Valid → tracking entry promotes to `verified` (the card moves to Verified). Invalid → tracking entry becomes `rejected` (the card moves to Invalid). Severity adjustment is offered after promotion.
+Valid → the card moves to Verified (`hex issue move`). Invalid → it moves to Invalid. Severity adjustment is offered after promotion. To clear a whole backlog, **`/validate-all-findings`** runs this same flow over every Potential card, one at a time.
 
 #### Ingest a Nethermind AuditAgent scan (`/ingest-aa-report`)
 
@@ -157,25 +155,24 @@ The skill:
 
 #### Team mode (`/sync-issues`)
 
-When two or three auditors share an engagement, sync findings through a shared GitHub repo. Set `settings.github.repo` in `.hex/config.json` (the firm's internal repo, e.g. `nethermind/audit-vaultx`) and authenticate the `gh` CLI once:
+GitHub is the source of truth for an audit's findings. Set the repo at init time with `hex init --github-repo <owner/repo>` (or `settings.github.repo` in `.hex/config.json`) — the firm's internal repo, e.g. `nethermind/audit-vaultx` — and authenticate the `gh` CLI once:
 
 ```bash
 gh auth login
 ```
 
-Hex itself never stores GitHub credentials — `/sync-issues` drives the `gh` CLI directly. Then:
+Hex never stores GitHub credentials — `/sync-issues` drives the `gh` CLI directly. Then:
 
 ```
 /sync-issues
 ```
 
-One invocation does both directions:
+One invocation does both directions. **Identity is the GitHub issue number `#N`** — there is no hidden footer in the issue body (auditors create issues by hand), so reconciliation matches a local finding to the issue number it has stored.
 
-- **Pull** every issue with the configured labels. Issues with a hidden footer `<!-- hex-finding-id: F<NNN> -->` link back to local findings. Issues without the footer become teammate findings (`source: "github"`, status `pending_validation`).
-- **Inline dedup, GitHub-canonical.** When a pulled GitHub issue matches a local potential entry, **the local entry becomes the duplicate** (`status: "duplicate"`, `duplicate_of: "github-<num>"`). Rationale: a teammate already filed it, so your in-progress local card is redundant. This is the opposite of the auditagent dedup direction, which flips the auditagent entry to duplicate.
-- **Push** every local finding whose tracking status is in `settings.github.publish_status` (default `["verified"]`). Body rendered from the description, code locations, recommendation. Labels applied for severity, source, status. Existing issues are updated by their `github.issue_number`.
+- **Pull every issue** in the repo (no label filter — audit repos contain only findings). Each issue's title (`[Severity] Title`) and five-field body are parsed back into the local finding. If a body is blatantly not in the Hex format it's skipped with a warning. Issues already linked by `#N` are refreshed from GitHub; new ones become local findings. All pulled issues land in the **Synced** column.
+- **Push** every local finding whose tracking status is in `settings.github.publish_status` (default `["verified"]`) and that isn't already on GitHub. The body is exactly the five-field template (File(s), Description, Recommendation(s), Status, Update from the client) — no labels, no footer. The returned issue number is stored on the finding, which locks it into Synced.
 
-The dashboard's `/issues` page surfaces GitHub-sync state as a chip on each card (✓ open, ✕ closed).
+**Once synced, an issue is read-only in Hex.** Edit it on GitHub (severity, description, recommendation, status), then re-run `/sync-issues` to pull the changes back. `/generate-overleaf` reports only from synced issues. The board's `/issues` page surfaces sync state as a chip: `GH unsynced` (verified, not pushed), `GH #N open` / `GH #N closed`, or `GH conflict`.
 
 Comments stay on GitHub — Hex never posts, edits, or deletes comments. Auditors discuss inside GitHub itself.
 
@@ -202,15 +199,16 @@ Upload these into the Nethermind Overleaf template's matching slots. Only `verif
 
 Each skill has a recommended model — switch your Claude Code model before invoking skills that recommend Opus.
 
-| Skill               | Phase | Recommended Model | What it does                                                                                                                                     |
-| ------------------- | ----- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `init-audit`        | 1     | Opus              | Dependency-safety → `hex analyze` → overview → diagram → flows → spec conformance → materialize DEVIATES/PARTIAL items as Potential cards        |
-| `write-finding`     | 2     | Sonnet            | Records a manual issue to `findings.json` as a Potential card (`status: pending_validation`, `source: manual`)                                   |
-| `validate-issue`    | 3     | Opus              | Validates any Potential card (manual / auditagent / conformance / github); per-issue choice of PoC vs memo-only; promotes to Verified or Invalid |
-| `generate-poc`      | 3     | Opus              | Generates and runs a PoC test (invoked by `/validate-issue`)                                                                                     |
-| `ingest-aa-report`  | 3     | Sonnet            | Ingests a completed Nethermind AuditAgent scan by ID; materializes findings + inline dedup                                                       |
-| `sync-issues`       | 3     | Sonnet            | Two-way GitHub Issues sync with GitHub-canonical inline dedup                                                                                    |
-| `generate-overleaf` | 4     | Sonnet            | Writes the four LaTeX section files for the final report                                                                                         |
+| Skill                   | Phase | Recommended Model | What it does                                                                                                                                     |
+| ----------------------- | ----- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `init-audit`            | 1     | Opus              | Dependency-safety → `hex analyze` → overview → diagram → flows → spec conformance → materialize DEVIATES/PARTIAL items as Potential cards        |
+| `write-finding`         | 2     | Sonnet            | Records a manual issue to `findings.json` as a Potential card (`status: pending_validation`, `source: manual`)                                   |
+| `validate-issue`        | 3     | Opus              | Validates any Potential card (manual / auditagent / conformance / github); per-issue choice of PoC vs memo-only; promotes to Verified or Invalid |
+| `validate-all-findings` | 3     | Opus              | Runs the `/validate-issue` flow over every Potential card, one at a time                                                                         |
+| `generate-poc`          | 3     | Opus              | Generates and runs a PoC test (invoked by `/validate-issue`)                                                                                     |
+| `ingest-aa-report`      | 3     | Sonnet            | Ingests a completed Nethermind AuditAgent scan by ID; materializes findings + inline dedup                                                       |
+| `sync-issues`           | 3     | Sonnet            | Two-way GitHub Issues sync; GitHub is the source of truth (issue number is identity, synced issues are read-only)                                |
+| `generate-overleaf`     | 4     | Sonnet            | Writes the four LaTeX section files for the final report (from synced issues)                                                                    |
 
 ### Where Skills Live
 
@@ -221,6 +219,7 @@ Skills use Claude Code's native skill format, stored in `.claude/skills/<name>/S
 ├── init-audit/SKILL.md
 ├── write-finding/SKILL.md
 ├── validate-issue/SKILL.md
+├── validate-all-findings/SKILL.md
 ├── generate-poc/SKILL.md
 ├── ingest-aa-report/SKILL.md
 ├── sync-issues/SKILL.md
@@ -248,19 +247,20 @@ hex update-skills --keep-custom  # skip existing skill files to preserve per-pro
 
 The dashboard runs locally at `http://localhost:3000` and auto-refreshes when output files change. A live "Updated Ns ago" indicator in the sidebar footer tells you the watcher is connected.
 
-| Page             | URL            | What you see                                                                                                                                                                             |
-| ---------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Home             | `/`            | Project info, AI overview, key stats                                                                                                                                                     |
-| Progress         | `/progress`    | Weighted progress bar (70% nSLOC reviewed, 20% audit steps, 10% findings triage), contract review checklist                                                                              |
-| Statistics       | `/stats`       | Per-contract metrics, test coverage, dependencies, ERCs                                                                                                                                  |
-| System Diagram   | `/diagram`     | Mermaid architecture diagram with zoom/pan                                                                                                                                               |
-| Flows            | `/flows`       | Mermaid flow charts with zoom/pan                                                                                                                                                        |
-| Access Control   | `/access`      | Role → function matrix with "Show unprotected only" and "Show inferred / unknown modifiers" toggles                                                                                      |
-| State Variables  | `/state`       | Variable inventory with reader/writer tracking and storage-collision warnings                                                                                                            |
-| External Calls   | `/calls`       | Call surface with filterable Trust column                                                                                                                                                |
-| Functions        | `/functions`   | Aggregated function view                                                                                                                                                                 |
-| Spec Conformance | `/conformance` | Code vs spec check results, deviations first, clickable spec links                                                                                                                       |
-| **Issues**       | `/issues`      | **The board.** Four columns (Potential / Verified / Invalid / Duplicate). Drag cards to change column, click to edit (severity, description, recommendation, resolution, client update). |
+| Page             | URL            | What you see                                                                                                                                                                                                                                                                                                                                                                               |
+| ---------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Home             | `/`            | Project info, AI overview, key stats                                                                                                                                                                                                                                                                                                                                                       |
+| Progress         | `/progress`    | Weighted progress bar (70% nSLOC reviewed, 20% audit steps, 10% findings triage), contract review checklist                                                                                                                                                                                                                                                                                |
+| Statistics       | `/stats`       | Per-contract metrics, test coverage, dependencies, ERCs                                                                                                                                                                                                                                                                                                                                    |
+| System Diagram   | `/diagram`     | Mermaid architecture diagram with zoom/pan                                                                                                                                                                                                                                                                                                                                                 |
+| Flows            | `/flows`       | Mermaid flow charts with zoom/pan                                                                                                                                                                                                                                                                                                                                                          |
+| Access Control   | `/access`      | Role → function matrix with "Show unprotected only" and "Show inferred / unknown modifiers" toggles                                                                                                                                                                                                                                                                                        |
+| State Variables  | `/state`       | Variable inventory with reader/writer tracking and storage-collision warnings                                                                                                                                                                                                                                                                                                              |
+| External Calls   | `/calls`       | Call surface with filterable Trust column                                                                                                                                                                                                                                                                                                                                                  |
+| Functions        | `/functions`   | Aggregated function view                                                                                                                                                                                                                                                                                                                                                                   |
+| Spec Conformance | `/conformance` | Code vs spec check results, deviations first, clickable spec links                                                                                                                                                                                                                                                                                                                         |
+| **Issues**       | `/issues`      | **The board.** Five columns (Potential / Verified / Synced / Invalid / Duplicate). Drag cards between the editable columns, click to edit (severity, description, recommendation, resolution, client update), or copy a finding as HackMD markdown. The **Synced** column is reached only via `/sync-issues` and is read-only (edit on GitHub). GitHub-sync chip per verified/synced card. |
+| **Overleaf**     | `/overleaf`    | The four LaTeX report sections from `/generate-overleaf`, each with a copy-to-clipboard button — paste straight into the Nethermind Overleaf template.                                                                                                                                                                                                                                     |
 
 ---
 
@@ -350,29 +350,34 @@ You usually don't call these directly — `/init-audit` and the other skills do.
 
 All commands run from within the project directory (or with `--project /path/to/project`).
 
-| Command                           | What it does                                                                                                   |
-| --------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `hex doctor`                      | Preflight check: node, forge, slither, solc, Claude Code, output-dir writability, project config               |
-| `hex claude`                      | Copy skills to `.claude/skills/` for Claude Code discovery                                                     |
-| `hex init`                        | Initialise audit config — scope, commit, chain, docs URL (called by `/init-audit`)                             |
-| `hex analyze`                     | Run all analysis commands in parallel (stats, deps, access, state, calls, patterns, constraints), then surface |
-| `hex stats`                       | Generate codebase statistics and test coverage                                                                 |
-| `hex deps`                        | Build contract dependency graph                                                                                |
-| `hex access`                      | Extract access control mapping (roles → functions, including inherited)                                        |
-| `hex state`                       | Generate state variable inventory + storage-collision detection                                                |
-| `hex calls`                       | Map external call surface (AST-based, Slither optional)                                                        |
-| `hex patterns`                    | Detect security-relevant patterns (ORACLE, FLASH_LOAN, TEMPORAL, etc.)                                         |
-| `hex constraints`                 | Extract setter validation status (AST-aware, follows helpers and modifiers)                                    |
-| `hex surface`                     | Build attack surface summary cross-referencing all analysis                                                    |
-| `hex context`                     | Assemble optimised AI context from codebase                                                                    |
-| `hex context --target Vault`      | Context for a specific contract and its dependencies                                                           |
-| `hex context --estimate`          | Show token count without generating context                                                                    |
-| `hex dashboard`                   | Start local dashboard and open in browser                                                                      |
-| `hex dashboard --port 8080`       | Start dashboard on a custom port                                                                               |
-| `hex update`                      | Update hex-audit to the latest version on npm, then prompt to re-sync skills into the current project          |
-| `hex update --check`              | Check for an available update without installing                                                               |
-| `hex update --yes`                | Update and re-sync skills without the post-install prompt                                                      |
-| `hex update-skills`               | Re-copy skill files from package, removing orphans (overwrites by default)                                     |
-| `hex update-skills --keep-custom` | Skip existing skill files instead of overwriting                                                               |
-| `hex ai-status`                   | Show the latest status for AuditAgent scans                                                                    |
-| `hex ai-status --watch`           | Poll every 5 minutes until pending scans resolve (typical scan: 30-60 min)                                     |
+| Command                           | What it does                                                                                                       |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `hex doctor`                      | Preflight check: node, forge, slither, solc, Claude Code, output-dir writability, project config                   |
+| `hex claude`                      | Copy skills to `.claude/skills/` for Claude Code discovery                                                         |
+| `hex init`                        | Initialise audit config — scope, commit, chain, docs URL, `--github-repo` (called by `/init-audit`)                |
+| `hex analyze`                     | Run all analysis commands in parallel (stats, deps, access, state, calls, patterns, constraints), then surface     |
+| `hex stats`                       | Generate codebase statistics and test coverage                                                                     |
+| `hex deps`                        | Build contract dependency graph                                                                                    |
+| `hex access`                      | Extract access control mapping (roles → functions, including inherited)                                            |
+| `hex state`                       | Generate state variable inventory + storage-collision detection                                                    |
+| `hex calls`                       | Map external call surface (AST-based, Slither optional)                                                            |
+| `hex patterns`                    | Detect security-relevant patterns (ORACLE, FLASH_LOAN, TEMPORAL, etc.)                                             |
+| `hex constraints`                 | Extract setter validation status (AST-aware, follows helpers and modifiers)                                        |
+| `hex surface`                     | Build attack surface summary cross-referencing all analysis                                                        |
+| `hex context`                     | Assemble optimised AI context from codebase                                                                        |
+| `hex context --target Vault`      | Context for a specific contract and its dependencies                                                               |
+| `hex context --estimate`          | Show token count without generating context                                                                        |
+| `hex dashboard`                   | Start local dashboard and open in browser                                                                          |
+| `hex dashboard --port 8080`       | Start dashboard on a custom port                                                                                   |
+| `hex update`                      | Update hex-audit to the latest version on npm, then prompt to re-sync skills into the current project              |
+| `hex update --check`              | Check for an available update without installing                                                                   |
+| `hex update --yes`                | Update and re-sync skills without the post-install prompt                                                          |
+| `hex update-skills`               | Re-copy skill files from package, removing orphans (overwrites by default)                                         |
+| `hex update-skills --keep-custom` | Skip existing skill files instead of overwriting                                                                   |
+| `hex ai-status`                   | Show the latest status for AuditAgent scans                                                                        |
+| `hex ai-status --watch`           | Poll every 5 minutes until pending scans resolve (typical scan: 30-60 min)                                         |
+| `hex issue new --source <s> ...`  | Allocate a uniform `H-NNN` id and create a board card (used by the skills)                                         |
+| `hex issue move <id> --to <col>`  | Move an issue between board columns (potential / verified / invalid / duplicate); materializes a finding on verify |
+| `hex issue patch <id> [...]`      | Edit an issue's severity / resolution / description-file / recommendation-file / update-from-client / notes        |
+| `hex issue sync-set <id> ...`     | Mark an issue synced to a GitHub issue number (used by `/sync-issues`)                                             |
+| `hex issue show <id>`             | Print the merged finding + tracking record for an issue                                                            |

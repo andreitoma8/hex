@@ -25,6 +25,7 @@ Ask the auditor for:
 - **Commit hash** — the specific commit being audited (default: HEAD).
 - **Chain** — target chain (default: ethereum).
 - **Documentation URL** — if available.
+- **GitHub repo** (optional) — the `owner/repo` the audit's findings sync to (e.g. `nethermind/audit-vaultx`). Pass it to `hex init --github-repo` so `/sync-issues` and `/generate-overleaf` work later. Leave blank if the engagement isn't using GitHub.
 
 ### 1.2 Audit dependencies (BEFORE compiling)
 
@@ -55,9 +56,11 @@ After build safety passes, evaluate Solidity dependencies:
 Run:
 
 ```bash
-npx hex init --project "<path>" --scope "<scope>" --commit <hash> --chain <chain> --docs "<url>"
+npx hex init --project "<path>" --scope "<scope>" --commit <hash> --chain <chain> --docs "<url>" [--github-repo <owner/repo>]
 npx hex analyze
 ```
+
+Include `--github-repo` only if the auditor gave one.
 
 `hex analyze` runs stats → deps → access → state → calls → patterns → constraints in parallel, then `surface` last. If a tool is missing (Slither, forge), the corresponding analysis is skipped — note the limitation and move on.
 
@@ -236,25 +239,17 @@ Also write a human-readable `.hex/spec-conformance.md` rendering the same data g
 
 ## Phase 6 — Materialize conformance items onto the board
 
-For every item in `spec-conformance.json.items` with `status` of `DEVIATES` or `PARTIAL`, append a tracking entry to `.hex/tracking.json` (creating the file if missing). Schema:
+For every item in `spec-conformance.json.items` with `status` of `DEVIATES` or `PARTIAL`, create a board card via the CLI — it allocates a uniform `H-NNN` id, materializes the full finding (description, code location) from the spec item by `source_ref`, and writes the tracking entry. Never hand-edit `tracking.json`.
 
-```json
-{
-  "id": "<spec-item-id, e.g. SC-001>",
-  "title": "<spec-item.finding's first sentence, truncated to ~80 chars>",
-  "severity": "<spec-item.severity_hint, default 'Info' if absent>",
-  "source": "conformance",
-  "status": "pending_validation",
-  "poc_status": "not_started",
-  "poc_file": null,
-  "duplicates": [],
-  "notes": "<spec source + spec_location URL — so the board card has provenance>"
-}
+```bash
+npx hex issue new --source conformance --source-ref "<spec-item-id, e.g. SC-001>" \
+  --title "<spec-item.finding's first sentence, ~80 chars>" \
+  --severity "<spec-item.severity_hint, default Info>"
 ```
 
-These appear on the dashboard's Issues board as Potential cards immediately. The auditor validates them later with `/validate-issue <id>`.
+`--source-ref` is the spec item's own id (e.g. `SC-001`) — Hex keeps that as the back-reference; the board card itself gets the uniform `H-NNN`. These appear on the Issues board as Potential cards immediately; the auditor validates them later with `/validate-issue <id>` (or `/validate-all-findings`).
 
-**Idempotency:** if a tracking entry with the same id already exists, leave it alone (the auditor may have already edited/promoted it).
+**Idempotency:** before creating, check whether a tracking entry already has this `source_ref` (re-running `/init-audit` shouldn't double-create). Skip items whose `source_ref` is already present.
 
 ## Phase 7 — Report and auto-launch the dashboard
 
@@ -265,10 +260,10 @@ Summarize:
 - Number of conformance DEVIATES/PARTIAL items materialized to the board.
 - Any warnings or limitations (missing tools, failed coverage, etc.).
 
-Then launch the dashboard in the background so the auditor's browser opens automatically. Run this Bash command with `run_in_background: true` so the skill returns control to the auditor while Next.js keeps serving the dashboard:
+Then launch the dashboard in the background so the auditor's browser opens automatically. Pass `--project` with the **absolute** project directory (so the dashboard reads the right `.hex/` regardless of the current working directory), and run with `run_in_background: true` so the skill returns control while Next.js keeps serving:
 
 ```bash
-npx hex dashboard
+npx hex dashboard --project "<absolute project dir>"
 ```
 
 Print a one-line confirmation after starting it: `Dashboard starting at http://localhost:3000 (live-refreshing as .hex/ changes).`

@@ -325,6 +325,9 @@ export const FindingSchema = z.object({
   github: GithubLinkSchema.optional(),
   update_from_client: z.string().optional(),
   resolution: ResolutionSchema.optional(),
+  // Maps a uniform H-NNN id back to its origin record (conformance item id,
+  // auditagent finding id, or GitHub issue number) for materialization/dedup.
+  source_ref: z.string().nullable().optional(),
 });
 
 export const FindingsSchema = z.object({
@@ -340,11 +343,19 @@ export const TrackingEntrySchema = z.object({
   title: z.string(),
   severity: SeveritySchema,
   source: TrackingSourceSchema,
-  status: z.enum(['verified', 'pending_validation', 'rejected', 'duplicate', 'unverified']),
+  status: z.enum([
+    'verified',
+    'pending_validation',
+    'rejected',
+    'duplicate',
+    'unverified',
+    'synced',
+  ]),
   poc_status: z.enum(['passing', 'failing', 'not_started']),
   poc_file: z.string().nullable(),
   duplicates: z.array(z.string()),
   duplicate_of: z.string().nullable().optional(),
+  source_ref: z.string().nullable().optional(),
   notes: z.string(),
 });
 

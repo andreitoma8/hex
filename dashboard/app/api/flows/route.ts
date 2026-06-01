@@ -3,6 +3,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { getOutputDirPath } from '@/lib/data';
 
+// Read .hex/diagrams/ at request time. Without this, next build prerenders the
+// route against an empty build-time .hex/ and ships a static `{"flows":[]}`.
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   const outputDir = getOutputDirPath();
 

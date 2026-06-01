@@ -58,7 +58,8 @@ Key pages:
 - `/functions` — Aggregated function view.
 - `/diagram` and `/flows` — Full-bleed Mermaid canvas with auto-fit zoom and legend overlay.
 - `/conformance` — Conformance check results, deviations first, clickable spec links.
-- `/issues` — **The board.** Four columns: Potential / Verified / Invalid / Duplicate. Cards with severity, source badge, GitHub sync chip, duplicate signals. Drag a card to change column. Click to open a modal that edits severity, description, recommendation, resolution, and client update.
+- `/issues` — **The board.** Five columns: Potential / Verified / Synced / Invalid / Duplicate. Uniform `H-NNN` ids with a source badge. Drag cards between the editable columns; click to edit, or copy as HackMD. The **Synced** column is reached only via `/sync-issues` and is read-only (edit on GitHub).
+- `/overleaf` — The four LaTeX report sections from `/generate-overleaf`, each with a copy button. Only populated after you run the skill.
 
 ### Phase 2 — Manual review + `/write-finding`
 
@@ -76,12 +77,14 @@ When you have something concrete, point Claude at it:
 
 #### `/validate-issue` for any potential issue
 
-`/validate-issue` is source-agnostic. Pass an id (`F003`, `SC-007`, `AA-N002`, `github-42`) or a free-text reference:
+`/validate-issue` is source-agnostic. Pass a uniform id (`H-003`) or a free-text reference:
 
 ```
-/validate-issue F003
+/validate-issue H-003
 /validate-issue for the rounding issue
 ```
+
+To validate the whole Potential backlog in one interactive pass, run `/validate-all-findings`.
 
 Claude traces the attack path in the code, writes a validation memo (always), and asks per-issue whether you want a PoC or memo-only. On valid → tracking entry promotes to `verified` and the card moves to Verified on the board. On invalid → tracking entry becomes `rejected` and the card moves to Invalid.
 
@@ -99,19 +102,18 @@ When complete, the skill fetches findings, materializes them as Potential cards 
 
 #### `/sync-issues` — team mode via GitHub Issues
 
-If `settings.github.repo` is configured in `.hex/config.json` (e.g. `nethermind/audit-vaultx`) and `gh auth login` has been run:
+If a repo is configured (`hex init --github-repo <owner/repo>`, or `settings.github.repo`) and `gh auth login` has been run:
 
 ```
 /sync-issues
 ```
 
-One run does both directions:
+GitHub is the source of truth; **identity is the issue number `#N`** (no hidden footer). One run does both directions:
 
-- **Pulls** every issue with the `hex` label. Issues with the round-trip footer `<!-- hex-finding-id: F<NNN> -->` link back to local findings; issues without the footer are teammate findings, materialized as new tracking entries (`source: "github"`).
-- **Inline dedup, GitHub-canonical.** If a pulled GitHub issue matches a local potential, **the local entry becomes the duplicate** (`status: "duplicate"`, `duplicate_of: "github-<num>"`). Reason: a teammate has already filed it — your in-progress card is redundant.
-- **Pushes** local findings whose tracking status is in `settings.github.publish_status` (default `["verified"]`). Updates existing issues by `github.issue_number`, never creates labels.
+- **Pulls every issue** in the repo (no label filter). Title + the five-field body are parsed back into the local finding; issues already linked by `#N` are refreshed, new ones become local findings. All land in the **Synced** column (read-only).
+- **Pushes** verified findings not yet on GitHub. Body is exactly the five fields (no labels, no footer). The returned `#N` is stored, locking the card into Synced.
 
-GitHub-sync state shows as a chip on each card on the board.
+Once synced, edit on GitHub and re-run `/sync-issues` to pull changes back. GitHub-sync state shows as a chip on each verified/synced card.
 
 ### Phase 4 — Final deliverable (`/generate-overleaf`)
 
@@ -126,7 +128,7 @@ Writes four `.txt` LaTeX section files to `.hex/overleaf/`:
 3. `summary_of_findings.txt` — `\section{Summary of Issues}` table linking to per-finding subsections.
 4. `findings.txt` — `\section{Issues}` with one `\subsection{[Sev] title}\label{issue:N}` per verified finding (description, code blocks via minted, recommendation, status, client update).
 
-The skill prompts once for any missing report metadata (initial/final commit, dates, doc/test assessment) and persists them under `settings.report.*` so reruns don't re-prompt. Upload the four files into your Nethermind Overleaf template's matching slots.
+The skill prompts once for any missing report metadata (initial/final commit, dates, doc/test assessment) and persists them under `settings.report.*` so reruns don't re-prompt. Read the four sections on the dashboard's `/overleaf` page and copy each into your Nethermind Overleaf template's matching slot (or grab the files directly from `.hex/overleaf/`).
 
 Only `verified` findings make the cut. Duplicates, rejected, and pending entries are skipped.
 
@@ -134,8 +136,8 @@ Only `verified` findings make the cut. Duplicates, rejected, and pending entries
 
 - `/init-audit` is now a single skill that runs everything pre-manual-review.
 - The board (`/issues`) is the only findings page. Cards are interactive: drag to change column, click to edit.
-- `/write-finding` records Potential issues — promote them via `/validate-issue` or by dragging on the board.
+- `/write-finding` records Potential issues (uniform `H-NNN` ids, no in-code comments) — promote via `/validate-issue`, `/validate-all-findings`, or by dragging on the board.
 - `/ingest-aa-report` takes a scan ID, never starts a scan.
-- `/sync-issues` treats GitHub as the source of truth — your local entry is the duplicate on a match.
+- `/sync-issues` treats GitHub as the source of truth — synced issues are read-only in Hex and identified by issue number; `/generate-overleaf` reports only from synced issues.
 - `/generate-overleaf` is the final handoff to the LaTeX report.
 - `hex update` upgrades the package and prompts to re-sync skills in one shot; `hex update-skills` re-syncs skills only.

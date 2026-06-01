@@ -8,7 +8,6 @@ import { IssuesBoardClient, type BoardIssue } from './IssuesBoardClient';
 // stale (or empty) HTML for every audit project, ignoring the runtime cwd.
 export const dynamic = 'force-dynamic';
 
-
 interface FindingsFile {
   findings: Array<{
     id: string;
@@ -20,9 +19,15 @@ interface FindingsFile {
     update_from_client?: string;
     root_cause?: { locations?: Array<{ file: string; snippet?: string }> };
     poc?: { status?: string; file?: string | null; validation_memo?: string | null };
-    github?: { issue_number?: number; issue_url?: string; state?: string };
+    github?: { issue_number?: number; issue_url?: string; state?: string; sync_status?: string };
     category?: string;
   }>;
+}
+
+interface ConfigFile {
+  settings?: {
+    report?: { repository_url?: string; initial_commit?: string };
+  };
 }
 
 interface TrackingFile {
@@ -74,10 +79,33 @@ interface SpecConformanceFile {
   }>;
 }
 
+/**
+ * Derive the GitHub sync chip state. Verified findings are push candidates
+ * (unsynced until pushed); synced findings always carry an issue number.
+ * Everything else gets no chip.
+ */
+function computeSyncState(
+  status: string | undefined,
+  github: { issue_number?: number; state?: string; sync_status?: string } | undefined,
+): BoardIssue['sync_state'] {
+  if (status !== 'verified' && status !== 'synced') return 'none';
+  if (!github?.issue_number) return 'unsynced';
+  if (
+    github.sync_status === 'conflict' ||
+    github.sync_status === 'local_ahead' ||
+    github.sync_status === 'remote_ahead'
+  ) {
+    return 'conflict';
+  }
+  return github.state === 'closed' ? 'synced_closed' : 'synced_open';
+}
+
 function statusToColumn(status: string | undefined): BoardIssue['column'] {
   switch (status) {
     case 'verified':
       return 'verified';
+    case 'synced':
+      return 'synced';
     case 'rejected':
       return 'invalid';
     case 'duplicate':
@@ -179,7 +207,9 @@ function buildBoardIssues(): BoardIssue[] {
       code_locations: locations,
       github_synced: Boolean(finding?.github?.issue_number),
       github_issue_url: finding?.github?.issue_url,
+      github_issue_number: finding?.github?.issue_number,
       github_state: finding?.github?.state,
+      sync_state: computeSyncState(t.status, finding?.github),
       duplicate_of: t.duplicate_of ?? dup?.matches ?? null,
       match_signals: matchSignals,
       reasoning: dup?.reasoning,
@@ -210,7 +240,9 @@ function buildBoardIssues(): BoardIssue[] {
       code_locations: f.root_cause?.locations ?? [],
       github_synced: Boolean(f.github?.issue_number),
       github_issue_url: f.github?.issue_url,
+      github_issue_number: f.github?.issue_number,
       github_state: f.github?.state,
+      sync_state: computeSyncState('verified', f.github),
       duplicate_of: null,
       match_signals: undefined,
       reasoning: undefined,
@@ -227,6 +259,11 @@ function buildBoardIssues(): BoardIssue[] {
 
 export default function IssuesPage() {
   const issues = buildBoardIssues();
+  const config = readJsonFile<ConfigFile>('config.json');
+  const formatCtx = {
+    repositoryUrl: config?.settings?.report?.repository_url,
+    commit: config?.settings?.report?.initial_commit,
+  };
 
   if (issues.length === 0) {
     return (
@@ -242,5 +279,5 @@ export default function IssuesPage() {
     );
   }
 
-  return <IssuesBoardClient issues={issues} />;
+  return <IssuesBoardClient issues={issues} formatCtx={formatCtx} />;
 }

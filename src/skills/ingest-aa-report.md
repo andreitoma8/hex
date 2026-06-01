@@ -96,29 +96,19 @@ to `<output_dir>/ai-results/auditagent/findings.json`. Also write a small `metad
 }
 ```
 
-## Step 5 — Materialize tracking entries
+## Step 5 — Materialize board cards
 
-For each AuditAgent finding, append (or update if id already exists) a tracking entry in `<output_dir>/tracking.json`:
+The raw AuditAgent findings keep their own `AA-<NNN>` ids inside `ai-results/auditagent/findings.json` (that file is the source record). The **board** card gets a uniform `H-NNN` id. Create one per finding via the CLI — it allocates the id and materializes the full finding (title, severity, description, affected code) from the raw record by `source_ref`:
 
-```json
-{
-  "id": "AA-<NNN>",
-  "title": "<title>",
-  "severity": "<severity>",
-  "source": "auditagent",
-  "status": "unverified",
-  "poc_status": "not_started",
-  "poc_file": null,
-  "duplicates": [],
-  "notes": "scan_id=<scan_id>"
-}
+```bash
+npx hex issue new --source auditagent --source-ref <AA-NNN> --title "<title>" --severity <Severity>
 ```
 
-These appear on the board as Potential cards.
+Capture each printed `H-NNN`. Cards land in the Potential column with `status: unverified`. Never hand-edit `tracking.json`.
 
 ## Step 6 — Inline dedup
 
-Read all existing tracking entries (manual, conformance, github, and any previously ingested auditagent runs). For each **new** auditagent entry, run a semantic comparison against each existing entry on these axes:
+Read all existing tracking entries (manual, conformance, github, and any previously ingested auditagent runs) — all uniform `H-NNN` ids. For each **new** auditagent card, run a semantic comparison against each existing entry on these axes:
 
 | Signal | How to compare |
 |---|---|
@@ -132,12 +122,18 @@ A match is **at least one of**:
 - `root_cause = same` AND `contract = true` AND `attack_vector = same`, or
 - `root_cause = overlapping` AND `function = true` AND `attack_vector = same`.
 
-On match, **flip the new auditagent entry** to `status: "duplicate"` (the canonical is the existing entry — the auditor already filed or already has it from another source) and set `duplicate_of: "<existing-entry-id>"`. Append to `<output_dir>/comparison.json` under `duplicates`:
+On match, **move the new auditagent card to the Duplicate column** (the canonical is the existing entry — the auditor already filed or already has it from another source):
+
+```bash
+npx hex issue move <new-H-id> --to duplicate
+```
+
+Then record the match in `<output_dir>/comparison.json` under `duplicates`. The board reads this to show the "dup of `<canonical-H-id>`" chip and the match signals (it derives `duplicate_of` from the `matches` field here):
 
 ```json
 {
-  "ai_finding": "AA-<NNN>",
-  "matches": "<existing-entry-id>",
+  "ai_finding": "<new-H-id>",
+  "matches": "<canonical-H-id>",
   "confidence": "high | medium | low",
   "match_signals": { "contract": true, "function": true, "root_cause": "same", "attack_vector": "same" },
   "reasoning": "<one short sentence: which signals carried the call>"

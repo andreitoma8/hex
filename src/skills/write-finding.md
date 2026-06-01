@@ -13,13 +13,13 @@ This skill records a manual issue that the auditor has spotted during review. Th
 Read:
 - The issue description provided by the auditor.
 - The relevant source code.
-- `<output_dir>/findings.json` and `<output_dir>/tracking.json` — to determine the next finding ID. Use the highest existing `F<NNN>` ID across both files and increment by 1. Rejected and invalid findings keep their IDs reserved.
+- `<output_dir>/findings.json` and `<output_dir>/tracking.json` — to check for duplicates (ids are allocated by `hex issue new`, never hand-assigned).
 
 ## Step 0: Duplicate gate
 
 Scan `findings.json` and `tracking.json` for any existing entry that covers the same vulnerability (same affected contract/function, same or overlapping root cause). If a match is found, warn the auditor:
 
-> "This appears to duplicate `F<NNN>`: \<title\>. Proceed anyway?"
+> "This appears to duplicate `<H-NNN>`: \<title\>. Proceed anyway?"
 
 Only continue if confirmed.
 
@@ -51,9 +51,11 @@ Cross-reference both before assigning a severity.
 
 Write the finding following this structure:
 
+The `id`, `poc`, and `created_at` fields are managed by `hex issue new` (see Actions) — you supply the rest via `hex issue patch`. The full record shape, for reference:
+
 ```json
 {
-  "id": "F<NNN>",
+  "id": "H-NNN (allocated by hex issue new)",
   "title": "<concise, descriptive title>",
   "severity": "Critical|High|Medium|Low|Info",
   "category": "<e.g., Math / Rounding, Access Control, Reentrancy, Oracle Manipulation>",
@@ -108,35 +110,28 @@ All inserted audit comments must be full sentences starting with a capital lette
 
 ## Actions
 
-1. **Append the finding** to the `findings` array inside `<output_dir>/findings.json`. File structure is `{ "findings": [...] }` — create with this wrapper if missing.
-2. **Add a tracking entry** to `<output_dir>/tracking.json` with:
-   ```json
-   {
-     "id": "F<NNN>",
-     "title": "<same as finding>",
-     "severity": "<same as finding>",
-     "source": "manual",
-     "status": "pending_validation",
-     "poc_status": "not_started",
-     "poc_file": null,
-     "duplicates": [],
-     "notes": ""
-   }
-   ```
-3. **Annotate source files.** For each entry in `root_cause.locations[]`:
-   - Open the source file at `file`.
-   - Find the first significant line of the `snippet` (skip blank lines and `// ....`).
-   - If an existing `// @audit-issue ...` comment is directly above, replace it with `// @audit-issue F<NNN> <short title>`.
-   - Otherwise insert `// @audit-issue F<NNN> <short title>` directly above, matching indentation.
+Persist through the `hex issue` CLI — never hand-edit `findings.json` or `tracking.json`. The CLI allocates the uniform `H-NNN` id, writes the tracking entry (`status: pending_validation`, `source: manual`), and creates the findings.json skeleton.
 
-(The `@audit-issue-verified` annotation comes later, via `/validate-issue` once the issue is promoted to Verified.)
+1. **Create the issue:**
+   ```bash
+   npx hex issue new --source manual --title "<concise title>" --severity <Severity>
+   ```
+   This prints the allocated id (e.g. `H-007`). Capture it.
+
+2. **Fill the fields** (write the description and recommendation to temp files first, to preserve newlines):
+   ```bash
+   npx hex issue patch <id> --description-file /tmp/<id>_desc.md --recommendation-file /tmp/<id>_reco.md
+   ```
+   The description must be self-contained (what the issue is, why it exists, the impact). The recommendation is prose only, hedged (`Consider...`), no code.
+
+There is **no source-file annotation** — Hex does not write `@audit-issue` comments into the client's `.sol` files. The board and the finding record are the single place the issue lives.
 
 ## After writing
 
-The finding now appears on the dashboard's `/issues` board as a Potential card. The auditor can:
+The finding appears on the dashboard's `/issues` board as a Potential card (`H-NNN`). The auditor can:
 
-- Run `/validate-issue F<NNN>` to write a validation memo and optionally generate a PoC; on success the card moves to Verified.
-- Drag the card directly from Potential → Verified on the board if they're confident no PoC is needed (e.g., trivial Info-level issues).
-- Run `/sync-issues` if `settings.github.repo` is configured, to push verified findings to the team's GitHub repo.
+- Run `/validate-issue <id>` to write a validation memo and optionally generate a PoC; on success the card moves to Verified.
+- Drag the card from Potential → Verified on the board if no PoC is needed (e.g., trivial Info-level issues).
+- Run `/sync-issues` (once findings are Verified and `settings.github.repo` is set) to push them to GitHub.
 
-Do NOT run `/validate-issue` or `/sync-issues` automatically — those are auditor-driven decisions.
+Do NOT run `/validate-issue` or `/sync-issues` automatically — those are auditor-driven.

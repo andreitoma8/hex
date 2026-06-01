@@ -12,14 +12,24 @@ export const dashboardCommand = new Command('dashboard')
   .option('--port <port>', 'Port number', '3000')
   .option('--no-open', 'Do not open browser automatically')
   .action(async (opts) => {
-    const projectDir = path.resolve(opts.project ?? process.cwd());
+    const invokedFrom = path.resolve(opts.project ?? process.cwd());
 
+    let config;
     try {
-      loadConfig(projectDir);
+      config = loadConfig(invokedFrom);
     } catch {
-      logger.error(`No Hex project found in ${projectDir}. Run 'hex init' first.`);
+      logger.error(`No Hex project found in ${invokedFrom}. Run 'hex init' first.`);
       process.exit(1);
     }
+
+    // The dashboard's data loaders read `.hex/` relative to process.cwd(), so we
+    // must spawn Next from the audit project ROOT — not from wherever `hex
+    // dashboard` happened to be invoked (e.g. inside `.hex/`, which would make it
+    // look for `.hex/.hex/` and render an empty dashboard). The project root is
+    // recorded in config at init time; fall back to the invocation dir only if
+    // that path no longer exists.
+    const recordedRoot = config.project.project_dir;
+    const projectDir = recordedRoot && fs.existsSync(recordedRoot) ? recordedRoot : invokedFrom;
 
     const dashboardDir = getDashboardDir();
     if (!fs.existsSync(dashboardDir)) {

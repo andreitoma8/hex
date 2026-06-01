@@ -326,7 +326,13 @@ const NAV_GROUPS = [
       { href: '/flows', label: 'Flows', icon: IconFlows },
     ],
   },
-  { label: 'Issues', items: [{ href: '/issues', label: 'Board', icon: IconFindings }] },
+  {
+    label: 'Issues',
+    items: [
+      { href: '/issues', label: 'Board', icon: IconFindings },
+      { href: '/overleaf', label: 'Overleaf', icon: IconReport },
+    ],
+  },
 ];
 
 export { NAV_GROUPS };
@@ -395,7 +401,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         <div className="px-5 pb-4 pt-6">
           <div className="flex items-baseline gap-2">
             <span className="text-title font-semibold text-text-primary">Hex</span>
-            <span className="text-caption text-text-tertiary">v0.4.4</span>
+            <span className="text-caption text-text-tertiary">v0.5.0</span>
           </div>
         </div>
 

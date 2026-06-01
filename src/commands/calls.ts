@@ -6,8 +6,9 @@ import { loadConfig } from '../core/config.js';
 import { getOutputDir, normalizePath } from '../core/paths.js';
 import { writeJsonOutput, readJsonFile } from '../core/output.js';
 import { parseDetectors } from '../parsers/slither.js';
+import type { SlitherDetectorResult } from '../parsers/slither.js';
 import { extractExternalCalls } from '../parsers/solidity-parser.js';
-import { buildExternalCalls } from '../analysis/external-calls.js';
+import { buildExternalCalls, type SlitherState } from '../analysis/external-calls.js';
 import { runSlither } from '../core/external-tools.js';
 import type { ExternalCalls, StateVars, AccessControl } from '../types/index.js';
 
@@ -37,28 +38,43 @@ export const callsCommand = new Command('calls')
 
       logger.info(`AST extraction found ${allAstCalls.length} external calls`);
 
-      // Tier 2: Try Slither for enrichment (unchecked returns, reentrancy)
-      let slitherDetectors = undefined;
+      // Tier 2: Try Slither for enrichment (unchecked returns, reentrancy).
+      // Track three states explicitly so the analyzer can distinguish "Slither
+      // ran clean" (medium confidence) from "Slither never ran" (low confidence).
+      let slitherDetectors: SlitherDetectorResult[] = [];
+      let slitherState: SlitherState = 'unavailable';
       try {
         spin.text = 'Running Slither detectors for enrichment...';
         const result = await runSlither(config.project.project_dir, [
           '.',
           '--detect',
           'unchecked-transfer,unchecked-lowlevel,reentrancy-eth,reentrancy-no-eth,reentrancy-benign,reentrancy-events,calls-loop',
-          '--json', '-',
+          '--json',
+          '-',
         ]);
 
-        if (result.exitCode === 0 && result.stdout) {
+        // Slither exits non-zero when it finds issues, so gate on parseable JSON
+        // output rather than exit code.
+        if (result.stdout) {
           slitherDetectors = parseDetectors(JSON.parse(result.stdout));
-          logger.info('Slither enrichment available — enhanced return check and reentrancy data');
+          slitherState = slitherDetectors.length > 0 ? 'with-findings' : 'clean';
+          logger.info(
+            slitherState === 'clean'
+              ? 'Slither ran clean (no detector findings) — Tier 2 fields use medium-confidence defaults'
+              : 'Slither enrichment available — enhanced return check and reentrancy data',
+          );
         }
       } catch {
-        logger.warn('Slither not available — return check and reentrancy guard data will have low confidence');
+        logger.warn(
+          'Slither not available — return check and reentrancy guard data will have low confidence',
+        );
       }
 
       // Load supplementary data for trust level classification
       const stateVars = readJsonFile<StateVars>(path.join(outputDir, 'state-vars.json'));
-      const accessControl = readJsonFile<AccessControl>(path.join(outputDir, 'access-control.json'));
+      const accessControl = readJsonFile<AccessControl>(
+        path.join(outputDir, 'access-control.json'),
+      );
 
       // Build immutability map
       const immutabilityMap = new Map<string, boolean>();
@@ -93,6 +109,7 @@ export const callsCommand = new Command('calls')
         scopeContracts,
         accessControlledSetters,
         slitherDetectors,
+        slitherState,
       );
 
       const externalCalls: ExternalCalls = { calls };

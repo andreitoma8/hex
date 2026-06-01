@@ -11,12 +11,15 @@ import {
   useDroppable,
 } from '@dnd-kit/core';
 import { SeverityBadge } from '@/components/SeverityBadge';
+import { findingToHackmd, type FormatContext } from '@/lib/finding-markdown';
 
-export type BoardColumn = 'potential' | 'verified' | 'invalid' | 'duplicate';
+export type BoardColumn = 'potential' | 'verified' | 'synced' | 'invalid' | 'duplicate';
+export type SyncState = 'none' | 'unsynced' | 'synced_open' | 'synced_closed' | 'conflict';
 export type IssueStatus =
   | 'pending_validation'
   | 'unverified'
   | 'verified'
+  | 'synced'
   | 'rejected'
   | 'duplicate';
 export type IssueSource = 'manual' | 'auditagent' | 'conformance' | 'github';
@@ -36,7 +39,10 @@ export interface BoardIssue {
   code_locations: Array<{ file: string; snippet?: string }>;
   github_synced: boolean;
   github_issue_url?: string;
+  github_issue_number?: number;
   github_state?: string;
+  /** Derived in page.tsx: how this verified finding stands vs GitHub. */
+  sync_state?: SyncState;
   duplicate_of: string | null;
   match_signals?: {
     contract: boolean;
@@ -54,7 +60,8 @@ export interface BoardIssue {
 
 const COLUMN_DEFS: Array<{ id: BoardColumn; label: string; description: string }> = [
   { id: 'potential', label: 'Potential', description: 'Awaiting validation' },
-  { id: 'verified', label: 'Verified', description: 'Confirmed issues ready to report' },
+  { id: 'verified', label: 'Verified', description: 'Confirmed, ready to push' },
+  { id: 'synced', label: 'Synced to GitHub', description: 'On GitHub — edit there, not here' },
   { id: 'invalid', label: 'Invalid', description: 'Rejected after review' },
   { id: 'duplicate', label: 'Duplicate', description: 'Covered by another entry' },
 ];
@@ -70,7 +77,13 @@ const SEVERITY_ORDER: Record<BoardIssue['severity'], number> = {
 const SEVERITIES: BoardIssue['severity'][] = ['Critical', 'High', 'Medium', 'Low', 'Info'];
 const RESOLUTIONS = ['Fixed', 'Mitigated', 'Acknowledged', 'Not Fixed', 'Unresolved'];
 
-export function IssuesBoardClient({ issues: initialIssues }: { issues: BoardIssue[] }) {
+export function IssuesBoardClient({
+  issues: initialIssues,
+  formatCtx = {},
+}: {
+  issues: BoardIssue[];
+  formatCtx?: FormatContext;
+}) {
   const [issues, setIssues] = useState<BoardIssue[]>(initialIssues);
   const [openId, setOpenId] = useState<string | null>(null);
   const [sourceFilter, setSourceFilter] = useState<IssueSource | 'all'>('all');
@@ -92,6 +105,7 @@ export function IssuesBoardClient({ issues: initialIssues }: { issues: BoardIssu
     const map: Record<BoardColumn, BoardIssue[]> = {
       potential: [],
       verified: [],
+      synced: [],
       invalid: [],
       duplicate: [],
     };
@@ -112,6 +126,7 @@ export function IssuesBoardClient({ issues: initialIssues }: { issues: BoardIssu
     const total: Record<BoardColumn, number> = {
       potential: 0,
       verified: 0,
+      synced: 0,
       invalid: 0,
       duplicate: 0,
     };
@@ -181,6 +196,8 @@ export function IssuesBoardClient({ issues: initialIssues }: { issues: BoardIssu
     const id = active.id as string;
     const current = issues.find((i) => i.id === id);
     if (!current || current.column === dest) return;
+    // Synced is reached only via /sync-issues, and synced cards are locked.
+    if (dest === 'synced' || current.column === 'synced') return;
     void moveIssue(id, dest);
   };
 
@@ -193,15 +210,15 @@ export function IssuesBoardClient({ issues: initialIssues }: { issues: BoardIssu
           <h1 className="text-title font-semibold text-text-primary">Issues</h1>
           <p className="mt-1 text-body text-text-secondary">
             {issues.length} total — {counts.potential} potential, {counts.verified} verified,{' '}
-            {counts.invalid} invalid, {counts.duplicate} duplicate. Drag a card to change column;
-            click to edit.
+            {counts.synced} synced, {counts.invalid} invalid, {counts.duplicate} duplicate. Drag a
+            card between columns; click to edit. Synced cards are read-only (edit on GitHub).
           </p>
         </div>
         <SourceFilter value={sourceFilter} onChange={setSourceFilter} />
       </header>
 
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
           {COLUMN_DEFS.map((col) => (
             <Column key={col.id} column={col} issues={grouped[col.id]} onOpen={setOpenId} />
           ))}
@@ -211,6 +228,7 @@ export function IssuesBoardClient({ issues: initialIssues }: { issues: BoardIssu
       {openIssue && (
         <IssueModal
           issue={openIssue}
+          formatCtx={formatCtx}
           onClose={() => setOpenId(null)}
           onSave={(updates) => updateIssue(openIssue.id, updates)}
         />
@@ -225,6 +243,8 @@ function columnToStatus(column: BoardColumn): IssueStatus {
       return 'pending_validation';
     case 'verified':
       return 'verified';
+    case 'synced':
+      return 'synced';
     case 'invalid':
       return 'rejected';
     case 'duplicate':
@@ -278,7 +298,8 @@ function Column({
   issues: BoardIssue[];
   onOpen: (id: string) => void;
 }) {
-  const { isOver, setNodeRef } = useDroppable({ id: column.id });
+  // The Synced column is reached only via /sync-issues — never a drop target.
+  const { isOver, setNodeRef } = useDroppable({ id: column.id, disabled: column.id === 'synced' });
   return (
     <section
       ref={setNodeRef}
@@ -307,8 +328,11 @@ function Column({
 }
 
 function Card({ issue, onOpen }: { issue: BoardIssue; onOpen: (id: string) => void }) {
+  // Synced cards are locked: not draggable (edits happen on GitHub).
+  const locked = issue.column === 'synced';
   const { attributes, listeners, setNodeRef, isDragging, transform } = useDraggable({
     id: issue.id,
+    disabled: locked,
   });
   const style: React.CSSProperties = transform
     ? {
@@ -321,8 +345,8 @@ function Card({ issue, onOpen }: { issue: BoardIssue; onOpen: (id: string) => vo
     <article
       ref={setNodeRef}
       style={style}
-      {...attributes}
-      {...listeners}
+      {...(locked ? {} : attributes)}
+      {...(locked ? {} : listeners)}
       onClick={(e) => {
         // Drag listeners may swallow the click during a drag; treat anything
         // with a transform as a drag, not a click.
@@ -330,7 +354,9 @@ function Card({ issue, onOpen }: { issue: BoardIssue; onOpen: (id: string) => vo
         e.stopPropagation();
         onOpen(issue.id);
       }}
-      className={`group cursor-grab rounded-md border bg-surface-0 p-3 text-left active:cursor-grabbing ${
+      className={`group rounded-md border bg-surface-0 p-3 text-left ${
+        locked ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'
+      } ${
         isDragging ? 'border-accent shadow-lg' : 'border-border-subtle hover:border-border-default'
       }`}
     >
@@ -341,17 +367,7 @@ function Card({ issue, onOpen }: { issue: BoardIssue; onOpen: (id: string) => vo
       <h3 className="mt-1 text-body font-medium text-text-primary line-clamp-2">{issue.title}</h3>
       <div className="mt-2 flex flex-wrap items-center gap-1.5 text-caption">
         <SourceChip source={issue.source} />
-        {issue.github_synced && (
-          <a
-            href={issue.github_issue_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="rounded-md bg-surface-2 px-1.5 py-0.5 text-text-secondary hover:bg-surface-3 hover:text-text-primary"
-          >
-            GH {issue.github_state === 'closed' ? '✕' : '✓'}
-          </a>
-        )}
+        <SyncChip issue={issue} />
         {issue.duplicate_of && (
           <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-text-secondary">
             dup of {issue.duplicate_of}
@@ -409,12 +425,60 @@ function SourceChip({ source }: { source: IssueSource }) {
   );
 }
 
+/**
+ * GitHub-sync state chip. Only verified findings are push candidates, so other
+ * statuses render nothing (sync_state === 'none').
+ */
+function SyncChip({ issue }: { issue: BoardIssue }) {
+  const state = issue.sync_state ?? 'none';
+  if (state === 'none') return null;
+
+  if (state === 'unsynced') {
+    return (
+      <span
+        title="Run /sync-issues to push verified findings to GitHub."
+        className="rounded-md border border-dashed border-border-default px-1.5 py-0.5 text-text-tertiary"
+      >
+        GH unsynced
+      </span>
+    );
+  }
+  if (state === 'conflict') {
+    return (
+      <span
+        title="Local and remote diverged. Re-run /sync-issues to reconcile."
+        className="rounded-md bg-[var(--critical)]/15 px-1.5 py-0.5 text-[var(--critical)]"
+      >
+        GH conflict
+      </span>
+    );
+  }
+  const closed = state === 'synced_closed';
+  const label = `GH #${issue.github_issue_number ?? '?'} ${closed ? 'closed' : 'open'}`;
+  const cls = closed ? 'bg-surface-2 text-text-tertiary' : 'bg-[var(--low)]/15 text-[var(--low)]';
+  return issue.github_issue_url ? (
+    <a
+      href={issue.github_issue_url}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      className={`rounded-md px-1.5 py-0.5 hover:underline ${cls}`}
+    >
+      {label}
+    </a>
+  ) : (
+    <span className={`rounded-md px-1.5 py-0.5 ${cls}`}>{label}</span>
+  );
+}
+
 function IssueModal({
   issue,
+  formatCtx,
   onClose,
   onSave,
 }: {
   issue: BoardIssue;
+  formatCtx: FormatContext;
   onClose: () => void;
   onSave: (updates: Partial<BoardIssue>) => Promise<void> | void;
 }) {
@@ -425,11 +489,38 @@ function IssueModal({
   const [resolution, setResolution] = useState(issue.resolution ?? '');
   const [updateFromClient, setUpdateFromClient] = useState(issue.update_from_client ?? '');
   const [saving, setSaving] = useState(false);
+  const [copied, setCopied] = useState(false);
   const overlayRef = useRef<HTMLDivElement>(null);
+
+  // Synced issues are read-only in Hex; edits happen on GitHub.
+  const locked = issue.status === 'synced';
 
   useEffect(() => {
     overlayRef.current?.focus();
   }, []);
+
+  // Copy the current (possibly edited) field values, not just the saved ones.
+  const copyAsHackmd = async () => {
+    const md = findingToHackmd(
+      {
+        ...issue,
+        title,
+        severity,
+        description,
+        recommendation,
+        resolution: resolution || undefined,
+        update_from_client: updateFromClient || undefined,
+      },
+      formatCtx,
+    );
+    try {
+      await navigator.clipboard.writeText(md);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard blocked (insecure context) — no-op */
+    }
+  };
 
   const submit = async () => {
     setSaving(true);
@@ -466,19 +557,10 @@ function IssueModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-border-default bg-surface-2 px-4 py-3">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 text-caption">
             <span className="font-mono text-body text-text-tertiary">{issue.id}</span>
             <SourceChip source={issue.source} />
-            {issue.github_synced && issue.github_issue_url && (
-              <a
-                href={issue.github_issue_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="rounded-md bg-surface-3 px-1.5 py-0.5 text-caption text-text-secondary hover:text-text-primary"
-              >
-                GitHub issue
-              </a>
-            )}
+            <SyncChip issue={issue} />
           </div>
           <button
             type="button"
@@ -500,12 +582,19 @@ function IssueModal({
         </div>
 
         <div className="flex-1 overflow-y-auto p-4">
+          {locked && (
+            <div className="mb-4 rounded-md border border-border-default bg-surface-2 px-3 py-2 text-caption text-text-secondary">
+              This issue is synced to GitHub and is read-only here. Edit it on GitHub, then run{' '}
+              <span className="font-mono">/sync-issues</span> to pull the changes back.
+            </div>
+          )}
           <Field label="Title">
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full rounded-md border border-border-default bg-surface-0 px-3 py-2 text-body text-text-primary focus:border-accent focus:outline-none"
+              disabled={locked}
+              className="w-full rounded-md border border-border-default bg-surface-0 px-3 py-2 text-body text-text-primary focus:border-accent focus:outline-none disabled:opacity-60"
             />
           </Field>
 
@@ -514,7 +603,8 @@ function IssueModal({
               <select
                 value={severity}
                 onChange={(e) => setSeverity(e.target.value as BoardIssue['severity'])}
-                className="w-full rounded-md border border-border-default bg-surface-0 px-3 py-2 text-body text-text-primary focus:border-accent focus:outline-none"
+                disabled={locked}
+                className="w-full rounded-md border border-border-default bg-surface-0 px-3 py-2 text-body text-text-primary focus:border-accent focus:outline-none disabled:opacity-60"
               >
                 {SEVERITIES.map((s) => (
                   <option key={s} value={s}>
@@ -527,7 +617,8 @@ function IssueModal({
               <select
                 value={resolution}
                 onChange={(e) => setResolution(e.target.value)}
-                className="w-full rounded-md border border-border-default bg-surface-0 px-3 py-2 text-body text-text-primary focus:border-accent focus:outline-none"
+                disabled={locked}
+                className="w-full rounded-md border border-border-default bg-surface-0 px-3 py-2 text-body text-text-primary focus:border-accent focus:outline-none disabled:opacity-60"
               >
                 <option value="">— none —</option>
                 {RESOLUTIONS.map((r) => (
@@ -544,7 +635,8 @@ function IssueModal({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={8}
-              className="w-full rounded-md border border-border-default bg-surface-0 px-3 py-2 font-mono text-caption text-text-primary focus:border-accent focus:outline-none"
+              disabled={locked}
+              className="w-full rounded-md border border-border-default bg-surface-0 px-3 py-2 font-mono text-caption text-text-primary focus:border-accent focus:outline-none disabled:opacity-60"
             />
           </Field>
 
@@ -553,7 +645,8 @@ function IssueModal({
               value={recommendation}
               onChange={(e) => setRecommendation(e.target.value)}
               rows={4}
-              className="w-full rounded-md border border-border-default bg-surface-0 px-3 py-2 font-mono text-caption text-text-primary focus:border-accent focus:outline-none"
+              disabled={locked}
+              className="w-full rounded-md border border-border-default bg-surface-0 px-3 py-2 font-mono text-caption text-text-primary focus:border-accent focus:outline-none disabled:opacity-60"
             />
           </Field>
 
@@ -562,8 +655,9 @@ function IssueModal({
               value={updateFromClient}
               onChange={(e) => setUpdateFromClient(e.target.value)}
               rows={4}
+              disabled={locked}
               placeholder="How the client responded — used by /generate-overleaf."
-              className="w-full rounded-md border border-border-default bg-surface-0 px-3 py-2 font-mono text-caption text-text-primary focus:border-accent focus:outline-none"
+              className="w-full rounded-md border border-border-default bg-surface-0 px-3 py-2 font-mono text-caption text-text-primary focus:border-accent focus:outline-none disabled:opacity-60"
             />
           </Field>
 
@@ -596,22 +690,33 @@ function IssueModal({
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-2 border-t border-border-default bg-surface-2 px-4 py-3">
+        <div className="flex items-center justify-between gap-2 border-t border-border-default bg-surface-2 px-4 py-3">
           <button
             type="button"
-            onClick={onClose}
-            className="rounded-md px-3 py-1.5 text-body text-text-secondary hover:text-text-primary"
+            onClick={copyAsHackmd}
+            className="rounded-md border border-border-default px-3 py-1.5 text-body text-text-secondary hover:bg-surface-3 hover:text-text-primary"
           >
-            Cancel
+            {copied ? 'Copied!' : 'Copy as HackMD'}
           </button>
-          <button
-            type="button"
-            onClick={submit}
-            disabled={saving}
-            className="rounded-md bg-accent px-3 py-1.5 text-body font-medium text-surface-0 hover:bg-accent-secondary disabled:opacity-50"
-          >
-            {saving ? 'Saving…' : 'Save'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md px-3 py-1.5 text-body text-text-secondary hover:text-text-primary"
+            >
+              {locked ? 'Close' : 'Cancel'}
+            </button>
+            {!locked && (
+              <button
+                type="button"
+                onClick={submit}
+                disabled={saving}
+                className="rounded-md bg-accent px-3 py-1.5 text-body font-medium text-surface-0 hover:bg-accent-secondary disabled:opacity-50"
+              >
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

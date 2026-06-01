@@ -21,6 +21,7 @@ export const initCommand = new Command('init')
   .option('--docs <url>', 'Documentation URL')
   .option('--output-dir <dir>', 'Output directory', '.hex')
   .option('--exclude <globs>', 'Comma-separated exclude globs')
+  .option('--github-repo <owner/repo>', 'GitHub repo for issue syncing (sets settings.github.repo)')
   .option('--no-verify', 'Skip build verification')
   .action(async (opts) => {
     const STEPS = [
@@ -171,6 +172,7 @@ export const initCommand = new Command('init')
         scope: uniqueScope,
         exclude: excludeGlobs,
         outputDir: opts.outputDir,
+        githubRepo: opts.githubRepo,
       });
 
       const outputDir = getOutputDir(projectDir, config.settings.output_dir);
@@ -244,13 +246,13 @@ All analysis outputs live here. Key files and what they answer:
 | \`state-vars.json\` | State variables, types, visibility, read/write | storage, mutability, state layout |
 | \`external-calls.json\` | External calls, reentrancy guards, trust levels | external interactions, reentrancy risk |
 | \`overview.md\` | AI-generated protocol overview | what the protocol does, architecture |
-| \`invariants.md\` | Protocol invariants from docs and code | invariants, assumptions, properties |
 | \`spec-conformance.json\` | Spec vs code deviations | spec compliance, ERC conformance |
-| \`findings.json\` | Audit findings (canonical) | reported issues, vulnerabilities |
-| \`tracking.json\` | Finding status and duplicates | finding triage, status |
-| \`comparison.json\` | AI cross-check results | AI-found issues, novel findings |
+| \`findings.json\` | Audit findings (canonical), wrapped as \`{ "findings": [...] }\` | reported issues, vulnerabilities |
+| \`tracking.json\` | Board state per issue (status, source, duplicate_of), wrapped as \`{ "findings": [...] }\` | finding triage, board columns |
+| \`comparison.json\` | Dedup match_signals (auditagent / github) | duplicate detection |
 | \`progress.json\` | Audit progress tracking | what has been reviewed |
 | \`diagrams/\` | Mermaid architecture and flow diagrams | system diagrams, flows |
+| \`overleaf/\` | LaTeX report sections (executive_summary, audited_files, summary_of_findings, findings) | final report export |
 
 Not all files exist initially — they are created as you run skills and CLI commands.
 
@@ -260,31 +262,29 @@ Skills are in \`.claude/skills/\` and auto-discovered by Claude Code. Type \`/\`
 
 **Recommended workflow order:**
 
-1. \`/init-audit\` — Initialize project, audit dependencies, run analysis pipeline
-2. \`/generate-overview\` — Write protocol overview from analysis data
-3. \`/generate-diagram\` — Create Mermaid architecture diagram
-4. \`/generate-flows\` — Create Mermaid flow charts per user type
-5. \`/identify-invariants\` — Three-pass invariant identification (docs, code, comparison)
-6. \`/check-spec-conformance\` — Verify code matches docs, NatSpec, interfaces, ERCs
-7. \`/generate-poc\` — Validate an issue with a runnable proof-of-concept test
-8. \`/write-finding\` — Write a structured finding with severity and recommendation
-9. \`/conformance-to-findings\` — Batch-convert spec deviations into findings
-10. \`/run-ai-analysis\` — Orchestrate all AI audit tools with preflight checks
-11. \`/compare-findings\` — Cross-check findings against AI agent results
-12. \`/validate-ai-finding\` — Independently verify a novel AI-found issue
+1. \`/init-audit\` — Initialize, dependency safety, full analysis pipeline, overview, diagrams, flows, spec conformance, board materialization (all in one)
+2. \`/write-finding\` — Record a manual issue as a Potential card on the board
+3. \`/validate-issue\` — Validate any Potential card (manual / auditagent / conformance / github); per-issue PoC or memo-only
+4. \`/generate-poc\` — Generate and run a proof-of-concept test (invoked by /validate-issue)
+5. \`/ingest-aa-report\` — Ingest a completed Nethermind AuditAgent scan by ID, with inline dedup
+6. \`/sync-issues\` — Two-way GitHub Issues sync (GitHub canonical)
+7. \`/generate-overleaf\` — Emit the four LaTeX report sections into \`${config.settings.output_dir}/overleaf/\`
 
-Each skill builds on previous outputs. Run them in order for best results.
+Each skill builds on previous outputs.
 
 ## CLI Commands
 
-- \`npx hex analyze\` — Run all deterministic analysis (stats, deps, access, state, calls)
+- \`npx hex analyze\` — Run all deterministic analysis (stats, deps, access, state, calls, patterns, constraints, surface)
 - \`npx hex context\` — Assemble full codebase context for AI prompts
 - \`npx hex context --target <Contract>\` — Focused context for a single contract
 - \`npx hex dashboard\` — Open browser dashboard at http://localhost:3000
+- \`npx hex issue move <id> --to <column>\` — Move an issue between board columns
+- \`npx hex issue patch <id> [--severity ...] [--resolution ...]\` — Edit issue fields
+- \`npx hex update\` — Update hex-audit to the latest version
 
 ## Writing Style (applies to every skill that produces text)
 
-Anything you write into \`.hex/\` files (findings, overview, invariants, spec conformance) ends up in front of a security team or in a public report. Write like a senior auditor, not like an AI model showing off. The detectable patterns below are off-limits:
+Anything you write into \`.hex/\` files (findings, overview, spec conformance) ends up in front of a security team or in a public report. Write like a senior auditor, not like an AI model showing off. The detectable patterns below are off-limits:
 
 ### Banned punctuation and words
 

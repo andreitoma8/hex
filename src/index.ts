@@ -18,13 +18,14 @@ import { analyzeCommand } from './commands/analyze.js';
 import { doctorCommand } from './commands/doctor.js';
 import { aiStatusCommand } from './commands/ai-status.js';
 import { updateCommand } from './commands/update.js';
+import { issueCommand } from './commands/issue.js';
 
 const program = new Command();
 
 program
   .name('hex')
   .description('CLI toolkit for Solidity smart contract auditors')
-  .version('0.4.4');
+  .version('0.5.0');
 
 program.addCommand(initCommand);
 program.addCommand(statsCommand);
@@ -43,5 +44,6 @@ program.addCommand(analyzeCommand);
 program.addCommand(doctorCommand);
 program.addCommand(aiStatusCommand);
 program.addCommand(updateCommand);
+program.addCommand(issueCommand);
 
 program.parse();

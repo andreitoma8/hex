@@ -4,14 +4,42 @@ import type { ExternalCall } from '../types/index.js';
 
 // Call type classification heuristics
 const CALL_TYPE_PATTERNS: Record<string, string[]> = {
-  token_transfer: ['transfer', 'transferFrom', 'safeTransfer', 'safeTransferFrom', 'approve', 'send'],
-  oracle_read: ['getPrice', 'latestRoundData', 'latestAnswer', 'getRoundData', 'consult', 'observe'],
+  token_transfer: [
+    'transfer',
+    'transferFrom',
+    'safeTransfer',
+    'safeTransferFrom',
+    'approve',
+    'send',
+  ],
+  oracle_read: [
+    'getPrice',
+    'latestRoundData',
+    'latestAnswer',
+    'getRoundData',
+    'consult',
+    'observe',
+  ],
   flash_loan: ['flashLoan', 'flash', 'flashBorrow'],
-  swap: ['swap', 'swapExactTokensForTokens', 'swapTokensForExactTokens', 'exactInputSingle', 'exactInput'],
+  swap: [
+    'swap',
+    'swapExactTokensForTokens',
+    'swapTokensForExactTokens',
+    'exactInputSingle',
+    'exactInput',
+  ],
   liquidity: ['addLiquidity', 'removeLiquidity', 'mint', 'burn'],
   delegate_call: ['delegatecall'],
   low_level: ['call', 'staticcall'],
 };
+
+/**
+ * Whether Slither enrichment ran, and what it found:
+ *  - 'with-findings': Slither ran and reported detector results (most authoritative)
+ *  - 'clean':         Slither ran but reported nothing for this codebase
+ *  - 'unavailable':   Slither did not run (binary missing, parse error, etc.)
+ */
+export type SlitherState = 'with-findings' | 'clean' | 'unavailable';
 
 /**
  * Build external calls from AST-extracted calls, optionally enriched with Slither data.
@@ -22,6 +50,11 @@ export function buildExternalCalls(
   scopeContracts: Set<string>,
   accessControlledSetters: Map<string, string>,
   slitherDetectors?: SlitherDetectorResult[],
+  slitherState: SlitherState = slitherDetectors != null
+    ? slitherDetectors.length > 0
+      ? 'with-findings'
+      : 'clean'
+    : 'unavailable',
 ): ExternalCall[] {
   // Build Slither enrichment maps if available
   const slitherUnchecked = new Set<string>();
@@ -51,13 +84,41 @@ export function buildExternalCalls(
     seen.add(key);
 
     const callType = classifyCallType(ac.method);
-    const trustLevel = classifyTrustLevel(ac.target, stateVarsImmutability, scopeContracts, accessControlledSetters);
+    const trustLevel = classifyTrustLevel(
+      ac.target,
+      stateVarsImmutability,
+      scopeContracts,
+      accessControlledSetters,
+    );
 
     // Slither enrichment
     const lineKey = `${ac.file}:${ac.lineStart}`;
-    const hasSlither = slitherDetectors != null;
+    const ran = slitherState !== 'unavailable';
     const isUnchecked = slitherUnchecked.has(lineKey);
     const isReentrancy = slitherReentrancy.has(lineKey);
+
+    // Confidence: a detector that actually fired on this call is the strongest
+    // signal; a clean Slither run that simply didn't flag it is medium; no
+    // Slither run at all is a low-confidence heuristic default.
+    const returnCheckedConfidence = isUnchecked
+      ? 'high'
+      : slitherState === 'with-findings'
+        ? 'high'
+        : slitherState === 'clean'
+          ? 'medium'
+          : 'low';
+    const reentrancyConfidence = isReentrancy
+      ? 'high'
+      : slitherState === 'with-findings'
+        ? 'high'
+        : slitherState === 'clean'
+          ? 'medium'
+          : 'low';
+
+    const ranReasoning = 'Slither ran without flagging this call';
+    const unavailableReturnReasoning = 'Slither unavailable — assuming checked (heuristic default)';
+    const unavailableReentrancyReasoning =
+      'Slither unavailable — reentrancy guard status unknown (heuristic default)';
 
     calls.push({
       contract: ac.contract,
@@ -71,16 +132,16 @@ export function buildExternalCalls(
       target: ac.target,
       method: ac.method,
       return_checked: {
-        value: hasSlither ? !isUnchecked : true,
-        confidence: hasSlither ? 'high' : 'low',
-        derived_from: hasSlither ? 'slither' : 'heuristic',
-        ...(hasSlither ? {} : { reasoning: 'No Slither data — assuming checked' }),
+        value: ran ? !isUnchecked : true,
+        confidence: returnCheckedConfidence,
+        derived_from: isUnchecked ? 'slither' : ran ? 'slither' : 'heuristic',
+        ...(isUnchecked ? {} : { reasoning: ran ? ranReasoning : unavailableReturnReasoning }),
       },
       inside_reentrancy_guard: {
-        value: hasSlither ? !isReentrancy : false,
-        confidence: hasSlither ? (isReentrancy ? 'high' : 'medium') : 'low',
-        derived_from: hasSlither ? 'slither' : 'heuristic',
-        ...(hasSlither ? {} : { reasoning: 'No Slither data — reentrancy guard status unknown' }),
+        value: ran ? !isReentrancy : false,
+        confidence: reentrancyConfidence,
+        derived_from: isReentrancy ? 'slither' : ran ? 'slither' : 'heuristic',
+        ...(isReentrancy ? {} : { reasoning: ran ? ranReasoning : unavailableReentrancyReasoning }),
       },
       call_type: callType,
       trust_level: trustLevel,

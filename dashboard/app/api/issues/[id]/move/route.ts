@@ -1,74 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { readJsonFile, writeJsonFile } from '@/lib/data';
+import { getOutputDirPath } from '@/lib/data';
+import { moveIssue, type BoardColumn, COLUMN_TO_STATUS } from '../../../../../../src/core/issues';
 
-interface TrackingEntry {
-  id: string;
-  status?: string;
-  duplicate_of?: string | null;
-  [key: string]: unknown;
-}
+export const dynamic = 'force-dynamic';
 
-interface TrackingFile {
-  findings: TrackingEntry[];
-}
-
-// Map a board column to the canonical tracking status it persists as.
-const COLUMN_TO_STATUS: Record<string, string> = {
-  potential: 'pending_validation',
+const STATUS_TO_COLUMN: Record<string, BoardColumn> = {
+  pending_validation: 'potential',
+  unverified: 'potential',
   verified: 'verified',
-  invalid: 'rejected',
+  rejected: 'invalid',
   duplicate: 'duplicate',
 };
 
-const STATUS_VALUES = new Set([
-  'pending_validation',
-  'unverified',
-  'verified',
-  'rejected',
-  'duplicate',
-]);
-
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
-  const id = params.id;
-  const body = (await request.json()) as {
-    column?: string;
-    status?: string;
-    duplicate_of?: string | null;
-  };
+  const body = (await request.json()) as { column?: string; status?: string };
 
-  let nextStatus: string | undefined;
-  if (body.status) {
-    if (!STATUS_VALUES.has(body.status)) {
-      return NextResponse.json({ error: `Invalid status: ${body.status}` }, { status: 400 });
-    }
-    nextStatus = body.status;
-  } else if (body.column) {
-    nextStatus = COLUMN_TO_STATUS[body.column];
-    if (!nextStatus) {
-      return NextResponse.json({ error: `Invalid column: ${body.column}` }, { status: 400 });
-    }
-  } else {
+  // Accept either a board column directly, or a tracking status that maps to one.
+  let column: BoardColumn | undefined;
+  if (body.column && body.column in COLUMN_TO_STATUS) {
+    column = body.column as BoardColumn;
+  } else if (body.status && STATUS_TO_COLUMN[body.status]) {
+    column = STATUS_TO_COLUMN[body.status];
+  }
+
+  if (!column) {
     return NextResponse.json(
-      { error: "Body must include either 'column' or 'status'" },
+      {
+        error:
+          "Body must include a valid 'column' (potential|verified|invalid|duplicate) or 'status'",
+      },
       { status: 400 },
     );
   }
 
-  const tracking = readJsonFile<TrackingFile>('tracking.json') ?? { findings: [] };
-  const entry = tracking.findings.find((e) => e.id === id);
-  if (!entry) {
-    return NextResponse.json({ error: `Issue ${id} not found in tracking.json` }, { status: 404 });
+  try {
+    const entry = moveIssue(getOutputDirPath(), params.id, column);
+    return NextResponse.json({ ok: true, id: params.id, status: entry.status });
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : String(err) },
+      { status: 400 },
+    );
   }
-
-  entry.status = nextStatus;
-  if (body.duplicate_of !== undefined) {
-    entry.duplicate_of = body.duplicate_of;
-  }
-  // Clearing duplicate_of when leaving the duplicate column reduces stale refs.
-  if (nextStatus !== 'duplicate' && entry.duplicate_of) {
-    entry.duplicate_of = null;
-  }
-
-  writeJsonFile('tracking.json', tracking);
-  return NextResponse.json({ ok: true, id, status: nextStatus });
 }

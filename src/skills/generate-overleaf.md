@@ -6,7 +6,7 @@ description: "Generate the four LaTeX section files for the final audit report (
 
 **Recommended model:** Sonnet
 
-This skill produces the four LaTeX section files an auditor uploads into the Nethermind Overleaf template at the end of an engagement. It runs after all findings have been verified or rejected on the dashboard's Issues board.
+This skill produces the four LaTeX section files an auditor uploads into the Nethermind Overleaf template at the end of an engagement. It runs from the GitHub-synced issues (the report's source of truth), after findings have been pushed via /sync-issues.
 
 ## What it writes
 
@@ -15,7 +15,7 @@ Four `.txt` files in `<output_dir>/overleaf/`:
 1. `executive_summary.txt` — `\section{Executive Summary}` body with project synopsis, severity histogram, status histogram, summary table of audit metadata.
 2. `audited_files.txt` — `\section{Audited Files}` body with a LaTeX table of in-scope files (LoC, comments, ratio, blank, total).
 3. `summary_of_findings.txt` — `\section{Summary of Issues}` body with hyperlinked finding rows.
-4. `findings.txt` — `\section{Issues}` body with one `\subsection{[Sev] title}\label{issue:N}` per verified finding, including description, code blocks, recommendation, status, client update.
+4. `findings.txt` — `\section{Issues}` body with one `\subsection{[Sev] title}\label{issue:N}` per synced finding, including description, code blocks, recommendation, status, client update.
 
 Output is plain `.txt` so the auditor pastes content into the matching Overleaf template slots. The skill does NOT compile LaTeX itself.
 
@@ -36,19 +36,27 @@ For each missing field, use **AskUserQuestion** to prompt the auditor. After col
 
 If `repository_url` is not set, also offer to derive it from the project's git remote (`git -C <project_dir> remote get-url origin`).
 
+## Phase 0.5 — Require synced issues (GitHub is the source of truth)
+
+The report is generated **only** from issues that are synced to GitHub (`tracking.status === "synced"`). GitHub is the single source of truth for finding content; the local Potential/Verified columns are a staging area.
+
+Before doing anything else:
+- If `settings.github.repo` is not set, **abort**: "The report is generated from GitHub-synced issues. Configure `settings.github.repo` (or pass `--github-repo` to `hex init`) and run `/sync-issues` first."
+- If there are zero `synced` findings, **abort**: "No synced issues found. Verify findings, then run `/sync-issues` to push them to GitHub before generating the report."
+
 ## Phase 1 — Compute the histograms and counts
 
 Read `<output_dir>/findings.json` and `<output_dir>/tracking.json`.
 
-**Verified findings** are findings whose tracking entry has `status: "verified"`. These are the ones that go in the report. Sort by severity (Critical → High → Medium → Low → Info), then by id within each severity.
+**Report findings** are findings whose tracking entry has `status: "synced"`. These are the ones that go in the report. Sort by severity (Critical → High → Medium → Low → Info), then by id within each severity.
 
-Severity histogram (count of verified findings per severity):
+Severity histogram (count of synced findings per severity):
 ```
 { "Critical": N, "High": N, "Medium": N, "Low": N, "Undetermined": 0, "Info": N, "Best Practices": 0 }
 ```
 (`Undetermined` and `Best Practices` are not currently in Hex's severity model — render them as 0 to match the Nethermind template.)
 
-Resolution histogram (count of verified findings per `resolution` field):
+Resolution histogram (count of synced findings per `resolution` field):
 ```
 { "Fixed": N, "Acknowledged": N, "Mitigated": N, "Not Fixed": 0, "Unresolved": N }
 ```
@@ -143,7 +151,7 @@ Substitutions:
 - `<PROJECT_NAME>` ← `config.json.project.name`.
 - `<SCOPE_DESCRIPTION>` ← if a single in-scope file, `\texttt{<filename without extension>}` followed by a single-clause description from the overview; if many, `the contracts listed in Section~2`.
 - `<TOTAL_NSLOC>` ← `stats.json.totals.nsloc`.
-- `<ISSUE_COUNT_PHRASE>` ← something like "five points of attention, where one is classified as `\texttt{Low}`, and four are classified as `\texttt{Informational}` severity." Build dynamically from the severity histogram. If 0 verified findings: "no points of attention requiring remediation." If 1: "one point of attention, classified as `\texttt{<severity>}` severity." Pluralize properly.
+- `<ISSUE_COUNT_PHRASE>` ← something like "five points of attention, where one is classified as `\texttt{Low}`, and four are classified as `\texttt{Informational}` severity." Build dynamically from the severity histogram. If 0 synced findings: "no points of attention requiring remediation." If 1: "one point of attention, classified as `\texttt{<severity>}` severity." Pluralize properly.
 - `<C><H><M><L><I>` ← severity histogram counts.
 - `<F><A><MI><U>` ← resolution histogram counts.
 - `<INITIAL_COMMIT_SHORT>` ← first 7 chars of the commit hash.
@@ -194,7 +202,7 @@ Render the table:
 
 ## Phase 5 — Write `summary_of_findings.txt`
 
-For each verified finding in severity-sorted order (Critical → Info), assign a sequential `issue:N` label starting at `issue:0`. This same label is used in `findings.txt` for the `\hyperref`.
+For each synced finding in severity-sorted order (Critical → Info), assign a sequential `issue:N` label starting at `issue:0`. This same label is used in `findings.txt` for the `\hyperref`.
 
 ```latex
 %\pagebreak \vspace*{0cm}
@@ -226,7 +234,7 @@ For each verified finding in severity-sorted order (Critical → Info), assign a
 
 ## Phase 6 — Write `findings.txt`
 
-For each verified finding in the same order (severity-sorted), render one subsection. Use the index `i` (0-based) matching `summary_of_findings.txt`.
+For each synced finding in the same order (severity-sorted), render one subsection. Use the index `i` (0-based) matching `summary_of_findings.txt`.
 
 ```latex
 \pagebreak \vspace*{0cm}
@@ -309,7 +317,7 @@ Wrote 4 LaTeX section files to <output_dir>/overleaf/:
   - summary_of_findings.txt    (<N> bytes)
   - findings.txt               (<N> bytes)
 
-Verified findings included: <count>
+Synced findings included: <count>
   Critical=<C> High=<H> Medium=<M> Low=<L> Info=<I>
 
 Status distribution:
@@ -323,4 +331,4 @@ Upload these into your Overleaf project's Section 1 / 2 / 3 / 6 slots respective
 - Does not compile LaTeX (no `pdflatex` invocation).
 - Does not modify any file outside `<output_dir>/overleaf/` and (with permission) `config.json` under `settings.report.*`.
 - Does not push to Overleaf, GitHub, or any remote — output is local plain-text.
-- Does not include `rejected`, `duplicate`, `pending_validation`, or `unverified` findings. Only `verified` makes the cut.
+- Does not include `rejected`, `duplicate`, `pending_validation`, `unverified`, or `verified`-but-not-yet-synced findings. Only `synced` (on GitHub) makes the cut.

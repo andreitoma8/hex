@@ -64,6 +64,7 @@ export interface CreateConfigOptions {
   scope: string[];
   exclude?: string[];
   outputDir?: string;
+  githubRepo?: string;
 }
 
 /**
@@ -86,6 +87,16 @@ export function createConfig(options: CreateConfigOptions): Config {
       output_dir: options.outputDir ?? '.hex',
       ai_model: 'claude-sonnet-4-20250514',
       finding_template: 'default',
+      ...(options.githubRepo
+        ? {
+            github: {
+              repo: options.githubRepo,
+              default_labels: ['hex', 'audit'],
+              severity_label_prefix: 'severity:',
+              publish_status: ['verified' as const],
+            },
+          }
+        : {}),
     },
   };
 

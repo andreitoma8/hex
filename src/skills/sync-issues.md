@@ -1,266 +1,157 @@
 ---
-description: 'Two-way sync between local Hex findings and GitHub Issues — pulls teammate issues into the board (canonical), pushes verified findings out, runs inline dedup'
+description: 'Two-way sync between local Hex findings and GitHub Issues — GitHub is the source of truth; identity is the issue number'
 ---
 
 # Skill: Sync Issues
 
 **Recommended model:** Sonnet
 
-This skill is Hex's GitHub Issues integration. Hex never authenticates with GitHub — you authenticate once via `gh auth login` and this skill drives the `gh` CLI via bash. A single invocation runs both directions plus inline dedup.
+Hex's GitHub Issues integration. Hex never authenticates with GitHub — you authenticate once via `gh auth login` and this skill drives the `gh` CLI. One invocation runs both directions.
 
-**Dedup direction note.** GitHub is the **source of truth**. When a teammate's pulled GitHub issue matches a local potential issue (same root cause, same contract/function), the **local** entry is marked Duplicate — not the GitHub one. The rationale is multi-auditor coordination: if a teammate already filed an issue, your in-progress local card is redundant. This is opposite of the auditagent dedup direction in `/ingest-aa-report`.
+## The model: GitHub is the source of truth, identity is the issue number
 
-## Context Assembly
+Once an issue is on GitHub it is **read-only in Hex** (status `synced`, locked on the board). Edits — severity, description, recommendation, status — happen on GitHub; this skill pulls them back into the local finding. `/generate-overleaf` reports **only** from synced issues.
 
-Read:
-- `<output_dir>/config.json` — needs `settings.github.repo` set.
-- `<output_dir>/findings.json` — local canonical findings.
-- `<output_dir>/tracking.json` — for status filtering on push (default: only `verified` is pushed).
-- `<output_dir>/external/github/findings.json` if it exists — last pulled state.
-- `<output_dir>/external/github/sync-status.json` for `last_synced_at`.
+**Identity is the GitHub issue number `#N`.** There is no hidden footer in the issue body (auditors create issues by hand, so a footer can't be relied on). Reconciliation matches a local finding to the issue number it has stored in `github.issue_number`. The body is exactly the five-field template, nothing hidden.
 
-Writes to:
-- `<output_dir>/findings.json` — updates `github.*` blocks on local findings.
-- `<output_dir>/external/github/findings.json` — teammate findings in `AiResultFile` shape.
-- `<output_dir>/external/github/sync-status.json` — counters + timestamp.
-- `<output_dir>/external/github/raw-issues.json` — debug cache of the gh JSON.
-- `<output_dir>/tracking.json` — teammate findings as new entries; local entries flipped to `duplicate` on match.
-- `<output_dir>/comparison.json` — appended with `match_signals` for each dedup hit.
+All board mutations go through `hex issue` — never hand-edit `tracking.json` / `findings.json`.
+
+## Context
+
+- `<output_dir>/config.json` — needs `settings.github.repo`.
+- `<output_dir>/findings.json` — local findings (some already carry a `github.issue_number`).
+- `<output_dir>/tracking.json` — status (`verified` are push candidates).
 
 ## Phase 0 — Preflight
 
-**0a. `gh` installed and authenticated?** Run `gh auth status`. If non-zero exit, print:
+**0a.** `gh auth status`. If non-zero, print "gh CLI is not authenticated. Run `gh auth login` once, then re-run /sync-issues." and stop. If `gh` is missing, point to `https://cli.github.com/`.
 
-```
-gh CLI is not authenticated. Run `gh auth login` once on this machine, then re-run /sync-issues.
-```
+**0b.** Resolve `settings.github.repo`. If missing, **AskUserQuestion** for `owner/repo`, validate the shape, persist to `config.json`.
 
-…and stop. Hex never stores GitHub credentials.
+**0c.** `gh repo view <repo> --json viewerPermission`. If `READ`/null, **AskUserQuestion**: "Read-only access — push will fail. Continue pull-only? (yes/no)". Track `push_enabled`.
 
-If `gh` itself is missing: instruct install from `https://cli.github.com/` then `gh auth login`.
+## Phase 1 — Pull (all issues, GitHub → local)
 
-**0b. Resolve `settings.github.repo`.** If missing, use **AskUserQuestion**: "Which GitHub repo should this audit sync to? (e.g. `nethermind/audit-vaultx`)". Validate it has an `owner/repo` shape. Persist back to `config.json`.
-
-**0c. Permission check.** Run `gh repo view <repo> --json viewerPermission`. If `READ` or null, **AskUserQuestion**: "Read-only access to <repo>. Push will fail. Continue with pull-only? (yes/no)". Track `push_enabled`.
-
-## Phase 1 — Pull
-
-**1a. Fetch issues.**
+**1a. Fetch every issue — no label filter.** Audit repos contain only audit findings, so pull them all:
 
 ```bash
-gh issue list --repo <repo> --label "hex" --state all --limit 1000 \
-  --json number,title,body,labels,state,author,createdAt,updatedAt,url
+gh issue list --repo <repo> --state all --limit 1000 \
+  --json number,title,body,state,author,createdAt,updatedAt,url
 ```
 
-Save raw JSON to `external/github/raw-issues.json`.
+**1b. Parse each issue.** Title is `[Severity] Title`. Body is the five-field template:
 
-For each issue whose `updatedAt` is newer than the prior `last_synced_at`, fetch comments:
+```markdown
+**File(s)**: [`<file>`](<url>)
 
-```bash
-gh issue view <number> --repo <repo> --json comments
+**Description**: <text>
+
+**Recommendation(s)**: <text>
+
+**Status**: <Fixed|Mitigated|Acknowledged|Not Fixed|Unresolved>
+
+**Update from the client**: <text>
 ```
 
-(First sync: fetch for everything.)
+Extract severity from the title, and the four body fields. If a body is **blatantly malformed** (no `**Description**:` marker), warn (`Skipping #N: not in the Hex finding format`) and skip it — do not fail the whole sync. Otherwise treat it as a valid finding (most will be).
 
-**1b. Classify each issue.**
-
-Find the round-trip footer in the body: regex `<!--\s*hex-finding-id:\s*(F\d+|AA-\d+|SC-\d+)\s*-->`. Then:
-
-- **Footer present, ID matches a local `findings.json` entry** → known local finding. Update its `github` block in place:
-  ```json
-  {
-    "issue_number": <num>,
-    "issue_url": "<url>",
-    "state": "open|closed",
-    "last_synced_at": "<now>",
-    "sync_status": "in_sync",
-    "comments": [{ "author": "<login>", "body": "<text>", "created_at": "<iso>", "url": "<url>" }]
-  }
+**1c. Reconcile by issue number `#N`:**
+- **A local finding already records `github.issue_number === N`** → it's the same issue; pull GitHub's content into it:
+  ```bash
+  npx hex issue sync-set <local-H-id> --issue-number N --issue-url <url> --state <open|closed> \
+    --title "<title-without-[Severity]>" --severity <Severity> \
+    --description-file /tmp/N_desc.md --recommendation-file /tmp/N_reco.md \
+    --resolution "<Status>" --update-from-client-file /tmp/N_update.md
+  ```
+- **No local finding has `#N`** (a teammate's hand-added issue, or one created outside Hex) → create a local finding for it, then sync-set:
+  ```bash
+  ID=$(npx hex issue new --source github --source-ref N --title "<title>" --severity <Severity>)
+  npx hex issue sync-set "$ID" --issue-number N --issue-url <url> --state <open|closed> \
+    --description-file /tmp/N_desc.md --recommendation-file /tmp/N_reco.md \
+    --resolution "<Status>" --update-from-client-file /tmp/N_update.md
   ```
 
-- **Footer present, no matching local finding** → an issue we previously pushed that's since been deleted locally. Append a tracking entry restoring the link (status `pending_validation`, source `manual`, notes pointing at the URL). Do not touch `findings.json` — the body may have been edited remotely.
+Either way the card lands in the **Synced** column, locked. Reconcile strictly by `#N`; never scan the body for an identifier.
 
-- **No footer** → teammate finding. Two writes:
-  1. Add to the in-memory `external/github/findings.json` AiResultFile (`tool: "github"`, severity parsed from `severity:*` labels, default Medium):
-     ```json
-     {
-       "id": "github-<issue_number>",
-       "tool": "github",
-       "title": "<issue title>",
-       "severity": "Critical|High|Medium|Low|Info",
-       "description": "<body without footer>",
-       "affected_code": [<best-effort file refs extracted from body>],
-       "confidence": "medium",
-       "category": "<from label if present>",
-       "raw_category": "github-issue"
-     }
-     ```
-  2. Add to `tracking.json`:
-     ```json
-     {
-       "id": "github-<issue_number>",
-       "title": "<title>",
-       "severity": "<severity>",
-       "source": "github",
-       "status": "pending_validation",
-       "poc_status": "not_started",
-       "poc_file": null,
-       "duplicates": [],
-       "notes": "issue=<url> author=<author>"
-     }
-     ```
+## Phase 1.5 — Dedup before push (GitHub is canonical)
 
-Write `external/github/findings.json` atomically after the pass.
-
-## Phase 2 — Inline dedup (GitHub-canonical)
-
-For each **new github entry** added in Phase 1 step 1b's third branch, run a semantic comparison against every **existing** non-github tracking entry. Match signals:
+Before pushing, guard against filing a finding that is already on GitHub (e.g. a teammate created it by hand, and you pulled it into Synced in Phase 1). For each **verified** local finding that has no `github.issue_number` yet, semantically compare it against every **synced** finding on these axes:
 
 | Signal | Compare |
 |---|---|
-| **contract** (boolean) | Affected contract name match? |
-| **function** (boolean) | Affected function name match? |
-| **root_cause** (`same` / `overlapping` / `different`) | Technical mechanism |
-| **attack_vector** (`same` / `overlapping` / `different`) | What an attacker actually does |
+| **contract** (boolean) | affected contract name |
+| **function** (boolean) | affected function name |
+| **root_cause** (`same`/`overlapping`/`different`) | the technical mechanism |
+| **attack_vector** (`same`/`overlapping`/`different`) | what an attacker actually does |
 
-A match requires at least one of:
-- `root_cause = same` AND `function = true`, or
-- `root_cause = same` AND `contract = true` AND `attack_vector = same`, or
-- `root_cause = overlapping` AND `function = true` AND `attack_vector = same`.
+A match is at least one of: `root_cause = same` AND `function = true`; or `root_cause = same` AND `contract = true` AND `attack_vector = same`; or `root_cause = overlapping` AND `function = true` AND `attack_vector = same`.
 
-**On match (GitHub is canonical):**
+On match — the synced (on-GitHub) finding is canonical, so the local verified copy becomes the duplicate. Do **not** push it:
 
-- Flip the **local** matching entry to `status: "duplicate"`, set `duplicate_of: "github-<issue_number>"` on it.
-- The github entry stays `pending_validation` (it's the canonical the team is working from).
-- Append to `comparison.json` under `duplicates`:
-  ```json
-  {
-    "ai_finding": "<local-entry-id>",
-    "matches": "github-<issue_number>",
-    "confidence": "high|medium|low",
-    "match_signals": { "contract": true, "function": true, "root_cause": "same", "attack_vector": "same" },
-    "reasoning": "<one short sentence>"
-  }
-  ```
-  (The schema field is named `ai_finding` for historical reasons but is repurposed here as "the local duplicate.")
-
-Persist updated `tracking.json` and `comparison.json` after the dedup pass.
-
-## Phase 3 — Push
-
-Skip if `push_enabled = false`.
-
-**3a. Candidates.** From `findings.json`, select each finding whose tracking entry has `status` in `settings.github.publish_status` (default `["verified"]`). Skip findings already marked `status: "duplicate"` (no point publishing a known duplicate).
-
-Within candidates:
-- Has `github.issue_number` → update via `gh issue edit`.
-- No `github.issue_number` → create via `gh issue create`.
-
-**3b. Render the body** (write to a temp file, then `--body-file`):
-
-```markdown
-**Severity:** <Severity>
-
-<finding.description>
-
-### Affected code
-
-<for each finding.root_cause.locations[]>
-**`<location.file>`**
-
-```solidity
-<location.snippet>
-```
-</for>
-
-### Recommendation
-
-<finding.recommendation>
-
----
-
-*Synced from Hex audit `<config.project.name>` at commit `<config.project.commit>`.*
-
-<!-- hex-finding-id: <finding.id> -->
-```
-
-The footer is the round-trip identity key — never omit.
-
-**3c. Labels.**
-
-```
-<default_labels...> severity:<lowercased> source:<finding.source or 'manual'> status:<tracking.status>
-```
-
-Apply via repeated `--label` flags.
-
-**3d. Create or update.**
-
-Create:
 ```bash
-gh issue create --repo <repo> --title "[<Severity>] <title>" --body-file <tmp> \
-  --label "hex" --label "audit" --label "severity:..." --label "source:..." --label "status:..."
+npx hex issue move <verified-H-id> --to duplicate --duplicate-of <synced-H-id>
 ```
 
-Parse the returned URL to extract the issue number; update the local finding's `github` block.
-
-Update existing:
-```bash
-gh issue edit <num> --repo <repo> --title "[<Severity>] <title>" --body-file <tmp> \
-  --add-label "severity:..." --add-label "status:..."
-```
-
-Do NOT `--remove-label` — teammates may have added labels we shouldn't strip.
-
-If push fails for any single finding: capture stderr, set its `github.sync_status` to `conflict`, append a one-line error, continue with the next finding. Never abort the whole sync on one failure.
-
-**3e. Persist** `findings.json` once after all pushes, atomically.
-
-## Phase 4 — Status report
-
-Write `external/github/sync-status.json`:
+Then append to `<output_dir>/comparison.json` under `duplicates` (the board renders the chip + signals from this):
 
 ```json
-{
-  "repo": "<repo>",
-  "last_synced_at": "<now>",
-  "pushed": <new-created>,
-  "updated": <existing-updated>,
-  "pulled": <total-issues-seen>,
-  "teammate_findings": <count-of-footer-less>,
-  "duplicates_detected": <local-entries-flipped-to-duplicate>,
-  "errors": [<one-line-per-error>]
-}
+{ "ai_finding": "<verified-H-id>", "matches": "<synced-H-id>", "confidence": "high|medium|low",
+  "match_signals": { "contract": true, "function": true, "root_cause": "same", "attack_vector": "same" },
+  "reasoning": "<one sentence>" }
 ```
+
+If `comparison.json` doesn't exist, create it with `{ "duplicates": [], "novel": [], "rejected": [] }`.
+
+## Phase 2 — Push (verified local findings → GitHub)
+
+Skip if `push_enabled` is false.
+
+Candidates: findings whose tracking status is in `settings.github.publish_status` (default `["verified"]`) **and** which have no `github.issue_number` yet, **and** which Phase 1.5 did not flag as duplicates. (Synced findings are already on GitHub; duplicates/rejected/unverified are never pushed.)
+
+For each candidate, render the body with the exact five-field template (see Phase 1b — `dashboard/lib/finding-markdown.ts::findingToGithubBody` is the canonical renderer). Write it to a temp file. **No labels, no footer.**
+
+```bash
+gh issue create --repo <repo> --title "[<Severity>] <title>" --body-file <tmp>
+```
+
+Parse the returned URL for `#N`, then lock it into Synced and record the number:
+
+```bash
+npx hex issue sync-set <H-id> --issue-number N --issue-url <url> --state open
+```
+
+From now on the finding is identified by `#N`; the next pull matches it by number, so it never duplicates.
+
+If a single `gh` call fails, log the error and continue with the next candidate — never abort the whole sync.
+
+## Phase 3 — Status report
 
 Print:
 
 ```
 GitHub sync complete (<repo>)
-  ↑ Pushed N new, updated M
-  ↓ Pulled K issues — J teammate findings, L matched local
-  ⇄ Dedup flipped D local entries to Duplicate (GitHub is canonical)
-<if errors:>
-  Errors:
-    - <error 1>
+  ↓ Pulled K issues (S synced into the board, M skipped as malformed)
+  ↑ Pushed P verified findings as new issues
+  Errors: <n>
 ```
 
-## Conflict resolution defaults
+## Conflict resolution
 
-- **Body content** — local wins on push. Reviewer edits inside `### Affected code` will be overwritten on re-push. Reviewer comments are never touched.
-- **State (open/closed)** — remote wins. Updates the local finding's `github.state`. Surface in the dashboard so the auditor can decide whether to also reject the finding.
-- **Comments** — pull-only. Hex never posts.
+- **Field content** — GitHub wins for synced issues. Every pull overwrites the local finding's title/severity/description/recommendation/status/update from the issue.
+- **State (open/closed)** — from GitHub, stored on `github.state`.
+- **Comments** — Hex never reads or posts comments.
 
 ## Error handling
 
-- Per-issue errors are isolated — log to `errors[]`, continue.
-- Rate limit (403 with "rate limit" in output): print "Rate-limited — sync resumes after <ISO time>." Stop the current phase.
-- Network failures: print the gh error and stop the current phase. Already-completed phases stay persisted.
+- Per-issue errors are isolated — log and continue.
+- Rate limit (403 / "rate limit"): print "Rate-limited — try again later." and stop the current phase.
+- Network failures: print the `gh` error and stop the current phase; completed work stays persisted.
 
 ## What this skill does NOT do
 
-- Does not authenticate (use `gh auth login` once).
-- Does not post comments (auditors discuss inside GitHub).
-- Does not create labels (manual one-time setup; `gh issue create` errors if a label is missing).
-- Does not delete remote issues.
-- Does not push `rejected`, `unverified`, or `duplicate` findings.
+- Authenticate (use `gh auth login`).
+- Post or read comments.
+- Apply, create, or remove labels (the repo owner manages labels).
+- Embed any hidden footer or marker in the issue body.
+- Delete remote issues.
+- Push `rejected`, `unverified`, `duplicate`, or already-`synced` findings.
