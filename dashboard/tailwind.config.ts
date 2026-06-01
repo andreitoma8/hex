@@ -1,9 +1,16 @@
+import path from 'node:path';
 import type { Config } from 'tailwindcss';
+
+// Anchor content globs to this config file's directory so `next build dashboard`
+// from the package root resolves them to dashboard/app and dashboard/components.
+// `./app/**` style relative paths would resolve against next's cwd (the package
+// root) and silently match nothing — leaving the published CSS empty of utilities.
+const here = __dirname;
 
 const config: Config = {
   content: [
-    './app/**/*.{js,ts,jsx,tsx,mdx}',
-    './components/**/*.{js,ts,jsx,tsx,mdx}',
+    path.join(here, 'app/**/*.{js,ts,jsx,tsx,mdx}'),
+    path.join(here, 'components/**/*.{js,ts,jsx,tsx,mdx}'),
   ],
   darkMode: ['selector', '[data-theme="dark"]'],
   theme: {
