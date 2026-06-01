@@ -3,6 +3,13 @@ import { readJsonFile, readMarkdownFile } from '@/lib/data';
 import { NotYetGenerated } from '@/components/NotYetGenerated';
 import { MarkdownRenderer } from '@/components/MarkdownRenderer';
 
+// Read .hex/ at request time, not at build time. Without this, next build
+// prerenders this page with whatever .hex/ data was available in the build
+// environment and ships static HTML — the dashboard then renders that
+// stale (or empty) HTML for every audit project, ignoring the runtime cwd.
+export const dynamic = 'force-dynamic';
+
+
 interface ProjectConfig {
   project: {
     name: string;

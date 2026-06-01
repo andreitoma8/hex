@@ -2,6 +2,13 @@ import { readJsonFile, readNestedJsonFile, listSubdirs } from '@/lib/data';
 import { NotYetGenerated } from '@/components/NotYetGenerated';
 import { IssuesBoardClient, type BoardIssue } from './IssuesBoardClient';
 
+// Read .hex/ at request time, not at build time. Without this, next build
+// prerenders this page with whatever .hex/ data was available in the build
+// environment and ships static HTML — the dashboard then renders that
+// stale (or empty) HTML for every audit project, ignoring the runtime cwd.
+export const dynamic = 'force-dynamic';
+
+
 interface FindingsFile {
   findings: Array<{
     id: string;

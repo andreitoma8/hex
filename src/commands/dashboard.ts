@@ -41,15 +41,15 @@ export const dashboardCommand = new Command('dashboard')
 
     // Use the next binary that ships with this package.
     const nextBin = resolveNextBin(dashboardDir);
+    // Set cwd to the audit project so the dashboard's data loaders find .hex/
+    // via process.cwd(). This replaces the old HEX_PROJECT_DIR env-var bridge,
+    // which was a vestige from the monorepo days when the dashboard was started
+    // from a different working directory.
     const child = spawn(nextBin, [mode, dashboardDir, '--port', port], {
       stdio: 'inherit',
       shell: true,
-      env: {
-        ...process.env,
-        HEX_PROJECT_DIR: projectDir,
-        SOLAUDIT_PROJECT_DIR: projectDir,
-        PORT: port,
-      },
+      cwd: projectDir,
+      env: { ...process.env, PORT: port },
     });
 
     if (opts.open !== false) {

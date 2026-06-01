@@ -2,7 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 function getProjectDir(): string {
-  return process.env.HEX_PROJECT_DIR ?? process.env.SOLAUDIT_PROJECT_DIR ?? process.cwd();
+  // The `hex dashboard` CLI spawns Next.js with cwd = the user's audit project,
+  // so process.cwd() is authoritative. (The HEX_PROJECT_DIR env var was a
+  // vestige from the old monorepo layout and has been removed.)
+  return process.cwd();
 }
 
 function getOutputDir(): string {
