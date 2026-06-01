@@ -1,0 +1,86 @@
+import path from 'node:path';
+import type { Config } from 'tailwindcss';
+
+// Anchor content globs to this config file's directory so `next build dashboard`
+// from the package root resolves them to dashboard/app and dashboard/components.
+// `./app/**` style relative paths would resolve against next's cwd (the package
+// root) and silently match nothing — leaving the published CSS empty of utilities.
+const here = __dirname;
+
+const config: Config = {
+  content: [
+    path.join(here, 'app/**/*.{js,ts,jsx,tsx,mdx}'),
+    path.join(here, 'components/**/*.{js,ts,jsx,tsx,mdx}'),
+  ],
+  darkMode: ['selector', '[data-theme="dark"]'],
+  theme: {
+    extend: {
+      fontFamily: {
+        sans: ['var(--font-sans)'],
+        mono: ['var(--font-mono)'],
+      },
+      colors: {
+        surface: {
+          0: 'var(--surface-0)',
+          1: 'var(--surface-1)',
+          2: 'var(--surface-2)',
+          3: 'var(--surface-3)',
+        },
+        border: {
+          subtle: 'var(--border-subtle)',
+          default: 'var(--border-default)',
+          emphasis: 'var(--border-emphasis)',
+        },
+        text: {
+          primary: 'var(--text-primary)',
+          secondary: 'var(--text-secondary)',
+          tertiary: 'var(--text-tertiary)',
+        },
+        accent: {
+          DEFAULT: 'var(--accent)',
+          subtle: 'var(--accent-subtle)',
+          secondary: 'var(--accent-secondary)',
+          warm: 'var(--accent-warm)',
+        },
+        severity: {
+          critical: 'var(--critical)',
+          high: 'var(--high)',
+          medium: 'var(--medium)',
+          low: 'var(--low)',
+          info: 'var(--info)',
+        },
+        success: 'var(--success)',
+        neutral: 'var(--neutral)',
+      },
+      spacing: {
+        'sp-1': 'var(--space-1)',
+        'sp-2': 'var(--space-2)',
+        'sp-3': 'var(--space-3)',
+        'sp-4': 'var(--space-4)',
+        'sp-5': 'var(--space-5)',
+        'sp-6': 'var(--space-6)',
+        'sp-8': 'var(--space-8)',
+      },
+      borderRadius: {
+        sm: 'var(--radius-sm)',
+        md: 'var(--radius-md)',
+        lg: 'var(--radius-lg)',
+      },
+      boxShadow: {
+        sm: 'var(--shadow-sm)',
+        md: 'var(--shadow-md)',
+        lg: 'var(--shadow-lg)',
+      },
+      fontSize: {
+        display: ['28px', { lineHeight: '1.2', fontWeight: '600' }],
+        title:   ['20px', { lineHeight: '1.3', fontWeight: '600' }],
+        heading: ['15px', { lineHeight: '1.4', fontWeight: '500' }],
+        body:    ['14px', { lineHeight: '1.55', fontWeight: '400' }],
+        caption: ['12px', { lineHeight: '1.4', fontWeight: '400' }],
+      },
+    },
+  },
+  plugins: [require('@tailwindcss/typography')],
+};
+
+export default config;

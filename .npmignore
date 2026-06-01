@@ -1,0 +1,30 @@
+node_modules/
+.git/
+.github/
+*.tmp
+.DS_Store
+Thumbs.db
+
+# Dev-time only: source maps + build info we don't need at runtime
+*.tsbuildinfo
+dist/**/*.d.ts.map
+dist/**/*.js.map
+
+# Note: `dashboard/.next/cache/`, `trace`, and `types/` would also belong here,
+# but `package.json`'s `files` whitelist overrides .npmignore for paths it
+# enumerates. We delete those subtrees in the `prepack` script instead so they
+# never make it into the tarball regardless of `files` configuration.
+
+# Other stuff we don't want to ship
+.hex/
+coverage/
+.env
+.env.local
+.prettierrc
+vitest.config.ts
+tsconfig.json
+src/
+
+# Test files inside the bundled dist (in case any slipped through)
+**/*.test.js
+**/*.test.d.ts
