@@ -24,7 +24,7 @@ const program = new Command();
 program
   .name('hex')
   .description('CLI toolkit for Solidity smart contract auditors')
-  .version('0.4.1');
+  .version('0.4.2');
 
 program.addCommand(initCommand);
 program.addCommand(statsCommand);
