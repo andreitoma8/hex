@@ -2,8 +2,8 @@ import { Command } from 'commander';
 import fs from 'node:fs';
 import path from 'node:path';
 import { logger } from '../core/logger.js';
-import { loadConfig } from '../core/config.js';
-import { getOutputDir, normalizePath } from '../core/paths.js';
+import { loadProjectContext } from '../core/config.js';
+import { normalizePath } from '../core/paths.js';
 import { writeJsonOutput } from '../core/output.js';
 import { parseSolidity, parseSolidityCached, type ParsedContract, type ParsedFunction } from '../parsers/solidity-parser.js';
 import { countNsloc, getCommentRanges, getAssemblyRanges } from '../analysis/nsloc.js';
@@ -21,8 +21,7 @@ export const statsCommand = new Command('stats')
 
     try {
       const projectDir = opts.project ?? process.cwd();
-      const config = loadConfig(projectDir);
-      const outputDir = getOutputDir(config.project.project_dir, config.settings.output_dir);
+      const { config, outputDir } = loadProjectContext(projectDir);
 
       const perContract: PerContractStats[] = [];
       const allErcs = new Set<string>();

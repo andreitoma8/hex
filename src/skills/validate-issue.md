@@ -95,6 +95,8 @@ For conformance items, the "claim" is `spec_text` + the finding paragraph — i.
 
    For a memo-only verdict, the same two commands apply (the PoC fields just stay unset). For `--description-file`, you may pass either the memo or a dedicated description file; prefer a clean description file if the memo is long.
 
+   Any description you write must be **flat prose** (plus a fenced code block only when a snippet is genuinely needed) — no markdown headings or header-like section labels (`Summary`/`Details`/`Impact`/`Affected code`); weave impact into the prose. This matches the finding template used by the dashboard copy and the GitHub issue body. If the affected files are missing or wrong, set them with `--file` (repeatable) rather than narrating them in the description: `npx hex issue patch <id> --file src/Foo.sol [--file src/Bar.sol]`.
+
    Hex does not write `@audit-issue` comments into the client's source files — the board and finding record are the only place the issue lives.
 
 5. Use **AskUserQuestion** to ask:

@@ -2,8 +2,7 @@ import { Command } from 'commander';
 import fs from 'node:fs';
 import path from 'node:path';
 import { logger } from '../core/logger.js';
-import { loadConfig } from '../core/config.js';
-import { getOutputDir } from '../core/paths.js';
+import { loadProjectContext } from '../core/config.js';
 import { reportError } from '../core/errors.js';
 import {
   moveIssue,
@@ -22,10 +21,13 @@ function readFileTrim(p: string): string {
   return fs.readFileSync(path.resolve(p), 'utf-8').trim();
 }
 
+/** Commander collector for repeatable options (e.g. --file a --file b). */
+function collect(value: string, previous: string[]): string[] {
+  return previous.concat([value]);
+}
+
 function resolveOutputDir(opts: { project?: string }): string {
-  const projectDir = path.resolve(opts.project ?? process.cwd());
-  const config = loadConfig(projectDir);
-  return getOutputDir(config.project.project_dir, config.settings.output_dir);
+  return loadProjectContext(opts.project ?? process.cwd()).outputDir;
 }
 
 const moveCmd = new Command('move')
@@ -64,6 +66,7 @@ const patchCmd = new Command('patch')
   .option('--recommendation-file <path>', 'Read the recommendation from this file')
   .option('--update-from-client <text>', 'Client update text')
   .option('--notes <text>', 'Tracking notes')
+  .option('--file <path>', 'Affected file path (repeatable; sets the File(s) line)', collect, [])
   .option('--project <dir>', 'Project directory')
   .action(
     (
@@ -76,6 +79,7 @@ const patchCmd = new Command('patch')
         recommendationFile?: string;
         updateFromClient?: string;
         notes?: string;
+        file?: string[];
         project?: string;
       },
     ) => {
@@ -86,6 +90,7 @@ const patchCmd = new Command('patch')
         if (opts.resolution != null) updates.resolution = opts.resolution;
         if (opts.updateFromClient != null) updates.update_from_client = opts.updateFromClient;
         if (opts.notes != null) updates.notes = opts.notes;
+        if (opts.file != null && opts.file.length > 0) updates.files = opts.file;
         if (opts.descriptionFile != null) {
           updates.description = fs.readFileSync(path.resolve(opts.descriptionFile), 'utf-8').trim();
         }
@@ -96,7 +101,7 @@ const patchCmd = new Command('patch')
         }
         if (Object.keys(updates).length === 0) {
           logger.error(
-            'Nothing to patch. Pass at least one of --title/--severity/--resolution/--description-file/--recommendation-file/--update-from-client/--notes.',
+            'Nothing to patch. Pass at least one of --title/--severity/--resolution/--description-file/--recommendation-file/--update-from-client/--notes/--file.',
           );
           process.exit(1);
         }
@@ -152,6 +157,7 @@ const newCmd = new Command('new')
     'Origin record id (conformance item id, auditagent id, GitHub issue number)',
   )
   .option('--severity <severity>', 'Critical | High | Medium | Low | Info')
+  .option('--file <path>', 'Affected file path (repeatable; sets the File(s) line)', collect, [])
   .option('--project <dir>', 'Project directory')
   .action(
     (opts: {
@@ -159,6 +165,7 @@ const newCmd = new Command('new')
       title: string;
       sourceRef?: string;
       severity?: string;
+      file?: string[];
       project?: string;
     }) => {
       try {
@@ -173,6 +180,7 @@ const newCmd = new Command('new')
           source_ref: opts.sourceRef ?? null,
           title: opts.title,
           severity: opts.severity as Severity | undefined,
+          files: opts.file && opts.file.length > 0 ? opts.file : undefined,
         });
         // Print the bare id on stdout so skills can capture it.
         console.log(id);

@@ -4,7 +4,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { logger } from '../core/logger.js';
-import { loadConfig } from '../core/config.js';
+import { loadConfig, findOutputDir } from '../core/config.js';
 
 export const dashboardCommand = new Command('dashboard')
   .description('Start the local dashboard and open it in the browser')
@@ -14,22 +14,30 @@ export const dashboardCommand = new Command('dashboard')
   .action(async (opts) => {
     const invokedFrom = path.resolve(opts.project ?? process.cwd());
 
-    let config;
-    try {
-      config = loadConfig(invokedFrom);
-    } catch {
-      logger.error(`No Hex project found in ${invokedFrom}. Run 'hex init' first.`);
+    // Locate `.hex/` on disk by walking up from the invocation dir — the SAME
+    // resolver the dashboard's data loaders and the rest of the CLI use, so they
+    // can never disagree about which project this is.
+    const outputDir = findOutputDir(invokedFrom);
+    if (!outputDir) {
+      logger.error(`No Hex project found in ${invokedFrom} or its parents. Run 'hex init' first.`);
       process.exit(1);
     }
 
-    // The dashboard's data loaders read `.hex/` relative to process.cwd(), so we
-    // must spawn Next from the audit project ROOT — not from wherever `hex
-    // dashboard` happened to be invoked (e.g. inside `.hex/`, which would make it
-    // look for `.hex/.hex/` and render an empty dashboard). The project root is
-    // recorded in config at init time; fall back to the invocation dir only if
-    // that path no longer exists.
-    const recordedRoot = config.project.project_dir;
-    const projectDir = recordedRoot && fs.existsSync(recordedRoot) ? recordedRoot : invokedFrom;
+    let config;
+    try {
+      config = loadConfig(path.dirname(outputDir));
+    } catch (err) {
+      logger.error(err instanceof Error ? err.message : String(err));
+      process.exit(1);
+    }
+
+    // Spawn Next from the directory that actually contains `.hex/` on disk —
+    // anchored to where the config was found, NOT the absolute project_dir baked
+    // into config at init time (which goes stale if the project is
+    // moved/mounted/renamed and would make the dashboard and CLI read different
+    // `.hex` dirs). The dashboard's loaders then re-derive the same dir via
+    // findOutputDir(process.cwd()).
+    const projectDir = path.dirname(outputDir);
 
     const dashboardDir = getDashboardDir();
     if (!fs.existsSync(dashboardDir)) {

@@ -3,7 +3,7 @@ import chalk from 'chalk';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { loadConfig } from '../core/config.js';
+import { findOutputDir } from '../core/config.js';
 import { getOutputDir } from '../core/paths.js';
 import { writeJsonOutput, readJsonFile } from '../core/output.js';
 import { logger } from '../core/logger.js';
@@ -167,16 +167,15 @@ export const aiStatusCommand = new Command('ai-status')
   .action(async (opts) => {
     try {
       const projectDir = path.resolve(opts.project ?? process.cwd());
-      // Tolerate missing config: ai-status can be queried on its own
-      let outputDir: string;
-      try {
-        const config = loadConfig(projectDir);
-        outputDir = getOutputDir(config.project.project_dir, config.settings.output_dir);
-      } catch {
-        outputDir = getOutputDir(projectDir);
-        if (!fs.existsSync(outputDir)) {
+      // Tolerate missing/invalid config: ai-status can be queried on its own.
+      // Anchor to the output dir on disk (walking up); fall back to <dir>/.hex.
+      let outputDir = findOutputDir(projectDir);
+      if (!outputDir) {
+        const fallback = getOutputDir(projectDir);
+        if (!fs.existsSync(fallback)) {
           throw new HexError('project.missing-config');
         }
+        outputDir = fallback;
       }
 
       const intervalMs = opts.interval ? Number(opts.interval) : POLL_DEFAULT_MS;

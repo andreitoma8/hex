@@ -1,8 +1,8 @@
 import { Command } from 'commander';
 import path from 'node:path';
 import { logger } from '../core/logger.js';
-import { loadConfig } from '../core/config.js';
-import { getOutputDir, normalizePath } from '../core/paths.js';
+import { loadProjectContext } from '../core/config.js';
+import { normalizePath } from '../core/paths.js';
 import { writeJsonOutput, readJsonFile } from '../core/output.js';
 import { buildAttackSurface } from '../analysis/attack-surface.js';
 import type { AccessControl, ExternalCalls, StateVars } from '../types/index.js';
@@ -17,8 +17,7 @@ export const surfaceCommand = new Command('surface')
 
     try {
       const projectDir = opts.project ?? process.cwd();
-      const config = loadConfig(projectDir);
-      const outputDir = getOutputDir(config.project.project_dir, config.settings.output_dir);
+      const { config, outputDir } = loadProjectContext(projectDir);
 
       // Read existing analysis outputs
       spin.text = 'Reading analysis artifacts...';

@@ -2,8 +2,8 @@ import { Command } from 'commander';
 import fs from 'node:fs';
 import path from 'node:path';
 import { logger } from '../core/logger.js';
-import { loadConfig } from '../core/config.js';
-import { getOutputDir, normalizePath } from '../core/paths.js';
+import { loadProjectContext } from '../core/config.js';
+import { normalizePath } from '../core/paths.js';
 import { writeJsonOutput } from '../core/output.js';
 import { parseSolidity, parseSolidityCached } from '../parsers/solidity-parser.js';
 import { parseFunctionSummary } from '../parsers/slither.js';
@@ -20,8 +20,7 @@ export const stateCommand = new Command('state')
 
     try {
       const projectDir = opts.project ?? process.cwd();
-      const config = loadConfig(projectDir);
-      const outputDir = getOutputDir(config.project.project_dir, config.settings.output_dir);
+      const { config, outputDir } = loadProjectContext(projectDir);
 
       // Parse all scope files
       spin.text = 'Parsing contracts...';

@@ -2,8 +2,7 @@ import { Command } from 'commander';
 import fs from 'node:fs';
 import path from 'node:path';
 import { logger } from '../core/logger.js';
-import { loadConfig } from '../core/config.js';
-import { getOutputDir } from '../core/paths.js';
+import { loadProjectContext } from '../core/config.js';
 import { readJsonFile, writeMarkdownOutput } from '../core/output.js';
 import { assembleContext, estimateTokens } from '../analysis/context-assembler.js';
 import type { Stats, Deps } from '../types/index.js';
@@ -17,8 +16,7 @@ export const contextCommand = new Command('context')
   .action(async (opts) => {
     try {
       const projectDir = opts.project ?? process.cwd();
-      const config = loadConfig(projectDir);
-      const outputDir = getOutputDir(config.project.project_dir, config.settings.output_dir);
+      const { config, outputDir } = loadProjectContext(projectDir);
 
       // Load supporting data
       const stats = readJsonFile<Stats>(path.join(outputDir, 'stats.json'));
