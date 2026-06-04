@@ -355,7 +355,11 @@ export function patchIssue(
     }
     clean[key] = value;
   }
-  if (Object.keys(clean).length === 0) {
+  // `files` is not an editable text field; it sets root_cause.locations directly.
+  const files = Array.isArray(updates.files)
+    ? (updates.files as unknown[]).filter((v): v is string => typeof v === 'string')
+    : null;
+  if (Object.keys(clean).length === 0 && !files) {
     throw new Error('No editable fields supplied');
   }
 
@@ -373,6 +377,9 @@ export function patchIssue(
       continue;
     }
     (target as Record<string, unknown>)[key] = value;
+  }
+  if (files) {
+    target.root_cause.locations = files.map((file) => ({ file }));
   }
   writeJson(path.join(outputDir, 'findings.json'), findings);
 
@@ -396,6 +403,8 @@ export interface CreateIssueInput {
   source_ref?: string | null;
   title: string;
   severity?: Severity;
+  /** Affected file path(s); populates root_cause.locations (the File(s) line). */
+  files?: string[];
 }
 
 /**
@@ -428,6 +437,10 @@ export function createIssue(outputDir: string, input: CreateIssueInput): string 
   // An explicit --severity / --title from the caller wins over the source record.
   if (input.severity) f.severity = input.severity;
   if (input.title) f.title = input.title;
+  // Explicit affected files populate the File(s) line.
+  if (input.files && input.files.length > 0) {
+    f.root_cause.locations = input.files.map((file) => ({ file }));
+  }
   const severity: Severity = f.severity;
 
   const findings = loadFindings(outputDir);

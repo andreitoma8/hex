@@ -1,7 +1,6 @@
 import { Command } from 'commander';
 import { logger } from '../core/logger.js';
-import { loadConfig } from '../core/config.js';
-import { getOutputDir } from '../core/paths.js';
+import { loadProjectContext } from '../core/config.js';
 import { writeJsonOutput } from '../core/output.js';
 import { extractConstraints } from '../analysis/constraint-extraction.js';
 
@@ -13,8 +12,7 @@ export const constraintsCommand = new Command('constraints')
 
     try {
       const projectDir = opts.project ?? process.cwd();
-      const config = loadConfig(projectDir);
-      const outputDir = getOutputDir(config.project.project_dir, config.settings.output_dir);
+      const { config, outputDir } = loadProjectContext(projectDir);
 
       spin.text = 'Analyzing setter functions and validation...';
       const result = extractConstraints(config.project.project_dir, config.project.scope);

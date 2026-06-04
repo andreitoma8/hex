@@ -21,6 +21,42 @@ function fileLink(file: string, ctx: FormatContext): string {
   return `[\`${file}\`]()`;
 }
 
+/**
+ * Normalize a finding description to flat prose. The finding template expects a
+ * flat Description (see the Kamil gist) — markdown headings inside it collide
+ * with the finding's own `## [Severity] Title` heading and render as spurious
+ * sections. Code blocks are allowed, so anything inside a fence is passed
+ * through verbatim; outside a fence we demote ATX headings to bold and drop
+ * standalone horizontal rules (which would otherwise clash with the trailing
+ * `---` separator). Idempotent.
+ */
+export function flattenDescription(desc: string): string {
+  if (!desc) return desc;
+  let inFence = false;
+  let fenceMarker = '';
+  return desc
+    .split('\n')
+    .map((line) => {
+      const fence = line.match(/^\s*(```+|~~~+)/);
+      if (fence) {
+        if (!inFence) {
+          inFence = true;
+          fenceMarker = fence[1][0];
+        } else if (fence[1][0] === fenceMarker) {
+          inFence = false;
+          fenceMarker = '';
+        }
+        return line;
+      }
+      if (inFence) return line;
+      const heading = line.match(/^\s*#{1,6}\s+(.*\S)\s*$/);
+      if (heading) return `**${heading[1]}**`;
+      if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) return '';
+      return line;
+    })
+    .join('\n');
+}
+
 /** The five-field body shared by HackMD copy and the GitHub issue body. */
 function bodyFields(issue: BoardIssue, ctx: FormatContext): string {
   const seen = new Set<string>();
@@ -34,7 +70,7 @@ function bodyFields(issue: BoardIssue, ctx: FormatContext): string {
   return [
     `**File(s)**: ${files}`,
     ``,
-    `**Description**: ${issue.description}`,
+    `**Description**: ${flattenDescription(issue.description)}`,
     ``,
     `**Recommendation(s)**: ${issue.recommendation}`,
     ``,
@@ -44,9 +80,12 @@ function bodyFields(issue: BoardIssue, ctx: FormatContext): string {
   ].join('\n');
 }
 
-/** HackMD-style: leading `## [Severity] Title` heading, then the body. */
+/**
+ * HackMD-style: leading `## [Severity] Title` heading, the body, then a `---`
+ * separator so consecutive findings pasted into one HackMD doc are delimited.
+ */
 export function findingToHackmd(issue: BoardIssue, ctx: FormatContext = {}): string {
-  return `## [${issue.severity}] ${issue.title}\n\n${bodyFields(issue, ctx)}\n`;
+  return `## [${issue.severity}] ${issue.title}\n\n${bodyFields(issue, ctx)}\n\n---\n`;
 }
 
 /**

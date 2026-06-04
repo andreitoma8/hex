@@ -59,7 +59,7 @@ The `id`, `poc`, and `created_at` fields are managed by `hex issue new` (see Act
   "title": "<concise, descriptive title>",
   "severity": "Critical|High|Medium|Low|Info",
   "category": "<e.g., Math / Rounding, Access Control, Reentrancy, Oracle Manipulation>",
-  "description": "<clear, self-contained description covering what the vulnerability is, why it exists, and what the impact would be if exploited>",
+  "description": "<flat prose covering what the vulnerability is, why it exists, and its impact — no markdown headings; see Description format below>",
   "root_cause": {
     "locations": [
       { "file": "<path>", "snippet": "<relevant code>" }
@@ -88,6 +88,14 @@ Phrase recommendations as suggestions, not commands. The auditor proposes direct
 
 **Recommendation must be prose only.** No code snippets in the `recommendation` field. Code belongs in `root_cause.locations[].snippet`.
 
+### Description format (STRICT)
+
+The finding is rendered as a flat template (`## [Severity] Title`, then `**Description**:`, `**Recommendation(s)**:` …). The description goes inline after `**Description**:`, so it must read as **flat prose**:
+
+- **No markdown headings and nothing that looks like one** — no `#`/`##`/`###`, and no section labels such as `Summary`, `Details`, `Impact`, `Affected code`, whether as a heading or a bold line on its own. Weave the impact into the prose instead of giving it its own section.
+- **Code blocks are allowed when a snippet is genuinely needed** — a fenced ```` ```solidity ```` block illustrating the bug is fine. Keep it to what's relevant; follow the Code Block Formatting Rules below.
+- Affected file paths belong in `--file` (the File(s) line), not in an "Affected code" section in the description.
+
 ## Code Block Formatting Rules (STRICT)
 
 When including code snippets in the finding:
@@ -112,9 +120,10 @@ All inserted audit comments must be full sentences starting with a capital lette
 
 Persist through the `hex issue` CLI — never hand-edit `findings.json` or `tracking.json`. The CLI allocates the uniform `H-NNN` id, writes the tracking entry (`status: pending_validation`, `source: manual`), and creates the findings.json skeleton.
 
-1. **Create the issue:**
+1. **Create the issue** — pass `--file` once per affected file so the **File(s)** line is populated (repeatable). Do **not** narrate the affected files in the description instead:
    ```bash
-   npx hex issue new --source manual --title "<concise title>" --severity <Severity>
+   npx hex issue new --source manual --title "<concise title>" --severity <Severity> \
+     --file src/Foo.sol [--file src/Bar.sol]
    ```
    This prints the allocated id (e.g. `H-007`). Capture it.
 
@@ -122,7 +131,7 @@ Persist through the `hex issue` CLI — never hand-edit `findings.json` or `trac
    ```bash
    npx hex issue patch <id> --description-file /tmp/<id>_desc.md --recommendation-file /tmp/<id>_reco.md
    ```
-   The description must be self-contained (what the issue is, why it exists, the impact). The recommendation is prose only, hedged (`Consider...`), no code.
+   The description must be self-contained (what the issue is, why it exists, the impact) and follow the **Description format** rules below. The recommendation is prose only, hedged (`Consider...`), no code.
 
 There is **no source-file annotation** — Hex does not write `@audit-issue` comments into the client's `.sol` files. The board and the finding record are the single place the issue lives.
 

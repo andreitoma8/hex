@@ -1,27 +1,19 @@
 import fs from 'node:fs';
 import path from 'node:path';
-
-function getProjectDir(): string {
-  // The `hex dashboard` CLI spawns Next.js with cwd = the user's audit project,
-  // so process.cwd() is authoritative. (The HEX_PROJECT_DIR env var was a
-  // vestige from the old monorepo layout and has been removed.)
-  return process.cwd();
-}
+import { findOutputDir } from '../../src/core/locate';
 
 function getOutputDir(): string {
-  const projectDir = getProjectDir();
-  // Try .hex/ first, fall back to .solaudit/ for backwards compat
+  // Anchor to the output dir on disk, walking up from cwd. This is the SAME
+  // resolver the `hex` CLI uses (src/core/config), so the dashboard and the CLI
+  // can never read/write different `.hex` directories — even if the dashboard
+  // is launched from a subdir or the stored project_dir has gone stale.
   try {
-    const hexConfigPath = path.join(projectDir, '.hex', 'config.json');
-    if (fs.existsSync(hexConfigPath)) {
-      return path.join(projectDir, '.hex');
-    }
-    const legacyConfigPath = path.join(projectDir, '.solaudit', 'config.json');
-    if (fs.existsSync(legacyConfigPath)) {
-      return path.join(projectDir, '.solaudit');
-    }
-  } catch { /* ignore */ }
-  return path.join(projectDir, '.hex');
+    const found = findOutputDir(process.cwd());
+    if (found) return found;
+  } catch {
+    /* fall through to the cwd default */
+  }
+  return path.join(process.cwd(), '.hex');
 }
 
 /**
