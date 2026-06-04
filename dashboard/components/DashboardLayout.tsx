@@ -242,6 +242,24 @@ function IconFindings(p: React.SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+function IconNotes(p: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...p}
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M16.862 4.487l1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"
+      />
+    </svg>
+  );
+}
 function IconMenu(p: React.SVGProps<SVGSVGElement>) {
   return (
     <svg
@@ -317,7 +335,10 @@ const NAV_GROUPS = [
   },
   {
     label: 'Reasoning',
-    items: [{ href: '/conformance', label: 'Spec Conformance', icon: IconSpec }],
+    items: [
+      { href: '/conformance', label: 'Spec Conformance', icon: IconSpec },
+      { href: '/notes', label: 'Notes', icon: IconNotes },
+    ],
   },
   {
     label: 'Visual',
@@ -401,7 +422,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         <div className="px-5 pb-4 pt-6">
           <div className="flex items-baseline gap-2">
             <span className="text-title font-semibold text-text-primary">Hex</span>
-            <span className="text-caption text-text-tertiary">v0.5.0</span>
+            <span className="text-caption text-text-tertiary">v0.5.1</span>
           </div>
         </div>
 
