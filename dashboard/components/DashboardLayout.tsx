@@ -361,7 +361,13 @@ function ThemeToggle() {
 }
 
 /* ── Layout ── */
-export function DashboardLayout({ children }: { children: React.ReactNode }) {
+export function DashboardLayout({
+  children,
+  version,
+}: {
+  children: React.ReactNode;
+  version: string;
+}) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -401,7 +407,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         <div className="px-5 pb-4 pt-6">
           <div className="flex items-baseline gap-2">
             <span className="text-title font-semibold text-text-primary">Hex</span>
-            <span className="text-caption text-text-tertiary">v0.5.1</span>
+            <span className="text-caption text-text-tertiary">v{version}</span>
           </div>
         </div>
 
