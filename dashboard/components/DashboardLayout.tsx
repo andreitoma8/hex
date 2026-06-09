@@ -455,7 +455,9 @@ export function DashboardLayout({
 
       {/* Main content */}
       <main className="min-h-screen bg-surface-0 p-6 pt-16 md:ml-[220px] md:pt-6">
-        <div className="mx-auto max-w-6xl">{children}</div>
+        <div className={`mx-auto ${pathname === '/issues' ? 'max-w-none' : 'max-w-6xl'}`}>
+          {children}
+        </div>
       </main>
     </div>
   );
