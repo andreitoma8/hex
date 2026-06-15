@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { logger } from '../core/logger.js';
 import { loadConfig, findOutputDir } from '../core/config.js';
+import { detectWhisper } from '../core/whisper.js';
 
 export const dashboardCommand = new Command('dashboard')
   .description('Start the local dashboard and open it in the browser')
@@ -59,6 +60,25 @@ export const dashboardCommand = new Command('dashboard')
 
     // Use the next binary that ships with this package.
     const nextBin = resolveNextBin(dashboardDir);
+
+    // Warm Whisper: if faster-whisper is installed, run a persistent helper that
+    // loads the model once and serves transcription while the dashboard is up.
+    // It's killed on exit (see cleanup), so the model is freed the moment you
+    // close the dashboard — and never loaded more than once per session.
+    const nextEnv: NodeJS.ProcessEnv = { ...process.env, PORT: port };
+    let whisperChild: ReturnType<typeof spawn> | null = null;
+    const engine = detectWhisper();
+    if (engine?.kind === 'faster') {
+      const whisperPort = (parseInt(port, 10) || 3000) + 100;
+      whisperChild = spawn(engine.bin, [path.join(dashboardDir, 'whisper-server.py'), String(whisperPort)], {
+        stdio: 'inherit',
+        cwd: projectDir,
+        env: { ...process.env },
+      });
+      nextEnv.HEX_WHISPER_URL = `http://127.0.0.1:${whisperPort}`;
+      logger.dim('Whisper model loading locally (CPU) — held only while the dashboard runs.');
+    }
+
     // Set cwd to the audit project so the dashboard's data loaders find .hex/
     // via process.cwd(). This replaces the old HEX_PROJECT_DIR env-var bridge,
     // which was a vestige from the monorepo days when the dashboard was started
@@ -67,7 +87,7 @@ export const dashboardCommand = new Command('dashboard')
       stdio: 'inherit',
       shell: true,
       cwd: projectDir,
-      env: { ...process.env, PORT: port },
+      env: nextEnv,
     });
 
     if (opts.open !== false) {
@@ -77,12 +97,14 @@ export const dashboardCommand = new Command('dashboard')
     }
 
     const cleanup = () => {
+      if (whisperChild) whisperChild.kill('SIGTERM');
       child.kill('SIGTERM');
     };
     process.on('SIGINT', cleanup);
     process.on('SIGTERM', cleanup);
 
     child.on('close', (code) => {
+      if (whisperChild) whisperChild.kill('SIGTERM');
       process.exit(code ?? 0);
     });
   });

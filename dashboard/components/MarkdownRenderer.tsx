@@ -38,3 +38,34 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
     </div>
   );
 }
+
+/**
+ * Inline markdown for short strings inside the structured Notes UI (lead text,
+ * bullets, function fields, Q&A). Renders without a block <p> wrapper so it
+ * sits inline, and styles `code` / **bold** / links to match the design system.
+ */
+export function InlineMarkdown({ children }: { children: string }) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        p: ({ children }) => <>{children}</>,
+        code: ({ children }) => (
+          <code className="rounded bg-surface-0 px-1 py-0.5 font-mono text-[0.85em] text-accent">
+            {children}
+          </code>
+        ),
+        strong: ({ children }) => (
+          <strong className="font-semibold text-text-primary">{children}</strong>
+        ),
+        a: ({ href, children }) => (
+          <a href={href} target="_blank" rel="noreferrer" className="text-accent hover:underline">
+            {children}
+          </a>
+        ),
+      }}
+    >
+      {children}
+    </ReactMarkdown>
+  );
+}

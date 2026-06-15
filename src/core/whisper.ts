@@ -14,6 +14,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -133,4 +134,63 @@ export function transcribe(audioPath: string): string {
       /* best-effort cleanup */
     }
   }
+}
+
+// ─── Warm Whisper server (started by `hex dashboard`) ───────────────
+//
+// `hex dashboard` spawns a persistent helper (dashboard/whisper-server.py) that
+// loads the model once and serves POST /transcribe, then passes HEX_WHISPER_URL
+// to the dashboard. This avoids reloading the model on every recording and
+// frees it the moment the dashboard exits.
+
+/** The warm Whisper server's base URL, if `hex dashboard` started one. */
+export function whisperServerUrl(): string | null {
+  return process.env.HEX_WHISPER_URL || null;
+}
+
+/**
+ * Transcribe via the warm server (model already loaded, no per-request reload):
+ * ffmpeg-convert to 16 kHz wav, POST the bytes to `<url>/transcribe`. Throws on
+ * transport or engine error.
+ */
+export function transcribeViaServer(audioPath: string, url: string): Promise<string> {
+  const wav = toWav(audioPath);
+  const body = fs.readFileSync(wav);
+  const target = new URL('/transcribe', url);
+  return new Promise<string>((resolve, reject) => {
+    const req = http.request(
+      {
+        hostname: target.hostname,
+        port: target.port,
+        path: target.pathname,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/octet-stream', 'Content-Length': body.length },
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (c) => chunks.push(c as Buffer));
+        res.on('end', () => {
+          try {
+            const parsed = JSON.parse(Buffer.concat(chunks).toString('utf-8')) as {
+              text?: string;
+              error?: string;
+            };
+            if (parsed.error) reject(new Error(parsed.error));
+            else resolve((parsed.text ?? '').trim());
+          } catch (e) {
+            reject(e instanceof Error ? e : new Error(String(e)));
+          }
+        });
+      },
+    );
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  }).finally(() => {
+    try {
+      fs.unlinkSync(wav);
+    } catch {
+      /* best-effort cleanup */
+    }
+  });
 }

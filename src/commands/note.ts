@@ -13,7 +13,12 @@ import {
   createSession,
   latestUnprocessedSession,
   markSessionProcessed,
+  readContractNote,
+  writeContractNote,
+  setMarkedDone,
+  type ContractNote,
 } from '../core/notes.js';
+import { recomputeReview } from '../core/review.js';
 
 function resolveOutputDir(opts: { project?: string }): string {
   return loadProjectContext(opts.project ?? process.cwd()).outputDir;
@@ -92,6 +97,58 @@ const activeCmd = new Command('active')
     }
   });
 
+// ─── structured contract note (Diane v2) ───────────────────────────
+
+const showCmd = new Command('show')
+  .description("Print a contract's structured note (Leads / Description / Questions) as JSON")
+  .argument('<contract>', 'Contract name (e.g. Vault.sol)')
+  .option('--project <dir>', 'Project directory')
+  .action((contract: string, opts: { project?: string }) => {
+    try {
+      console.log(JSON.stringify(readContractNote(resolveOutputDir(opts), contract), null, 2));
+    } catch (err) {
+      reportError(err);
+      process.exit(1);
+    }
+  });
+
+const setCmd = new Command('set')
+  .description("Replace a contract's structured note from a JSON file (Diane's read-merge-write path)")
+  .argument('<contract>', 'Contract name (e.g. Vault.sol)')
+  .requiredOption('--json-file <path>', 'JSON file holding the full ContractNote')
+  .option('--project <dir>', 'Project directory')
+  .action((contract: string, opts: { jsonFile: string; project?: string }) => {
+    try {
+      const outputDir = resolveOutputDir(opts);
+      const note = JSON.parse(fs.readFileSync(path.resolve(opts.jsonFile), 'utf-8')) as ContractNote;
+      writeContractNote(outputDir, contract, note);
+      const reviewed = recomputeReview(outputDir, contract);
+      logger.success(`Saved note: ${contract}${reviewed ? ' (reviewed ✓)' : ''}`);
+    } catch (err) {
+      reportError(err);
+      process.exit(1);
+    }
+  });
+
+const doneCmd = new Command('done')
+  .description('Mark a contract as done reading (part of the auto-review rule); --undo to clear')
+  .argument('<contract>', 'Contract name (e.g. Vault.sol)')
+  .option('--undo', 'Clear the done flag')
+  .option('--project <dir>', 'Project directory')
+  .action((contract: string, opts: { undo?: boolean; project?: string }) => {
+    try {
+      const outputDir = resolveOutputDir(opts);
+      setMarkedDone(outputDir, contract, !opts.undo);
+      const reviewed = recomputeReview(outputDir, contract);
+      logger.success(
+        `${contract} marked ${opts.undo ? 'not done' : 'done'}${reviewed ? ' (reviewed ✓)' : ''}`,
+      );
+    } catch (err) {
+      reportError(err);
+      process.exit(1);
+    }
+  });
+
 // ─── session subcommands ────────────────────────────────────────────
 
 const sessionLatestCmd = new Command('latest')
@@ -149,7 +206,10 @@ const sessionCmd = new Command('session')
   .addCommand(sessionMarkCmd);
 
 export const noteCommand = new Command('note')
-  .description('Read and write Diane audit notes (read / write / append / list / active / session)')
+  .description('Read and write Diane audit notes (show / set / done / list / active / session)')
+  .addCommand(showCmd)
+  .addCommand(setCmd)
+  .addCommand(doneCmd)
   .addCommand(readCmd)
   .addCommand(writeCmd)
   .addCommand(appendCmd)

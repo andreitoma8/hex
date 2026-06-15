@@ -205,3 +205,274 @@ export function createSession(
   writeTextAtomic(path.join(notesDir(outputDir), rel), header + opts.transcript.trim() + '\n');
   return addSession(outputDir, { file: rel, contract: opts.contract, ts: opts.ts, audio: opts.audio });
 }
+
+// ─── Structured per-contract note (Diane v2) ────────────────────────
+//
+// A contract's profile is a structured record at `contracts/<Name>.json`
+// (the freeform `general` note stays markdown via readNote/writeNote). This is
+// what powers the dashboard's section nav, collapsible functions/questions,
+// open-only leads, and the /progress auto-review. Diane reads the whole record
+// (`hex note show`), merges a session into it, and writes it back
+// (`hex note set`); the dashboard mutates individual leads/questions/flags.
+
+export interface FnEntry {
+  /** Stable id derived from the function name. */
+  id: string;
+  /** Display signature, e.g. `deposit(assets, receiver) — external`. */
+  sig: string;
+  purpose?: string;
+  access?: string;
+  effects?: string;
+  notes: string[];
+  /** Pair-audit corrections, ideally `text (file:line)`. */
+  warnings: string[];
+}
+
+export interface Question {
+  id: string;
+  q: string;
+  /** Open when absent/empty. */
+  answer?: string;
+}
+
+export type LeadStatus = 'open' | 'logged' | 'dismissed';
+
+export interface Lead {
+  id: string;
+  text: string;
+  status: LeadStatus;
+  /** Issue id (e.g. H-007) when promoted to a finding. */
+  ref?: string;
+}
+
+export interface ContractDescription {
+  purpose: string[];
+  inheritance: string[];
+  storage: string[];
+  roles: string[];
+  functions: FnEntry[];
+}
+
+export interface ContractNote {
+  contract: string;
+  /** Source file (e.g. `src/Vault.sol`) — used to map to the progress key. */
+  file?: string;
+  /** Explicit "done reading" signal; part of the auto-review rule. */
+  marked_done: boolean;
+  description: ContractDescription;
+  questions: Question[];
+  leads: Lead[];
+  updated_at: string;
+}
+
+function contractNotePath(outputDir: string, contract: string): string {
+  return path.join(notesDir(outputDir), 'contracts', safeName(contract) + '.json');
+}
+
+function emptyContractNote(contract: string): ContractNote {
+  return {
+    contract,
+    marked_done: false,
+    description: { purpose: [], inheritance: [], storage: [], roles: [], functions: [] },
+    questions: [],
+    leads: [],
+    updated_at: new Date().toISOString(),
+  };
+}
+
+function asArray<T>(v: unknown): T[] {
+  return Array.isArray(v) ? (v as T[]) : [];
+}
+
+/** Read a contract's structured note, returning an empty skeleton if absent. */
+export function readContractNote(outputDir: string, contract: string): ContractNote {
+  const raw = readText(contractNotePath(outputDir, contract));
+  if (!raw) return emptyContractNote(contract);
+  try {
+    const p = JSON.parse(raw) as Partial<ContractNote>;
+    const d = (p.description ?? {}) as Partial<ContractDescription>;
+    return {
+      contract: p.contract ?? contract,
+      file: p.file,
+      marked_done: Boolean(p.marked_done),
+      description: {
+        purpose: asArray<string>(d.purpose),
+        inheritance: asArray<string>(d.inheritance),
+        storage: asArray<string>(d.storage),
+        roles: asArray<string>(d.roles),
+        functions: asArray<FnEntry>(d.functions).map((f) => ({
+          id: f.id ?? fnId(f.sig ?? ''),
+          sig: f.sig ?? '',
+          purpose: f.purpose,
+          access: f.access,
+          effects: f.effects,
+          notes: asArray<string>(f.notes),
+          warnings: asArray<string>(f.warnings),
+        })),
+      },
+      questions: asArray<Question>(p.questions),
+      leads: asArray<Lead>(p.leads),
+      updated_at: p.updated_at ?? new Date().toISOString(),
+    };
+  } catch {
+    return emptyContractNote(contract);
+  }
+}
+
+/** Write a contract's structured note (stamps updated_at; tracks it in the index). */
+export function writeContractNote(outputDir: string, contract: string, note: ContractNote): void {
+  const next = { ...note, contract, updated_at: new Date().toISOString() };
+  writeTextAtomic(contractNotePath(outputDir, contract), JSON.stringify(next, null, 2) + '\n');
+  const index = readNotesIndex(outputDir);
+  trackContract(index, contract);
+  writeNotesIndex(outputDir, index);
+}
+
+// ─── ID helpers ─────────────────────────────────────────────────────
+
+function nextNumId(prefix: string, items: { id: string }[]): string {
+  let max = 0;
+  for (const it of items) {
+    const m = new RegExp(`^${prefix}(\\d+)$`).exec(it.id);
+    if (m) max = Math.max(max, parseInt(m[1], 10));
+  }
+  return `${prefix}${max + 1}`;
+}
+
+function fnId(sig: string): string {
+  const name = (sig.split('(')[0] ?? sig).trim() || sig;
+  return name.replace(/[^\w]+/g, '_') || 'fn';
+}
+
+// ─── Granular mutators (used by the dashboard API + CLI) ────────────
+
+export function setMarkedDone(outputDir: string, contract: string, done: boolean): ContractNote {
+  const note = readContractNote(outputDir, contract);
+  note.marked_done = done;
+  writeContractNote(outputDir, contract, note);
+  return note;
+}
+
+export function addLead(outputDir: string, contract: string, text: string): Lead {
+  const note = readContractNote(outputDir, contract);
+  const lead: Lead = { id: nextNumId('L', note.leads), text, status: 'open' };
+  note.leads.push(lead);
+  writeContractNote(outputDir, contract, note);
+  return lead;
+}
+
+/** Close a lead as promoted-to-finding (`logged`, with ref) or `dismissed`. */
+export function closeLead(
+  outputDir: string,
+  contract: string,
+  id: string,
+  status: 'logged' | 'dismissed',
+  ref?: string,
+): ContractNote {
+  const note = readContractNote(outputDir, contract);
+  const lead = note.leads.find((l) => l.id === id);
+  if (!lead) throw new Error(`No lead ${id} on ${contract}`);
+  lead.status = status;
+  if (ref) lead.ref = ref;
+  writeContractNote(outputDir, contract, note);
+  return note;
+}
+
+export function reopenLead(outputDir: string, contract: string, id: string): ContractNote {
+  const note = readContractNote(outputDir, contract);
+  const lead = note.leads.find((l) => l.id === id);
+  if (!lead) throw new Error(`No lead ${id} on ${contract}`);
+  lead.status = 'open';
+  delete lead.ref;
+  writeContractNote(outputDir, contract, note);
+  return note;
+}
+
+export function addQuestion(
+  outputDir: string,
+  contract: string,
+  q: string,
+  answer?: string,
+): Question {
+  const note = readContractNote(outputDir, contract);
+  const question: Question = { id: nextNumId('Q', note.questions), q, ...(answer ? { answer } : {}) };
+  note.questions.push(question);
+  writeContractNote(outputDir, contract, note);
+  return question;
+}
+
+export function answerQuestion(
+  outputDir: string,
+  contract: string,
+  id: string,
+  answer: string,
+): ContractNote {
+  const note = readContractNote(outputDir, contract);
+  const question = note.questions.find((x) => x.id === id);
+  if (!question) throw new Error(`No question ${id} on ${contract}`);
+  question.answer = answer;
+  writeContractNote(outputDir, contract, note);
+  return note;
+}
+
+/** Insert or refine a function entry, matched by signature. Preserves source order. */
+export function upsertFunction(
+  outputDir: string,
+  contract: string,
+  fn: Partial<FnEntry> & { sig: string },
+): ContractNote {
+  const note = readContractNote(outputDir, contract);
+  const existing = note.description.functions.find((f) => f.sig === fn.sig);
+  if (existing) {
+    Object.assign(existing, {
+      ...fn,
+      notes: fn.notes ?? existing.notes,
+      warnings: fn.warnings ?? existing.warnings,
+    });
+  } else {
+    note.description.functions.push({
+      id: fnId(fn.sig),
+      sig: fn.sig,
+      purpose: fn.purpose,
+      access: fn.access,
+      effects: fn.effects,
+      notes: fn.notes ?? [],
+      warnings: fn.warnings ?? [],
+    });
+  }
+  writeContractNote(outputDir, contract, note);
+  return note;
+}
+
+export type DescriptionField = 'purpose' | 'inheritance' | 'storage' | 'roles';
+
+export function setDescriptionField(
+  outputDir: string,
+  contract: string,
+  field: DescriptionField,
+  values: string[],
+): ContractNote {
+  const note = readContractNote(outputDir, contract);
+  note.description[field] = values;
+  writeContractNote(outputDir, contract, note);
+  return note;
+}
+
+// ─── Review state (drives the /progress auto-tick) ──────────────────
+
+export interface ReviewState {
+  openLeads: number;
+  unansweredQuestions: number;
+  reviewed: boolean;
+}
+
+/** reviewed = marked_done AND no open leads AND no unanswered questions. */
+export function reviewState(note: ContractNote): ReviewState {
+  const openLeads = note.leads.filter((l) => l.status === 'open').length;
+  const unansweredQuestions = note.questions.filter((q) => !q.answer || !q.answer.trim()).length;
+  return {
+    openLeads,
+    unansweredQuestions,
+    reviewed: note.marked_done && openLeads === 0 && unansweredQuestions === 0,
+  };
+}

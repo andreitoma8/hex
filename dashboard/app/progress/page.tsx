@@ -26,6 +26,7 @@ interface Stats {
 interface ProgressData {
   updated_at: string;
   reviewed_contracts: Record<string, boolean>;
+  diane_reviewed?: Record<string, boolean>;
 }
 
 interface Finding {
@@ -115,6 +116,7 @@ export default function ProgressPage() {
         contracts={stats.per_contract}
         totalsNsloc={stats.per_contract.reduce((s, c) => s + c.nsloc, 0)}
         reviewedContracts={progress?.reviewed_contracts ?? {}}
+        dianeReviewed={progress?.diane_reviewed ?? {}}
         auditSteps={auditSteps}
         findingsTotal={allFindingIds.size}
         findingsBySeverity={findingsBySeverity}

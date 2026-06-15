@@ -43,15 +43,15 @@ Never invoke `aa scan` to start a new scan. If the auditor has no scan ID, instr
 
 ## Step 3 — Fetch findings
 
-Run:
+Export the full findings for the linked scan:
 
 ```bash
-aa scan --report <scan_id>
+aa findings --all
 ```
 
-(Or the equivalent results-fetch command exposed by the installed `aa` version — check `aa scan --help` if `--report` is not supported.)
+`aa findings --all` writes the full findings (with details) to `auditagent/findings-<scan_id>.md`. If the scan isn't linked yet, run `aa link <scan_id>` first, then re-run `aa findings --all`. (`aa findings` without `--all` only prints summaries; **do not** use `aa scan --report` — that subcommand does not exist.)
 
-Capture the raw output to `<output_dir>/ai-results/auditagent/raw-output.md`.
+Copy the exported `auditagent/findings-<scan_id>.md` to `<output_dir>/ai-results/auditagent/raw-output.md` and parse it from there.
 
 ## Step 4 — Normalize into findings.json
 

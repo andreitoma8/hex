@@ -203,6 +203,7 @@ Each skill has a recommended model — switch your Claude Code model before invo
 | ----------------------- | ----- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `init-audit`            | 1     | Opus              | Dependency-safety → `hex analyze` → overview → diagram → flows → spec conformance → materialize DEVIATES/PARTIAL items as Potential cards        |
 | `write-finding`         | 2     | Sonnet            | Records a manual issue to `findings.json` as a Potential card (`status: pending_validation`, `source: manual`)                                   |
+| `diane`                 | 2     | Sonnet            | Voice pair-auditor: ingests recorded narration into a structured per-contract profile (Leads / Description / Questions), verifies your claims against the code, and surfaces leads                |
 | `validate-issue`        | 3     | Opus              | Validates any Potential card (manual / auditagent / conformance / github); per-issue choice of PoC vs memo-only; promotes to Verified or Invalid |
 | `validate-all-findings` | 3     | Opus              | Runs the `/validate-issue` flow over every Potential card, one at a time                                                                         |
 | `generate-poc`          | 3     | Opus              | Generates and runs a PoC test (invoked by `/validate-issue`)                                                                                     |
@@ -218,6 +219,7 @@ Skills use Claude Code's native skill format, stored in `.claude/skills/<name>/S
 .claude/skills/
 ├── init-audit/SKILL.md
 ├── write-finding/SKILL.md
+├── diane/SKILL.md
 ├── validate-issue/SKILL.md
 ├── validate-all-findings/SKILL.md
 ├── generate-poc/SKILL.md
@@ -243,6 +245,24 @@ hex update-skills --keep-custom  # skip existing skill files to preserve per-pro
 
 ---
 
+## Notes & Diane (voice pair-auditor)
+
+Diane is an optional companion for **Phase 2 manual review**. You read a contract top-to-bottom and narrate your thinking out loud; Diane records it, organizes it into a living per-contract profile, and audits alongside you.
+
+**The loop:**
+
+1. **Record** — open the dashboard **Notes** page (`/notes`), pick the contract from the dropdown, and hit Record. Audio is transcribed **locally** with a Whisper engine — nothing leaves your machine. The model is loaded only while the dashboard is running and is freed when you close it.
+2. **Process** — run **`/diane`** in Claude Code. It ingests the latest recording into the contract's structured profile:
+   - **Leads** — things worth investigating (only open ones are shown; closing one or logging it as a finding removes it).
+   - **Description** — Purpose / Inheritance / Storage / Roles & Modifiers / Functions (one collapsible entry per function).
+   - **Questions** — your questions with answers, collapsible.
+3. **Pair-audit** — Diane verifies the claims you make against the code, corrects what's wrong (with `file:line`), flags what you missed, and ends each run with a candid verdict.
+4. **Track** — once a contract is marked "done reading" with no open leads and no unanswered questions, it auto-ticks as reviewed on `/progress`.
+
+**Whisper setup (one-time):** install a local engine — `pip install faster-whisper` (lightweight, CPU) or `pip install openai-whisper`. Without one, recordings are still saved and Hex shows a setup hint; transcription just waits until an engine is present.
+
+---
+
 ## Dashboard Pages
 
 The dashboard runs locally at `http://localhost:3000` and auto-refreshes when output files change. A live "Updated Ns ago" indicator in the sidebar footer tells you the watcher is connected.
@@ -250,7 +270,8 @@ The dashboard runs locally at `http://localhost:3000` and auto-refreshes when ou
 | Page             | URL            | What you see                                                                                                                                                                                                                                                                                                                                                                               |
 | ---------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Home             | `/`            | Project info, AI overview, key stats                                                                                                                                                                                                                                                                                                                                                       |
-| Progress         | `/progress`    | Weighted progress bar (70% nSLOC reviewed, 20% audit steps, 10% findings triage), contract review checklist                                                                                                                                                                                                                                                                                |
+| Progress         | `/progress`    | Weighted progress bar (70% nSLOC reviewed, 20% audit steps, 10% findings triage), contract review checklist (auto-ticks a contract once its Diane notes are done — see Notes)                                                                                                                                                                                                               |
+| **Notes**        | `/notes`       | **Diane's workspace.** Record voice narration (local Whisper), then `/diane` builds a structured per-contract profile — **Leads** (open only), **Description** (Purpose / Inheritance / Storage / Roles / Functions, collapsible), **Questions** (collapsible). Per-contract section nav; close leads; "mark done reading."                                                                  |
 | Statistics       | `/stats`       | Per-contract metrics, test coverage, dependencies, ERCs                                                                                                                                                                                                                                                                                                                                    |
 | System Diagram   | `/diagram`     | Mermaid architecture diagram with zoom/pan                                                                                                                                                                                                                                                                                                                                                 |
 | Flows            | `/flows`       | Mermaid flow charts with zoom/pan                                                                                                                                                                                                                                                                                                                                                          |

@@ -45,87 +45,69 @@ When a unit is ambiguous, treat it as a note (the safe default — nothing is lo
 
 This is what makes you a pair auditor, not a stenographer. For **every checkable claim** in the narration — how a function behaves, a value, an invariant, "this is safe because…" — open the relevant source (Read / Grep over the project scope) and check it. Classify each:
 
-- **Confirmed** → record it as fact in the profile; a brief ✓ is enough, don't clutter.
-- **Wrong** → record the **correct** behavior in Description, flagged with a `⚠` callout naming the contradiction + `file:line` (e.g. `⚠ you said rounds down; rounds UP (Vault.sol:88)`).
-- **Incomplete / missed** → add to **Leads** (e.g. an unchecked return, a missing bound or zero-check, an edge case the auditor walked past), noting they didn't mention it.
-- **Interesting angle** you spot independently → **Leads**, phrased as a hypothesis to investigate.
+- **Confirmed** → record it as fact in `description` (the function's `notes`, or purpose/storage/roles); don't clutter.
+- **Wrong** → record the **correct** behavior, and add a `⚠` string to that function's `warnings` naming the contradiction + `file:line` (e.g. `⚠ you said rounds down; rounds UP (Vault.sol:88)`).
+- **Incomplete / missed** → add a `leads` entry (e.g. an unchecked return, a missing bound or zero-check, an edge case the auditor walked past), noting they didn't mention it.
+- **Interesting angle** you spot independently → a `leads` entry, phrased as a hypothesis to investigate.
 
 Push back only with concrete, code-grounded evidence — never contrarian for its own sake. If a claim isn't checkable from the code, note it as an assumption rather than asserting it true or false.
 
 ## Step 4 — Route the triggers
 
-All three edit the same living profile; Step 5 covers the merge mechanics (read the doc → edit → write it back).
+All three edit the same structured record; Step 5 covers the read-merge-write mechanics.
 
-**create a finding** → invoke the existing `/write-finding` skill, prefilled from the narration (the affected contract/function and the auditor's stated impact). Let that skill own duplicate-checking and the board write. After it returns, find the matching bullet in **Leads** and mark it resolved — strike it through and append the id, rather than deleting it (audit trail): `- ~~<lead>~~ → logged <H-NNN>`. If no lead existed for it, no-op.
+**create a finding** → invoke the existing `/write-finding` skill, prefilled from the narration (the affected contract/function and the auditor's stated impact). Let that skill own duplicate-checking and the board write. After it returns, set the matching lead's `status` to `"logged"` and its `ref` to the new `H-NNN` — it leaves the open-leads list but stays in the record (audit trail). If no lead matched, no-op.
 
-**answer a question** → answer it yourself using codebase access (Read / Grep over the project scope), or search online for things you're unsure about. Be concrete, concise, and cite `file:line`. Record it in the **Questions** section as a single inline bullet:
+**answer a question** → answer it yourself using codebase access (Read / Grep over the project scope), or search online for things you're unsure about. Be concrete, concise, and cite `file:line`. Put it in `questions[]`: fill the `answer` of the matching open question if one exists, else add `{ q, answer }`.
 
-```
-- <question>? **Answer**: <concise answer, with file:line>
-```
-
-If it answers a question already open in that list, fill that bullet in place — don't add a duplicate. Never write a separate `**Q:**` / `**A:**` block.
-
-**search online** → use WebSearch, read the most relevant result, and fold it into wherever it belongs — an answer in **Questions**, a point in **Description**, or a **Leads** bullet — with the source link. No standalone block.
+**search online** → use WebSearch, read the most relevant result, and fold it where it belongs — a question's `answer`, a `description` field, or a `leads` entry — with the source link.
 
 ## Step 5 — Update the contract profile
 
-Notes for a contract live in **one growing profile**, not per-session blocks. Each run: read the current profile, merge the session's thought-units **and your Step 3 verification** into the right place, write the whole doc back. **Clean up** filler, repetition, and false starts — keep the reasoning, not the disfluency.
+A contract's notes are a **structured record** you grow over time — not per-session blocks. Each run: read the current record, merge this session **and your Step 3 verification** into it, write it back. Clean up filler/repetition; keep the reasoning, not the disfluency.
 
-The profile has three sections (create whatever's missing; add a subsection or entry only when there's something to say):
+The record (JSON):
 
-````markdown
-# <Contract>.sol
+```json
+{
+  "contract": "Vault.sol",
+  "marked_done": false,
+  "description": {
+    "purpose": ["ERC-4626-ish vault"],
+    "inheritance": ["..."],
+    "storage": ["`totalAssets` (uint256) — managed balance"],
+    "roles": ["`onlyOwner` — gates setFee / setOwner"],
+    "functions": [
+      {
+        "sig": "deposit(assets, receiver) — external",
+        "purpose": "pull assets, mint shares",
+        "access": "anyone",
+        "effects": "transferFrom → _mint → totalAssets +=",
+        "notes": ["pulls before state update"],
+        "warnings": ["⚠ you said rounds down; rounds UP (Vault.sol:88)"]
+      }
+    ]
+  },
+  "questions": [
+    { "id": "Q1", "q": "is uint8 enough for decimals?", "answer": "yes, 0–255 (MockToken.sol:9)" }
+  ],
+  "leads": [
+    { "id": "L1", "text": "setFee has no upper bound (Vault.sol:120) — you didn't mention it", "status": "open" }
+  ]
+}
+```
 
-## Description
+- **description** = how the contract works (verified truth), top-to-bottom: `purpose`, `inheritance`, `storage`, `roles`, then `functions` in **source order** (each with Purpose / Access / Effects + `notes`). Step-3 corrections go in that function's `warnings`, with `file:line`.
+- **questions** = your Q&A; an entry with no `answer` is still open.
+- **leads** = things worth investigating (the Step-3 misses/angles). Only `status:"open"` leads show in the dashboard; `logged` (→ finding) and `dismissed` are kept but hidden.
 
-### Purpose
-- <what it's for>
+Merge mechanics — read the record, edit JSON, write it back:
 
-### Inheritance
-- <base contracts / interfaces>
+1. `npx hex note show "<contract>" > /tmp/diane_<ts>.json` — prints an empty skeleton on first run.
+2. Edit `/tmp/diane_<ts>.json`: add or refine entries where they belong (fill a storage row, flesh out a function, set a question's `answer`, add a lead, attach a `warning`). **Preserve existing `id`s, don't duplicate** — sharpen what's there. Keep arrays concise.
+3. `npx hex note set "<contract>" --json-file /tmp/diane_<ts>.json` (this also recomputes the `/progress` review state).
 
-### Storage
-- `name` (type) — role / notes
-
-### Roles & Modifiers
-- `onlyOwner` — gates X, Y
-
-### Functions
-#### deposit(assets, receiver) — external
-- Purpose: pull assets, mint shares
-- Access: anyone
-- Effects: transferFrom → _mint → totalAssets +=
-- Notes: pulls before state update
-- Notes: ⚠ you said rounds down; rounds UP (Vault.sol:88)
-
-## Questions
-- <question>? **Answer**: <concise answer> (file:line)
-- <question>?            (open — no answer requested yet)
-
-## Leads
-- <lead> — why it might be an issue
-- setFee has no upper bound (Vault.sol:120) — you didn't mention it
-- ~~<promoted lead>~~ → logged H-007
-````
-
-- **Description** = how the contract works (verified truth), built top-to-bottom. Each function the auditor walks through gets a `#### name(args) — visibility` entry using the **Purpose / Access / Effects / Notes** template, inserted in **source order**. When your Step 3 check contradicts the auditor, the relevant `Notes:` line carries the `⚠ …(file:line)` callout.
-- **Questions** = the running Q&A list (Step 4).
-- **Leads** = things worth investigating that could become findings — including the misses and interesting angles you surfaced in Step 3 (Step 4 strikes them through when promoted).
-
-Merge mechanics:
-
-1. Read the current profile (empty on first run):
-   ```bash
-   npx hex note read "<contract>" > /tmp/diane_<ts>.md
-   ```
-2. Edit `/tmp/diane_<ts>.md` **in place**: scaffold the skeleton if it was empty; otherwise refine existing entries and add new ones where they belong (fill a Storage row, flesh out a function's Effects, answer an open question, add a lead). Do **not** append a dated block, and do **not** duplicate something already captured — sharpen it instead.
-3. Write the whole doc back:
-   ```bash
-   npx hex note write "<contract>" --body-file /tmp/diane_<ts>.md
-   ```
-
-`<contract>` is the session's `contract` value verbatim (e.g. `Vault.sol`). Cross-cutting remarks go to `general`, which uses the same three sections but a free-form Description (no per-function list).
+`<contract>` is the session's `contract` value verbatim (e.g. `Vault.sol`). Cross-cutting remarks still go to the free-form `general` markdown note: `npx hex note append general --body-file …` (`general` isn't structured). If the auditor says they're done with a contract, run `npx hex note done "<contract>"`.
 
 ## Step 6 — Close the loop & deliver the verdict
 

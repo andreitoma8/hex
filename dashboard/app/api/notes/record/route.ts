@@ -3,7 +3,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { getOutputDirPath } from '@/lib/data';
 import { createSession } from '../../../../../src/core/notes';
-import { transcribe, WhisperMissingError } from '../../../../../src/core/whisper';
+import {
+  transcribe,
+  transcribeViaServer,
+  whisperServerUrl,
+  WhisperMissingError,
+} from '../../../../../src/core/whisper';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,7 +35,10 @@ export async function POST(request: NextRequest) {
 
     let transcript: string;
     try {
-      transcript = transcribe(audioPath);
+      // Prefer the warm server `hex dashboard` started (model stays loaded);
+      // fall back to a one-shot spawn if it isn't running.
+      const url = whisperServerUrl();
+      transcript = url ? await transcribeViaServer(audioPath, url) : transcribe(audioPath);
     } catch (err) {
       if (err instanceof WhisperMissingError) {
         return NextResponse.json(

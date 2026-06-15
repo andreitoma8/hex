@@ -31,6 +31,7 @@
     "dashboard/public",
     "dashboard/next.config.mjs",
     "dashboard/next-env.d.ts",
+    "dashboard/whisper-server.py",
     "dashboard/postcss.config.cjs",
     "dashboard/tailwind.config.ts",
     "dashboard/tsconfig.json",

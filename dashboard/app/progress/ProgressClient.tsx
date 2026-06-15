@@ -15,6 +15,7 @@ export interface ProgressClientProps {
   contracts: ContractInfo[];
   totalsNsloc: number;
   reviewedContracts: Record<string, boolean>;
+  dianeReviewed: Record<string, boolean>;
   auditSteps: { label: string; completed: boolean }[];
   findingsTotal: number;
   findingsBySeverity: Record<string, number>;
@@ -72,6 +73,7 @@ export function ProgressClient({
   contracts,
   totalsNsloc,
   reviewedContracts: initialReviewed,
+  dianeReviewed,
   auditSteps,
   findingsTotal,
   findingsBySeverity,
@@ -80,16 +82,20 @@ export function ProgressClient({
   const [reviewed, setReviewed] = useState<Record<string, boolean>>(initialReviewed);
   const [checkFilter, setCheckFilter] = useState<CheckFilter>('all');
 
+  // A row counts as reviewed when the auditor manually checked it OR Diane's
+  // notes derived it as reviewed (done + no open leads + no unanswered Qs).
+  const isReviewed = (key: string) => !!reviewed[key] || !!dianeReviewed[key];
+
   // ── Calculations ──
 
   const reviewedNsloc = useMemo(
-    () => contracts.filter((c) => reviewed[contractKey(c)]).reduce((s, c) => s + c.nsloc, 0),
-    [contracts, reviewed],
+    () => contracts.filter((c) => isReviewed(contractKey(c))).reduce((s, c) => s + c.nsloc, 0),
+    [contracts, reviewed, dianeReviewed],
   );
 
   const reviewedCount = useMemo(
-    () => contracts.filter((c) => reviewed[contractKey(c)]).length,
-    [contracts, reviewed],
+    () => contracts.filter((c) => isReviewed(contractKey(c))).length,
+    [contracts, reviewed, dianeReviewed],
   );
 
   const contractPct = totalsNsloc > 0 ? (reviewedNsloc / totalsNsloc) * 100 : 0;
@@ -109,10 +115,10 @@ export function ProgressClient({
     });
     if (checkFilter === 'all') return sorted;
     return sorted.filter((c) => {
-      const isChecked = !!reviewed[contractKey(c)];
+      const isChecked = isReviewed(contractKey(c));
       return checkFilter === 'checked' ? isChecked : !isChecked;
     });
-  }, [contracts, checkFilter, reviewed]);
+  }, [contracts, checkFilter, reviewed, dianeReviewed]);
 
   const maxNsloc = useMemo(
     () => Math.max(...contracts.map((c) => c.nsloc), 1),
@@ -271,7 +277,10 @@ export function ProgressClient({
             <tbody className="divide-y divide-border-subtle">
               {sortedContracts.map((c) => {
                 const key = contractKey(c);
-                const isChecked = !!reviewed[key];
+                const manualChecked = !!reviewed[key];
+                const autoReviewed = !!dianeReviewed[key];
+                const isChecked = manualChecked || autoReviewed;
+                const isAutoOnly = autoReviewed && !manualChecked;
                 const barWidth = (c.nsloc / maxNsloc) * 100;
                 return (
                   <tr
@@ -297,7 +306,19 @@ export function ProgressClient({
                         )}
                       </button>
                     </td>
-                    <td className="px-sp-4 py-sp-2 font-medium text-text-primary">{c.contract}</td>
+                    <td className="px-sp-4 py-sp-2 font-medium text-text-primary">
+                      <span className="inline-flex items-center gap-2">
+                        {c.contract}
+                        {isAutoOnly && (
+                          <span
+                            className="inline-flex items-center rounded-md bg-accent-subtle px-1.5 py-0.5 text-caption font-medium text-accent"
+                            title="Auto-reviewed from Diane notes: done + no open leads + no unanswered questions"
+                          >
+                            auto
+                          </span>
+                        )}
+                      </span>
+                    </td>
                     <td className="max-w-[200px] truncate px-sp-4 py-sp-2 font-mono text-caption text-text-tertiary">
                       {c.file}
                     </td>
