@@ -382,7 +382,13 @@ function ThemeToggle() {
 }
 
 /* ── Layout ── */
-export function DashboardLayout({ children }: { children: React.ReactNode }) {
+export function DashboardLayout({
+  children,
+  version,
+}: {
+  children: React.ReactNode;
+  version: string;
+}) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -422,7 +428,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         <div className="px-5 pb-4 pt-6">
           <div className="flex items-baseline gap-2">
             <span className="text-title font-semibold text-text-primary">Hex</span>
-            <span className="text-caption text-text-tertiary">v0.5.1</span>
+            <span className="text-caption text-text-tertiary">v{version}</span>
           </div>
         </div>
 
@@ -470,7 +476,9 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
       {/* Main content */}
       <main className="min-h-screen bg-surface-0 p-6 pt-16 md:ml-[220px] md:pt-6">
-        <div className="mx-auto max-w-6xl">{children}</div>
+        <div className={`mx-auto ${pathname === '/issues' ? 'max-w-none' : 'max-w-6xl'}`}>
+          {children}
+        </div>
       </main>
     </div>
   );

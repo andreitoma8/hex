@@ -30,6 +30,14 @@ All board mutations go through `hex issue` — never hand-edit `tracking.json` /
 
 **0c.** `gh repo view <repo> --json viewerPermission`. If `READ`/null, **AskUserQuestion**: "Read-only access — push will fail. Continue pull-only? (yes/no)". Track `push_enabled`.
 
+**0d. Fetch the repo's existing labels** — Hex stamps issues it creates, but **never creates a label**, so it can only use labels that already exist:
+
+```bash
+gh label list --repo <repo> --json name --jq '.[].name'
+```
+
+Keep the result as the set `EXISTING`. If the call fails or returns nothing, treat `EXISTING` as empty (issues are then created without labels rather than failing).
+
 ## Phase 1 — Pull (all issues, GitHub → local)
 
 **1a. Fetch every issue — no label filter.** Audit repos contain only audit findings, so pull them all:
@@ -108,11 +116,23 @@ Skip if `push_enabled` is false.
 
 Candidates: findings whose tracking status is in `settings.github.publish_status` (default `["verified"]`) **and** which have no `github.issue_number` yet, **and** which Phase 1.5 did not flag as duplicates. (Synced findings are already on GitHub; duplicates/rejected/unverified are never pushed.)
 
-For each candidate, render the body with the exact five-field template (see Phase 1b — `dashboard/lib/finding-markdown.ts::findingToGithubBody` is the canonical renderer). Write it to a temp file. **No labels, no footer.**
+For each candidate, render the body with the exact five-field template (see Phase 1b — `dashboard/lib/finding-markdown.ts::findingToGithubBody` is the canonical renderer). Write it to a temp file. **No body footer.**
+
+**Labels (creation only).** Stamp each newly-created issue with the standard finding labels, keeping **only those present in `EXISTING`** (Hex never creates a label):
+
+- `Draft`
+- `Finding`
+- `Severity: <Severity>` — the finding's severity verbatim (`Critical` / `High` / `Medium` / `Low` / `Info`).
+- `Status: Unresolved` — new findings start Unresolved.
+
+Drop any of these four that aren't in `EXISTING`, then pass the survivors as repeated `--label` flags:
 
 ```bash
-gh issue create --repo <repo> --title "[<Severity>] <title>" --body-file <tmp>
+gh issue create --repo <repo> --title "[<Severity>] <title>" --body-file <tmp> \
+  --label "Draft" --label "Finding" --label "Severity: <Severity>" --label "Status: Unresolved"
 ```
+
+Stamp labels **only at creation** — never edit labels on an issue that already exists, and never create a new label.
 
 Parse the returned URL for `#N`, then lock it into Synced and record the number:
 
@@ -151,7 +171,7 @@ GitHub sync complete (<repo>)
 
 - Authenticate (use `gh auth login`).
 - Post or read comments.
-- Apply, create, or remove labels (the repo owner manages labels).
+- Create a new label, or touch labels on issues that already exist. (Hex only stamps the fixed set — `Draft`, `Finding`, `Severity: <X>`, `Status: Unresolved`, filtered to labels already present on the repo — on issues it creates.)
 - Embed any hidden footer or marker in the issue body.
 - Delete remote issues.
 - Push `rejected`, `unverified`, `duplicate`, or already-`synced` findings.

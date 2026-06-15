@@ -11,7 +11,8 @@ import {
   useDroppable,
 } from '@dnd-kit/core';
 import { SeverityBadge } from '@/components/SeverityBadge';
-import { findingToHackmd, type FormatContext } from '@/lib/finding-markdown';
+import { MarkdownRenderer } from '@/components/MarkdownRenderer';
+import { findingToHackmd, findingToGithubBody, type FormatContext } from '@/lib/finding-markdown';
 
 export type BoardColumn = 'potential' | 'verified' | 'synced' | 'invalid' | 'duplicate';
 export type SyncState = 'none' | 'unsynced' | 'synced_open' | 'synced_closed' | 'conflict';
@@ -218,7 +219,7 @@ export function IssuesBoardClient({
       </header>
 
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
           {COLUMN_DEFS.map((col) => (
             <Column key={col.id} column={col} issues={grouped[col.id]} onOpen={setOpenId} />
           ))}
@@ -364,7 +365,12 @@ function Card({ issue, onOpen }: { issue: BoardIssue; onOpen: (id: string) => vo
         <span className="font-mono text-caption text-text-tertiary">{issue.id}</span>
         <SeverityBadge severity={issue.severity} />
       </div>
-      <h3 className="mt-1 text-body font-medium text-text-primary line-clamp-2">{issue.title}</h3>
+      <h3
+        title={issue.title}
+        className="mt-1 text-body font-medium text-text-primary line-clamp-3"
+      >
+        {issue.title}
+      </h3>
       <div className="mt-2 flex flex-wrap items-center gap-1.5 text-caption">
         <SourceChip source={issue.source} />
         <SyncChip issue={issue} />
@@ -490,6 +496,8 @@ function IssueModal({
   const [updateFromClient, setUpdateFromClient] = useState(issue.update_from_client ?? '');
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
+  // Open in read-only view mode; the Edit button switches to the form below.
+  const [isEditing, setIsEditing] = useState(false);
   const overlayRef = useRef<HTMLDivElement>(null);
 
   // Synced issues are read-only in Hex; edits happen on GitHub.
@@ -534,7 +542,7 @@ function IssueModal({
     };
     await onSave(updates);
     setSaving(false);
-    onClose();
+    setIsEditing(false); // back to the rendered view, now showing the saved values
   };
 
   return (
@@ -551,8 +559,8 @@ function IssueModal({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={`Edit issue ${issue.id}`}
-        className="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden border border-border-emphasis bg-surface-1 shadow-2xl"
+        aria-label={`Issue ${issue.id}`}
+        className="relative flex h-[85vh] w-full max-w-4xl flex-col overflow-hidden border border-border-emphasis bg-surface-1 shadow-2xl"
         style={{ borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-accent)' }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -588,6 +596,8 @@ function IssueModal({
               <span className="font-mono">/sync-issues</span> to pull the changes back.
             </div>
           )}
+          {isEditing ? (
+          <>
           <Field label="Title">
             <input
               type="text"
@@ -660,6 +670,17 @@ function IssueModal({
               className="w-full rounded-md border border-border-default bg-surface-0 px-3 py-2 font-mono text-caption text-text-primary focus:border-accent focus:outline-none disabled:opacity-60"
             />
           </Field>
+          </>
+          ) : (
+          <>
+            <MarkdownRenderer
+              content={`**Title**: ${issue.title}\n\n**Severity**: ${issue.severity}\n\n${findingToGithubBody(
+                issue,
+                formatCtx,
+              )}`}
+            />
+          </>
+          )}
 
           {issue.code_locations.length > 0 && (
             <div className="mt-4">
@@ -699,22 +720,47 @@ function IssueModal({
             {copied ? 'Copied!' : 'Copy as HackMD'}
           </button>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-md px-3 py-1.5 text-body text-text-secondary hover:text-text-primary"
-            >
-              {locked ? 'Close' : 'Cancel'}
-            </button>
-            {!locked && (
-              <button
-                type="button"
-                onClick={submit}
-                disabled={saving}
-                className="rounded-md bg-accent px-3 py-1.5 text-body font-medium text-surface-0 hover:bg-accent-secondary disabled:opacity-50"
-              >
-                {saving ? 'Saving…' : 'Save'}
-              </button>
+            {isEditing ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(false)}
+                  className="rounded-md px-3 py-1.5 text-body text-text-secondary hover:text-text-primary"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={submit}
+                  disabled={saving}
+                  className="rounded-md bg-accent px-3 py-1.5 text-body font-medium text-surface-0 hover:bg-accent-secondary disabled:opacity-50"
+                >
+                  {saving ? 'Saving…' : 'Save'}
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="rounded-md px-3 py-1.5 text-body text-text-secondary hover:text-text-primary"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(true)}
+                  disabled={locked}
+                  title={
+                    locked
+                      ? 'Synced to GitHub — edit it there, then run /sync-issues to pull the changes back.'
+                      : undefined
+                  }
+                  className="rounded-md bg-accent px-3 py-1.5 text-body font-medium text-surface-0 hover:bg-accent-secondary disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Edit
+                </button>
+              </>
             )}
           </div>
         </div>

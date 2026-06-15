@@ -3,6 +3,7 @@ import { Manrope, JetBrains_Mono } from 'next/font/google';
 import { ThemeProvider } from 'next-themes';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { CommandPalette } from '@/components/CommandPalette';
+import pkg from '../../package.json';
 import './globals.css';
 
 const manrope = Manrope({
@@ -32,7 +33,7 @@ export default function RootLayout({
       <body className={`${manrope.variable} ${jetbrainsMono.variable} min-h-screen bg-surface-0 text-text-primary font-sans`}>
         <ThemeProvider attribute="data-theme" defaultTheme="dark" enableSystem={false}>
           <CommandPalette />
-          <DashboardLayout>{children}</DashboardLayout>
+          <DashboardLayout version={pkg.version}>{children}</DashboardLayout>
         </ThemeProvider>
       </body>
     </html>

@@ -84,7 +84,7 @@ Phrase recommendations as suggestions, not commands. The auditor proposes direct
 
 - Start with `Consider...`, `One option is...`, `The team may want to...`, `It would be worth...`.
 - Avoid `Replace X with Y`, `You must...`, `Always do...`, `Never do...`.
-- Keep under three sentences when possible. Detailed analysis belongs in the description.
+- Keep it to 1–2 sentences. Detailed analysis belongs in the description, not here.
 
 **Recommendation must be prose only.** No code snippets in the `recommendation` field. Code belongs in `root_cause.locations[].snippet`.
 
@@ -95,6 +95,7 @@ The finding is rendered as a flat template (`## [Severity] Title`, then `**Descr
 - **No markdown headings and nothing that looks like one** — no `#`/`##`/`###`, and no section labels such as `Summary`, `Details`, `Impact`, `Affected code`, whether as a heading or a bold line on its own. Weave the impact into the prose instead of giving it its own section.
 - **Code blocks are allowed when a snippet is genuinely needed** — a fenced ```` ```solidity ```` block illustrating the bug is fine. Keep it to what's relevant; follow the Code Block Formatting Rules below.
 - Affected file paths belong in `--file` (the File(s) line), not in an "Affected code" section in the description.
+- **Be concise.** Prefer a single tight paragraph: what the issue is, why it exists, and its impact — just enough to drive the point home. Don't restate the title, don't pad with background the reader doesn't need, and don't repeat the recommendation. There's no hard word count; brevity is the goal.
 
 ## Code Block Formatting Rules (STRICT)
 
