@@ -12,7 +12,7 @@
     "build": "tsc && npm run copy-skills && npm run build:dashboard",
     "build:cli": "tsc && npm run copy-skills",
     "build:dashboard": "next build dashboard",
-    "copy-skills": "node -e \"const fs=require('fs');const p=require('path');fs.cpSync(p.join('src','skills'),p.join('dist','skills'),{recursive:true})\"",
+    "copy-skills": "node -e \"const fs=require('fs');const p=require('path');const d=p.join('dist','skills');fs.rmSync(d,{recursive:true,force:true});fs.cpSync(p.join('src','skills'),d,{recursive:true})\"",
     "clean:next-cache": "node -e \"const fs=require('fs');for (const d of ['dashboard/.next/cache','dashboard/.next/trace','dashboard/.next/types']) fs.rmSync(d,{recursive:true,force:true})\"",
     "prepack": "npm run build && npm run clean:next-cache",
     "dev:cli": "tsc --watch",

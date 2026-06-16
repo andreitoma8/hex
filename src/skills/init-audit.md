@@ -247,7 +247,7 @@ npx hex issue new --source conformance --source-ref "<spec-item-id, e.g. SC-001>
   --severity "<spec-item.severity_hint, default Info>"
 ```
 
-`--source-ref` is the spec item's own id (e.g. `SC-001`) — Hex keeps that as the back-reference; the board card itself gets the uniform `H-NNN`. These appear on the Issues board as Potential cards immediately; the auditor validates them later with `/validate-issue <id>` (or `/validate-all-findings`).
+`--source-ref` is the spec item's own id (e.g. `SC-001`) — Hex keeps that as the back-reference; the board card itself gets the uniform `H-NNN`. These appear on the Issues board as Potential cards immediately; the auditor validates them later with `/validate-finding <id>` (or `/validate-all-findings`).
 
 **Idempotency:** before creating, check whether a tracking entry already has this `source_ref` (re-running `/init-audit` shouldn't double-create). Skip items whose `source_ref` is already present.
 

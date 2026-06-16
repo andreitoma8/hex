@@ -125,4 +125,4 @@ Then deliver a candid **pair-audit verdict** — lead with the substance (correc
 
 - **Never hand-edit** `notes.json` or the `.md` files directly — always go through `npx hex note …`, exactly as the other skills route through `npx hex issue …`.
 - One session per invocation. If the auditor wants the next one, they run `/diane` again (or process them in a loop if they ask).
-- Do not create PoCs from narration — that stays an explicit, auditor-driven `/validate-issue` step.
+- Do not create PoCs from narration — that stays an explicit, auditor-driven `/validate-finding` step.

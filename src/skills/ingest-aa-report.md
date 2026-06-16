@@ -142,7 +142,7 @@ Then record the match in `<output_dir>/comparison.json` under `duplicates`. The 
 
 If `comparison.json` doesn't exist, create it with `{ "duplicates": [], "novel": [], "rejected": [] }`.
 
-For entries that don't match anything, leave them as `status: "unverified"` (the auditor will run `/validate-issue AA-<NNN>` on them).
+For entries that don't match anything, leave them as `status: "unverified"` (the auditor will run `/validate-finding AA-<NNN>` on them).
 
 ## Step 7 — Report
 
@@ -154,7 +154,7 @@ Ingested N AuditAgent findings (scan <scan_id>).
 - K flagged as Duplicate of existing entries
 - 0 errors
 
-Run /validate-issue <id> on any new finding to confirm and promote it to Verified.
+Run /validate-finding <id> on any new finding to confirm and promote it to Verified.
 ```
 
 ## Outputs (recap)

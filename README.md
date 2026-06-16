@@ -10,7 +10,7 @@ Hex does not replace your expertise. It automates the mechanical parts of auditi
 
 You drive Hex through Claude Code. Type `/init-audit` and Claude runs the whole pre-review pipeline. Three components do the work behind the scenes off a shared project directory:
 
-**Claude Code skills** are the front door. They handle anything that requires reasoning — generating the protocol overview and diagrams, checking spec conformance, writing PoCs, drafting findings, ingesting external AI reports, syncing with GitHub, producing the final LaTeX report. You invoke them as native slash commands (e.g., `/init-audit`, `/write-finding`, `/validate-issue`). Skills are markdown files that ship with the `hex` package and get copied into your project's `.claude/skills/` directory. They're editable per-project if you need to customise them.
+**Claude Code skills** are the front door. They handle anything that requires reasoning — generating the protocol overview and diagrams, checking spec conformance, writing PoCs, drafting findings, ingesting external AI reports, syncing with GitHub, producing the final LaTeX report. You invoke them as native slash commands (e.g., `/init-audit`, `/write-finding`, `/validate-finding`). Skills are markdown files that ship with the `hex` package and get copied into your project's `.claude/skills/` directory. They're editable per-project if you need to customise them.
 
 **The `hex` CLI** is the deterministic engine the skills call into. It wraps battle-tested tools like Slither, solc, and Forge rather than reinventing static analysis, and it emits structured JSON with confidence metadata so you always know how much to trust a given data point. You can call it directly when you want to, but you usually won't — `/init-audit` does it for you.
 
@@ -116,9 +116,9 @@ Phase 2 is where Hex gets out of your way. You think; the toolkit just gives you
 
 ### Phase 3 — Validate, ingest, sync
 
-#### Validate any Potential card (`/validate-issue`)
+#### Validate any Potential card (`/validate-finding`)
 
-`/validate-issue` is source-agnostic. It validates:
+`/validate-finding` is source-agnostic. It validates:
 
 - Manual `pending_validation` entries from `/write-finding`.
 - Conformance DEVIATES/PARTIAL entries materialized by `/init-audit`.
@@ -126,8 +126,8 @@ Phase 2 is where Hex gets out of your way. You think; the toolkit just gives you
 - GitHub teammate entries materialized by `/sync-issues`.
 
 ```
-/validate-issue H-003
-/validate-issue for the rounding issue in Vault.sol
+/validate-finding H-003
+/validate-finding for the rounding issue in Vault.sol
 ```
 
 Claude reads the relevant source record, traces the attack path in the code, and writes a validation memo to `.hex/validations/<id>_memo.md`. Then it asks per issue:
@@ -204,9 +204,9 @@ Each skill has a recommended model — switch your Claude Code model before invo
 | `init-audit`            | 1     | Opus              | Dependency-safety → `hex analyze` → overview → diagram → flows → spec conformance → materialize DEVIATES/PARTIAL items as Potential cards        |
 | `write-finding`         | 2     | Sonnet            | Records a manual issue to `findings.json` as a Potential card (`status: pending_validation`, `source: manual`)                                   |
 | `diane`                 | 2     | Sonnet            | Voice pair-auditor: ingests recorded narration into a structured per-contract profile (Leads / Description / Questions), verifies your claims against the code, and surfaces leads                |
-| `validate-issue`        | 3     | Opus              | Validates any Potential card (manual / auditagent / conformance / github); per-issue choice of PoC vs memo-only; promotes to Verified or Invalid |
-| `validate-all-findings` | 3     | Opus              | Runs the `/validate-issue` flow over every Potential card, one at a time                                                                         |
-| `generate-poc`          | 3     | Opus              | Generates and runs a PoC test (invoked by `/validate-issue`)                                                                                     |
+| `validate-finding`        | 3     | Opus              | Validates any Potential card (manual / auditagent / conformance / github); per-issue choice of PoC vs memo-only; promotes to Verified or Invalid |
+| `validate-all-findings` | 3     | Opus              | Runs the `/validate-finding` flow over every Potential card, one at a time                                                                         |
+| `generate-poc`          | 3     | Opus              | Generates and runs a PoC test (invoked by `/validate-finding`)                                                                                     |
 | `ingest-aa-report`      | 3     | Sonnet            | Ingests a completed Nethermind AuditAgent scan by ID; materializes findings + inline dedup                                                       |
 | `sync-issues`           | 3     | Sonnet            | Two-way GitHub Issues sync; GitHub is the source of truth (issue number is identity, synced issues are read-only)                                |
 | `generate-overleaf`     | 4     | Sonnet            | Writes the four LaTeX section files for the final report (from synced issues)                                                                    |
@@ -220,7 +220,7 @@ Skills use Claude Code's native skill format, stored in `.claude/skills/<name>/S
 ├── init-audit/SKILL.md
 ├── write-finding/SKILL.md
 ├── diane/SKILL.md
-├── validate-issue/SKILL.md
+├── validate-finding/SKILL.md
 ├── validate-all-findings/SKILL.md
 ├── generate-poc/SKILL.md
 ├── ingest-aa-report/SKILL.md

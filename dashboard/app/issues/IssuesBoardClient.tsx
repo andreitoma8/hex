@@ -63,7 +63,7 @@ const COLUMN_DEFS: Array<{ id: BoardColumn; label: string; description: string }
   { id: 'potential', label: 'Potential', description: 'Awaiting validation' },
   { id: 'verified', label: 'Verified', description: 'Confirmed, ready to push' },
   { id: 'synced', label: 'Synced to GitHub', description: 'On GitHub — edit there, not here' },
-  { id: 'invalid', label: 'Invalid', description: 'Rejected after review' },
+  { id: 'invalid', label: 'Rejected', description: 'Not in the report — incorrect, or valid-but-by-design' },
   { id: 'duplicate', label: 'Duplicate', description: 'Covered by another entry' },
 ];
 
@@ -374,6 +374,22 @@ function Card({ issue, onOpen }: { issue: BoardIssue; onOpen: (id: string) => vo
       <div className="mt-2 flex flex-wrap items-center gap-1.5 text-caption">
         <SourceChip source={issue.source} />
         <SyncChip issue={issue} />
+        {issue.column === 'invalid' && (
+          <span
+            className={`rounded-md px-1.5 py-0.5 ${
+              issue.resolution === 'Acknowledged'
+                ? 'bg-[var(--medium)]/15 text-[var(--medium)]'
+                : 'bg-surface-2 text-text-secondary'
+            }`}
+            title={
+              issue.resolution === 'Acknowledged'
+                ? 'Valid but by-design / not a security issue'
+                : 'Factually incorrect (false positive)'
+            }
+          >
+            {issue.resolution === 'Acknowledged' ? 'By-design' : 'Invalid'}
+          </span>
+        )}
         {issue.duplicate_of && (
           <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-text-secondary">
             dup of {issue.duplicate_of}
@@ -389,7 +405,7 @@ function Card({ issue, onOpen }: { issue: BoardIssue; onOpen: (id: string) => vo
             PoC ✕
           </span>
         )}
-        {issue.resolution && (
+        {issue.resolution && issue.column !== 'invalid' && (
           <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-text-secondary">
             {issue.resolution}
           </span>

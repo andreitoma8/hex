@@ -6,7 +6,7 @@ description: "Write a manual issue as a Potential card on the board (pending val
 
 **Recommended model:** Sonnet
 
-This skill records a manual issue that the auditor has spotted during review. The issue lands on the dashboard's Issues board as a **Potential** card with `status: "pending_validation"` and `source: "manual"`. The auditor promotes it to Verified later (via drag-drop on the board, or by running `/validate-issue <id>` which produces a validation memo and optional PoC).
+This skill records a manual issue that the auditor has spotted during review. The issue lands on the dashboard's Issues board as a **Potential** card with `status: "pending_validation"` and `source: "manual"`. The auditor promotes it to Verified later (via drag-drop on the board, or by running `/validate-finding <id>` which produces a validation memo and optional PoC).
 
 ## Context Assembly
 
@@ -140,8 +140,8 @@ There is **no source-file annotation** — Hex does not write `@audit-issue` com
 
 The finding appears on the dashboard's `/issues` board as a Potential card (`H-NNN`). The auditor can:
 
-- Run `/validate-issue <id>` to write a validation memo and optionally generate a PoC; on success the card moves to Verified.
+- Run `/validate-finding <id>` to write a validation memo and optionally generate a PoC; on success the card moves to Verified.
 - Drag the card from Potential → Verified on the board if no PoC is needed (e.g., trivial Info-level issues).
 - Run `/sync-issues` (once findings are Verified and `settings.github.repo` is set) to push them to GitHub.
 
-Do NOT run `/validate-issue` or `/sync-issues` automatically — those are auditor-driven.
+Do NOT run `/validate-finding` or `/sync-issues` automatically — those are auditor-driven.

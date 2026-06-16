@@ -31,9 +31,9 @@ function resolveOutputDir(opts: { project?: string }): string {
 }
 
 const moveCmd = new Command('move')
-  .description('Move an issue between board columns (potential | verified | invalid | duplicate)')
+  .description('Move an issue between board columns (potential | verified | rejected | duplicate)')
   .argument('<id>', 'Issue id (e.g. H-001)')
-  .requiredOption('--to <column>', 'Target column: potential | verified | invalid | duplicate')
+  .requiredOption('--to <column>', 'Target column: potential | verified | rejected (alias: invalid) | duplicate')
   .option('--duplicate-of <id>', 'When moving to duplicate, the canonical issue this duplicates')
   .option('--project <dir>', 'Project directory')
   .action((id: string, opts: { to: string; duplicateOf?: string; project?: string }) => {

@@ -75,13 +75,13 @@ When you have something concrete, point Claude at it:
 
 ### Phase 3 — Validate, ingest AI, sync GitHub
 
-#### `/validate-issue` for any potential issue
+#### `/validate-finding` for any potential issue
 
-`/validate-issue` is source-agnostic. Pass a uniform id (`H-003`) or a free-text reference:
+`/validate-finding` is source-agnostic. Pass a uniform id (`H-003`) or a free-text reference:
 
 ```
-/validate-issue H-003
-/validate-issue for the rounding issue
+/validate-finding H-003
+/validate-finding for the rounding issue
 ```
 
 To validate the whole Potential backlog in one interactive pass, run `/validate-all-findings`.
@@ -136,7 +136,7 @@ Only `verified` findings make the cut. Duplicates, rejected, and pending entries
 
 - `/init-audit` is now a single skill that runs everything pre-manual-review.
 - The board (`/issues`) is the only findings page. Cards are interactive: drag to change column, click to edit.
-- `/write-finding` records Potential issues (uniform `H-NNN` ids, no in-code comments) — promote via `/validate-issue`, `/validate-all-findings`, or by dragging on the board.
+- `/write-finding` records Potential issues (uniform `H-NNN` ids, no in-code comments) — promote via `/validate-finding`, `/validate-all-findings`, or by dragging on the board.
 - `/ingest-aa-report` takes a scan ID, never starts a scan.
 - `/sync-issues` treats GitHub as the source of truth — synced issues are read-only in Hex and identified by issue number; `/generate-overleaf` reports only from synced issues.
 - `/generate-overleaf` is the final handoff to the LaTeX report.

@@ -17,7 +17,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-export type BoardColumn = 'potential' | 'verified' | 'invalid' | 'duplicate';
+// `rejected` is the canonical name for the column; `invalid` is kept as a
+// back-compat alias (both map to status `rejected`). The column holds both
+// false positives and true-but-by-design findings.
+export type BoardColumn = 'potential' | 'verified' | 'invalid' | 'rejected' | 'duplicate';
 export type Severity = 'Critical' | 'High' | 'Medium' | 'Low' | 'Info';
 export type Resolution = 'Fixed' | 'Mitigated' | 'Acknowledged' | 'Not Fixed' | 'Unresolved';
 
@@ -34,6 +37,7 @@ export const COLUMN_TO_STATUS: Record<BoardColumn, string> = {
   potential: 'pending_validation',
   verified: 'verified',
   invalid: 'rejected',
+  rejected: 'rejected',
   duplicate: 'duplicate',
 };
 
@@ -270,7 +274,7 @@ export function ensureFindingExists(outputDir: string, id: string): Finding {
  *
  * Note: this does NOT edit the user's source files. Source annotation
  * (`// @audit-issue-verified ...`) remains the responsibility of the
- * /validate-issue skill, which the auditor invokes deliberately — a drag-drop
+ * /validate-finding skill, which the auditor invokes deliberately — a drag-drop
  * on the board should never silently rewrite .sol files.
  */
 const SYNCED_LOCK_MSG =

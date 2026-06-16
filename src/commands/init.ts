@@ -264,8 +264,8 @@ Skills are in \`.claude/skills/\` and auto-discovered by Claude Code. Type \`/\`
 
 1. \`/init-audit\` — Initialize, dependency safety, full analysis pipeline, overview, diagrams, flows, spec conformance, board materialization (all in one)
 2. \`/write-finding\` — Record a manual issue as a Potential card on the board
-3. \`/validate-issue\` — Validate any Potential card (manual / auditagent / conformance / github); per-issue PoC or memo-only
-4. \`/generate-poc\` — Generate and run a proof-of-concept test (invoked by /validate-issue)
+3. \`/validate-finding\` — Validate any Potential card (manual / auditagent / conformance / github); per-issue PoC or memo-only
+4. \`/generate-poc\` — Generate and run a proof-of-concept test (invoked by /validate-finding)
 5. \`/ingest-aa-report\` — Ingest a completed Nethermind AuditAgent scan by ID, with inline dedup
 6. \`/sync-issues\` — Two-way GitHub Issues sync (GitHub canonical)
 7. \`/generate-overleaf\` — Emit the four LaTeX report sections into \`${config.settings.output_dir}/overleaf/\`
