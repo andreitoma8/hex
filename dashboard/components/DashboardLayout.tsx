@@ -351,7 +351,7 @@ const NAV_GROUPS = [
     label: 'Issues',
     items: [
       { href: '/issues', label: 'Board', icon: IconFindings },
-      { href: '/overleaf', label: 'Overleaf', icon: IconReport },
+      { href: '/report', label: 'Report', icon: IconReport },
     ],
   },
 ];

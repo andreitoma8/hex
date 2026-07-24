@@ -252,7 +252,7 @@ All analysis outputs live here. Key files and what they answer:
 | \`comparison.json\` | Dedup match_signals (auditagent / github) | duplicate detection |
 | \`progress.json\` | Audit progress tracking | what has been reviewed |
 | \`diagrams/\` | Mermaid architecture and flow diagrams | system diagrams, flows |
-| \`overleaf/\` | LaTeX report sections (executive_summary, audited_files, summary_of_findings, findings) | final report export |
+| \`report/\` | LaTeX report sections (executive summary, audited files, summary of issues, system overview, issues, documentation eval, test suite) as \`.txt\` + \`.tex\` | final report export |
 
 Not all files exist initially — they are created as you run skills and CLI commands.
 
@@ -268,7 +268,7 @@ Skills are in \`.claude/skills/\` and auto-discovered by Claude Code. Type \`/\`
 4. \`/generate-poc\` — Generate and run a proof-of-concept test (invoked by /validate-finding)
 5. \`/ingest-aa-report\` — Ingest a completed Nethermind AuditAgent scan by ID, with inline dedup
 6. \`/sync-issues\` — Two-way GitHub Issues sync (GitHub canonical)
-7. \`/generate-overleaf\` — Emit the four LaTeX report sections into \`${config.settings.output_dir}/overleaf/\`
+7. \`/generate-report\` — Emit the LaTeX report sections into \`${config.settings.output_dir}/report/\`
 
 Each skill builds on previous outputs.
 

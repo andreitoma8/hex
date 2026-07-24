@@ -25,7 +25,7 @@ Ask the auditor for:
 - **Commit hash** — the specific commit being audited (default: HEAD).
 - **Chain** — target chain (default: ethereum).
 - **Documentation URL** — if available.
-- **GitHub repo** (optional) — the `owner/repo` the audit's findings sync to (e.g. `nethermind/audit-vaultx`). Pass it to `hex init --github-repo` so `/sync-issues` and `/generate-overleaf` work later. Leave blank if the engagement isn't using GitHub.
+- **GitHub repo** (optional) — the `owner/repo` the audit's findings sync to (e.g. `nethermind/audit-vaultx`). Pass it to `hex init --github-repo` so `/sync-issues` and `/generate-report` work later. Leave blank if the engagement isn't using GitHub.
 
 ### 1.2 Audit dependencies (BEFORE compiling)
 

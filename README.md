@@ -172,26 +172,29 @@ One invocation does both directions. **Identity is the GitHub issue number `#N`*
 - **Pull every issue** in the repo (no label filter — audit repos contain only findings). Each issue's title (`[Severity] Title`) and five-field body are parsed back into the local finding. If a body is blatantly not in the Hex format it's skipped with a warning. Issues already linked by `#N` are refreshed from GitHub; new ones become local findings. All pulled issues land in the **Synced** column.
 - **Push** every local finding whose tracking status is in `settings.github.publish_status` (default `["verified"]`) and that isn't already on GitHub. The body is exactly the five-field template (File(s), Description, Recommendation(s), Status, Update from the client) — no labels, no footer. The returned issue number is stored on the finding, which locks it into Synced.
 
-**Once synced, an issue is read-only in Hex.** Edit it on GitHub (severity, description, recommendation, status), then re-run `/sync-issues` to pull the changes back. `/generate-overleaf` reports only from synced issues. The board's `/issues` page surfaces sync state as a chip: `GH unsynced` (verified, not pushed), `GH #N open` / `GH #N closed`, or `GH conflict`.
+**Once synced, an issue is read-only in Hex.** Edit it on GitHub (severity, description, recommendation, status), then re-run `/sync-issues` to pull the changes back. `/generate-report` reports only from synced issues. The board's `/issues` page surfaces sync state as a chip: `GH unsynced` (verified, not pushed), `GH #N open` / `GH #N closed`, or `GH conflict`.
 
 Comments stay on GitHub — Hex never posts, edits, or deletes comments. Auditors discuss inside GitHub itself.
 
-### Phase 4 — Deliverable (`/generate-overleaf`)
+### Phase 4 — Deliverable (`/generate-report`)
 
 Once findings are validated and the engagement is winding down:
 
 ```
-/generate-overleaf
+/generate-report
 ```
 
-The skill prompts once for any missing report metadata (initial/final commit, dates, audit type, documentation/test assessment) and persists them to `config.json` under `settings.report.*` so reruns don't re-prompt. Then it emits four `.txt` LaTeX files into `.hex/overleaf/`:
+The skill prompts once for any missing report metadata (initial/final commit, dates, audit type, documentation/test assessment, kick-off/availability notes) and persists them to `config.json` under `settings.report.*` so reruns don't re-prompt. Then it emits seven report sections into `.hex/report/`, each in two forms: a `.txt` for the dashboard viewer / copy-paste and a numbered `.tex` (`01-executive-summary.tex`, …) for direct `\input{}` into the Overleaf `main.tex`:
 
-1. **`executive_summary.txt`** — `\section{Executive Summary}` with project synopsis, severity histogram, status histogram, summary table.
-2. **`audited_files.txt`** — `\section{Audited Files}` LaTeX table of scope files (LoC, comments, ratio, blank, total).
-3. **`summary_of_findings.txt`** — `\section{Summary of Issues}` table with `\hyperref` rows.
-4. **`findings.txt`** — `\section{Issues}` with one `\subsection{[Sev] title}\label{issue:N}` per verified finding (description, code blocks via `minted`, recommendation, status, client update).
+1. **Executive Summary** (§1) — project synopsis, severity histogram, status histogram, summary table.
+2. **Audited Files** (§2) — LaTeX table of scope files (LoC, comments, ratio, blank, total).
+3. **Summary of Issues** (§3) — table with `\hyperref` rows.
+4. **System Overview** (§4) — descriptive protocol architecture (components, actors & roles, per-module/flow subsections) built from `overview.md` and the access-control/deps analysis.
+5. **Issues** (§6) — one `\subsection{[Sev] title}\label{issue:N}` per synced finding (description, code blocks via `minted`, recommendation, status, client update).
+6. **Documentation Evaluation** (§7) — a `tcolorbox` remarks paragraph about the client's documentation.
+7. **Test Suite Evaluation** (§8) — coverage summary and automated-tooling note, generated from `stats.json.test_coverage`.
 
-Upload these into the Nethermind Overleaf template's matching slots. Only `verified` findings make the report; duplicates, rejected, and pending entries are skipped.
+Upload these into the Nethermind Overleaf template's matching slots (§5 risk methodology and §9 conclusion stay template-static). Only `synced` findings make the report; duplicates, rejected, and pending entries are skipped.
 
 ---
 
@@ -209,7 +212,7 @@ Each skill has a recommended model — switch your Claude Code model before invo
 | `generate-poc`          | 3     | Opus              | Generates and runs a PoC test (invoked by `/validate-finding`)                                                                                     |
 | `ingest-aa-report`      | 3     | Sonnet            | Ingests a completed Nethermind AuditAgent scan by ID; materializes findings + inline dedup                                                       |
 | `sync-issues`           | 3     | Sonnet            | Two-way GitHub Issues sync; GitHub is the source of truth (issue number is identity, synced issues are read-only)                                |
-| `generate-overleaf`     | 4     | Sonnet            | Writes the four LaTeX section files for the final report (from synced issues)                                                                    |
+| `generate-report`       | 4     | Sonnet            | Writes the LaTeX report sections (exec summary, audited files, summary, system overview, issues, documentation eval, test suite) as `.txt` + `.tex` from synced issues |
 
 ### Where Skills Live
 
@@ -225,7 +228,7 @@ Skills use Claude Code's native skill format, stored in `.claude/skills/<name>/S
 ├── generate-poc/SKILL.md
 ├── ingest-aa-report/SKILL.md
 ├── sync-issues/SKILL.md
-└── generate-overleaf/SKILL.md
+└── generate-report/SKILL.md
 ```
 
 **How Claude Code finds them:** Claude Code auto-discovers skills in `.claude/skills/`. They appear as native slash commands — type `/` in Claude Code to see them.
@@ -281,7 +284,7 @@ The dashboard runs locally at `http://localhost:3000` and auto-refreshes when ou
 | Functions        | `/functions`   | Aggregated function view                                                                                                                                                                                                                                                                                                                                                                   |
 | Spec Conformance | `/conformance` | Code vs spec check results, deviations first, clickable spec links                                                                                                                                                                                                                                                                                                                         |
 | **Issues**       | `/issues`      | **The board.** Five columns (Potential / Verified / Synced / Invalid / Duplicate). Drag cards between the editable columns, click to edit (severity, description, recommendation, resolution, client update), or copy a finding as HackMD markdown. The **Synced** column is reached only via `/sync-issues` and is read-only (edit on GitHub). GitHub-sync chip per verified/synced card. |
-| **Overleaf**     | `/overleaf`    | The four LaTeX report sections from `/generate-overleaf`, each with a copy-to-clipboard button — paste straight into the Nethermind Overleaf template.                                                                                                                                                                                                                                     |
+| **Report**       | `/report`      | The seven LaTeX report sections from `/generate-report`, each with a copy-to-clipboard button — paste straight into the Nethermind Overleaf template.                                                                                                                                                                                                                                     |
 
 ---
 
@@ -338,7 +341,7 @@ All Hex outputs live in a single directory inside the project (default: `.hex/`,
 │   ├── findings.json
 │   ├── sync-status.json
 │   └── raw-issues.json
-└── overleaf/                # Final LaTeX section files (produced by /generate-overleaf)
+└── report/                  # Final LaTeX report sections, .txt + .tex (produced by /generate-report)
     ├── executive_summary.txt
     ├── audited_files.txt
     ├── summary_of_findings.txt

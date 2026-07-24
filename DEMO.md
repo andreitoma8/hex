@@ -59,7 +59,7 @@ Key pages:
 - `/diagram` and `/flows` — Full-bleed Mermaid canvas with auto-fit zoom and legend overlay.
 - `/conformance` — Conformance check results, deviations first, clickable spec links.
 - `/issues` — **The board.** Five columns: Potential / Verified / Synced / Invalid / Duplicate. Uniform `H-NNN` ids with a source badge. Drag cards between the editable columns; click to edit, or copy as HackMD. The **Synced** column is reached only via `/sync-issues` and is read-only (edit on GitHub).
-- `/overleaf` — The four LaTeX report sections from `/generate-overleaf`, each with a copy button. Only populated after you run the skill.
+- `/report` — The seven LaTeX report sections from `/generate-report`, each with a copy button. Only populated after you run the skill.
 
 ### Phase 2 — Manual review + `/write-finding`
 
@@ -115,22 +115,25 @@ GitHub is the source of truth; **identity is the issue number `#N`** (no hidden 
 
 Once synced, edit on GitHub and re-run `/sync-issues` to pull changes back. GitHub-sync state shows as a chip on each verified/synced card.
 
-### Phase 4 — Final deliverable (`/generate-overleaf`)
+### Phase 4 — Final deliverable (`/generate-report`)
 
 ```
-/generate-overleaf
+/generate-report
 ```
 
-Writes four `.txt` LaTeX section files to `.hex/overleaf/`:
+Writes seven report sections to `.hex/report/`, each as a `.txt` (dashboard viewer / copy-paste) and a numbered `.tex` (`\input{}` into the Overleaf `main.tex`):
 
-1. `executive_summary.txt` — `\section{Executive Summary}` with project synopsis, severity histogram, status histogram, summary table.
-2. `audited_files.txt` — `\section{Audited Files}` table of in-scope files (LoC, comments, ratio, blank, total).
-3. `summary_of_findings.txt` — `\section{Summary of Issues}` table linking to per-finding subsections.
-4. `findings.txt` — `\section{Issues}` with one `\subsection{[Sev] title}\label{issue:N}` per verified finding (description, code blocks via minted, recommendation, status, client update).
+1. `executive_summary.txt` / `01-executive-summary.tex` — `\section{Executive Summary}` with project synopsis, severity histogram, status histogram, summary table.
+2. `audited_files.txt` / `02-audited-files.tex` — `\section{Audited Files}` table of in-scope files (LoC, comments, ratio, blank, total).
+3. `summary_of_findings.txt` / `03-summary-of-findings.tex` — `\section{Summary of Issues}` table linking to per-finding subsections.
+4. `system_overview.txt` / `04-system-overview.tex` — `\section{System Overview}` protocol architecture (components, actors & roles, per-module/flow subsections) from `overview.md`.
+5. `findings.txt` / `06-issues.tex` — `\section{Issues}` with one `\subsection{[Sev] title}\label{issue:N}` per synced finding (description, code blocks via minted, recommendation, status, client update).
+6. `documentation_eval.txt` / `07-documentation-eval.tex` — `\section{Documentation Evaluation}` `tcolorbox` remarks paragraph.
+7. `test_suite.txt` / `08-test-suite.tex` — `\section{Test Suite Evaluation}` coverage summary from `stats.json.test_coverage`, plus automated-tooling note.
 
-The skill prompts once for any missing report metadata (initial/final commit, dates, doc/test assessment) and persists them under `settings.report.*` so reruns don't re-prompt. Read the four sections on the dashboard's `/overleaf` page and copy each into your Nethermind Overleaf template's matching slot (or grab the files directly from `.hex/overleaf/`).
+The skill prompts once for any missing report metadata (initial/final commit, dates, doc/test assessment, kick-off/availability notes) and persists them under `settings.report.*` so reruns don't re-prompt. Read the sections on the dashboard's `/report` page and copy each into your Nethermind Overleaf template's matching slot (or grab the files directly from `.hex/report/`). Sections 5 (risk methodology) and 9 (conclusion) are template-static.
 
-Only `verified` findings make the cut. Duplicates, rejected, and pending entries are skipped.
+Only `synced` findings make the cut. Duplicates, rejected, and pending entries are skipped.
 
 ## Key points
 
@@ -138,6 +141,6 @@ Only `verified` findings make the cut. Duplicates, rejected, and pending entries
 - The board (`/issues`) is the only findings page. Cards are interactive: drag to change column, click to edit.
 - `/write-finding` records Potential issues (uniform `H-NNN` ids, no in-code comments) — promote via `/validate-finding`, `/validate-all-findings`, or by dragging on the board.
 - `/ingest-aa-report` takes a scan ID, never starts a scan.
-- `/sync-issues` treats GitHub as the source of truth — synced issues are read-only in Hex and identified by issue number; `/generate-overleaf` reports only from synced issues.
-- `/generate-overleaf` is the final handoff to the LaTeX report.
+- `/sync-issues` treats GitHub as the source of truth — synced issues are read-only in Hex and identified by issue number; `/generate-report` reports only from synced issues.
+- `/generate-report` is the final handoff to the LaTeX report.
 - `hex update` upgrades the package and prompts to re-sync skills in one shot; `hex update-skills` re-syncs skills only.

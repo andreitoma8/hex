@@ -2,23 +2,29 @@
 
 import { useState } from 'react';
 
-export interface OverleafSections {
+export interface ReportSections {
   executive_summary: string | null;
   audited_files: string | null;
   summary_of_findings: string | null;
+  system_overview: string | null;
   findings: string | null;
+  documentation_eval: string | null;
+  test_suite: string | null;
 }
 
-type SectionKey = keyof OverleafSections;
+type SectionKey = keyof ReportSections;
 
 const TABS: Array<{ key: SectionKey; label: string; file: string }> = [
   { key: 'executive_summary', label: 'Executive Summary', file: 'executive_summary.txt' },
   { key: 'audited_files', label: 'Audited Files', file: 'audited_files.txt' },
   { key: 'summary_of_findings', label: 'Summary of Issues', file: 'summary_of_findings.txt' },
+  { key: 'system_overview', label: 'System Overview', file: 'system_overview.txt' },
   { key: 'findings', label: 'Issues', file: 'findings.txt' },
+  { key: 'documentation_eval', label: 'Documentation Eval', file: 'documentation_eval.txt' },
+  { key: 'test_suite', label: 'Test Suite', file: 'test_suite.txt' },
 ];
 
-export function OverleafClient({ sections }: { sections: OverleafSections }) {
+export function ReportClient({ sections }: { sections: ReportSections }) {
   const [active, setActive] = useState<SectionKey>('executive_summary');
   const [copied, setCopied] = useState(false);
 
@@ -38,10 +44,12 @@ export function OverleafClient({ sections }: { sections: OverleafSections }) {
   return (
     <div>
       <header className="mb-6">
-        <h1 className="text-title font-semibold text-text-primary">Overleaf</h1>
+        <h1 className="text-title font-semibold text-text-primary">Report</h1>
         <p className="mt-1 text-body text-text-secondary">
-          LaTeX report sections from <span className="font-mono text-caption">.hex/overleaf/</span>.
-          Copy each into the matching slot of the Nethermind Overleaf template.
+          LaTeX report sections from <span className="font-mono text-caption">.hex/report/</span>.
+          Copy each into the matching slot of the Nethermind Overleaf template, or{' '}
+          <span className="font-mono text-caption">\input</span> the matching{' '}
+          <span className="font-mono text-caption">.tex</span> files.
         </p>
       </header>
 
@@ -88,7 +96,7 @@ export function OverleafClient({ sections }: { sections: OverleafSections }) {
         ) : (
           <p className="p-4 text-body text-text-tertiary">
             This section has not been generated yet. Run{' '}
-            <span className="font-mono text-caption">/generate-overleaf</span>.
+            <span className="font-mono text-caption">/generate-report</span>.
           </p>
         )}
       </div>

@@ -682,7 +682,7 @@ function IssueModal({
               onChange={(e) => setUpdateFromClient(e.target.value)}
               rows={4}
               disabled={locked}
-              placeholder="How the client responded — used by /generate-overleaf."
+              placeholder="How the client responded — used by /generate-report."
               className="w-full rounded-md border border-border-default bg-surface-0 px-3 py-2 font-mono text-caption text-text-primary focus:border-accent focus:outline-none disabled:opacity-60"
             />
           </Field>

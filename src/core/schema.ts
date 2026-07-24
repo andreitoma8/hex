@@ -64,6 +64,8 @@ export const ConfigSchema = z.object({
         audit_type: z.string().default('Security Review'),
         doc_assessment: z.enum(['High', 'Medium', 'Low']).optional(),
         test_assessment: z.enum(['High', 'Medium', 'Low']).optional(),
+        kickoff_call: z.string().optional(),
+        client_availability: z.string().optional(),
       })
       .optional(),
   }),

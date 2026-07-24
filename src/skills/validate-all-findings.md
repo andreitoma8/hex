@@ -61,4 +61,4 @@ Validated N Potential issues:
   → Left for review (uncertain):    U
 ```
 
-Remind the auditor of the next steps: `/sync-issues` to push the Verified findings to GitHub, then `/generate-overleaf` for the report.
+Remind the auditor of the next steps: `/sync-issues` to push the Verified findings to GitHub, then `/generate-report` for the report.

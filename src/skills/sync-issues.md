@@ -10,7 +10,7 @@ Hex's GitHub Issues integration. Hex never authenticates with GitHub — you aut
 
 ## The model: GitHub is the source of truth, identity is the issue number
 
-Once an issue is on GitHub it is **read-only in Hex** (status `synced`, locked on the board). Edits — severity, description, recommendation, status — happen on GitHub; this skill pulls them back into the local finding. `/generate-overleaf` reports **only** from synced issues.
+Once an issue is on GitHub it is **read-only in Hex** (status `synced`, locked on the board). Edits — severity, description, recommendation, status — happen on GitHub; this skill pulls them back into the local finding. `/generate-report` reports **only** from synced issues.
 
 **Identity is the GitHub issue number `#N`.** There is no hidden footer in the issue body (auditors create issues by hand, so a footer can't be relied on). Reconciliation matches a local finding to the issue number it has stored in `github.issue_number`. The body is exactly the five-field template, nothing hidden.
 

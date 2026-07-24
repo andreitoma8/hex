@@ -204,4 +204,4 @@ The board reflects the new state automatically (the dashboard watches `tracking.
 
 - Move on to the next Potential card.
 - Run `/sync-issues` to push the newly Verified finding to GitHub if `settings.github.repo` is configured.
-- Run `/generate-overleaf` once all verifications are done, to produce the LaTeX report sections.
+- Run `/generate-report` once all verifications are done, to produce the LaTeX report sections.
