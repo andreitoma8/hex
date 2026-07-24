@@ -330,6 +330,16 @@ Recommendations are suggestions, not orders. The protocol team owns the fix; you
 - Don't pad with unnecessary comprehensiveness. Say what needs saying, then stop.
 - Avoid rhetorical questions as transitions.
 
+### Findings (report-facing content)
+
+A finding's title, description, and recommendation are published verbatim in the client's report. Keep them free of anything that only means something inside Hex or that rots when the code moves:
+
+- **Stand alone, no cross-references to other findings.** Never cite another issue by its Hex id (\`H-NNN\`) or by number/title ("see H-005", "as in the previous finding"). Report readers have no Hex ids and sections get reordered. Describe any shared mechanism inline.
+- **No line numbers, show the code.** Don't cite specific source lines ("line 56", "on lines 43, 55"); they drift when code or comments change. Embed a minimal fenced \`\`\`solidity block showing the relevant code and refer to it by function or variable name.
+- **No PoC references.** Don't name or link the proof-of-concept test or its path. The PoC lives in the validation memo, not the report.
+
+These apply to findings from every source (manual, spec-conformance, AuditAgent, GitHub) identically.
+
 Apply these to every skill output without being reminded.
 `;
         fs.writeFileSync(claudeMdPath, claudeMd, 'utf-8');

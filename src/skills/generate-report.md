@@ -267,7 +267,7 @@ Render the table:
 
 Write to `summary_of_findings.txt` **and** `03-summary-of-findings.tex`.
 
-For each synced finding in severity-sorted order (Critical → Info), assign a sequential `issue:N` label starting at `issue:0`. This same label is used in the Issues section for the `\hyperref`.
+For each synced finding in severity-sorted order (Critical → Info), assign a sequential `issue:N` label starting at `issue:0`. This same label is used in the Issues section for the `\hyperref`. Rows link via this sequential label, never via the hex id. Titles are emitted verbatim, so a title must not contain a hex id (`H-NNN`) or a line number.
 
 ```latex
 %\pagebreak \vspace*{0cm}
@@ -376,7 +376,7 @@ Each per-finding block:
 
  \textbf{Description}: <description converted from markdown to LaTeX>
 
-<each code block from description rendered as \begin{minted}[linenos,firstnumber=1]{solidity} ... \end{minted}>
+<render every fenced code block embedded in the description as \begin{minted}[linenos,firstnumber=1]{solidity} ... \end{minted}; also render any non-empty root_cause.locations[].snippet the same way (present only on findings materialized from a source that carried code)>
 
  \textbf{Recommendation(s)}: <recommendation converted from markdown to LaTeX>
 
@@ -388,7 +388,16 @@ Each per-finding block:
 
 ```
 
-If the finding has multiple `root_cause.locations[]`, list them as `\href{...}{...}, \href{...}{...}` comma-separated.
+If the finding has multiple `root_cause.locations[]`, list them in the **File(s)** line as `\href{...}{...}, \href{...}{...}` comma-separated (file paths only, never with `#Lnn` line anchors).
+
+**A finding shows the relevant code as a fenced code block, not a line reference.** Authors embed a minimal ` ```solidity ` block in the description illustrating the issue; the report renders those (and any `root_cause.locations[].snippet` that a materialized finding happens to carry) as `minted` blocks.
+
+**Content the report must NOT contain** (enforced upstream at authoring time — the report renders synced GitHub content verbatim and does not rewrite it, so it must arrive clean):
+- No specific source line numbers ("line 56", "on lines 43, 55") in `description` / `recommendation` — code is shown via `snippet` instead.
+- No cross-references to other findings by hex id (`H-NNN`) or number/title — each finding stands alone; report readers have no hex ids.
+- No references to the proof-of-concept test or its file path.
+
+If a synced finding still carries any of these (a legacy finding authored before this rule), leave the prose as-is here and flag it in the Phase 11 summary so the auditor re-runs `/validate-finding` (which normalizes it) and `/sync-issues`. Do not silently rewrite GitHub-canonical text.
 
 ### Markdown → LaTeX conversion rules
 

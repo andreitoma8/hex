@@ -122,6 +122,14 @@ Combine the two axes — correctness (Step 2) and security relevance (Step 2.5):
 
    Any description you write must be **flat prose** (plus a fenced code block only when a snippet is genuinely needed) — no markdown headings or header-like section labels (`Summary`/`Details`/`Impact`/`Affected code`); weave impact into the prose. **Keep it concise** — a single tight paragraph covering what the issue is, why it exists, and its impact, plus a 1–2 sentence hedged recommendation; trim anything that doesn't drive the point home. This matches the finding template used by the dashboard copy and the GitHub issue body. If the affected files are missing or wrong, set them with `--file` (repeatable) rather than narrating them in the description: `npx hex issue patch <id> --file src/Foo.sol [--file src/Bar.sol]`.
 
+   **A conformance-sourced (or auditagent/github) finding must be rewritten to the exact same standard as a manual `/write-finding` finding** — do not pass the raw source text through. Specifically, the prose you land must obey the report-facing content rules:
+   - **Recommendation tone:** hedged (`Consider...`, `One option is...`), never prescriptive (`Replace X with Y`, `You must...`). Follow the project writing style (no em dashes, no banned words / AI giveaways).
+   - **No line numbers — show the code.** Never cite specific source lines ("line 56"); line numbers drift. Instead embed a minimal fenced ```` ```solidity ```` block in the description file showing the relevant code, and refer to it by function/variable name. Do not transcribe line numbers from the conformance item's `code_location` into the prose (that field stays internal, for navigation only).
+   - **Stand alone — no cross-references** to other findings by Hex id (`H-NNN`) or number/title.
+   - **No PoC references** in the description or recommendation.
+
+   **Normalizing legacy findings:** if you are re-run on a finding whose stored description still contains line numbers, `H-NNN` cross-references, or PoC mentions (authored before these rules), rewrite it now: replace line references with a fenced ```` ```solidity ```` block, drop the id/PoC references, and re-land the cleaned prose via `--description-file`. This (followed by `/sync-issues`) is how an already-synced finding gets cleaned; the report never rewrites GitHub-canonical prose itself.
+
    Hex does not write `@audit-issue` comments into the client's source files — the board and finding record are the only place the issue lives.
 
 6. Use **AskUserQuestion** to ask:

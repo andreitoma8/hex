@@ -235,6 +235,8 @@ Write `.hex/spec-conformance.json`:
 }
 ```
 
+The `finding` text becomes a board card's description when the item is materialized (Phase 6) and can be synced to the client's report, so write it to the same report-facing standard as a `/write-finding` finding: flat prose, no banned words / AI giveaways, and specifically **no source line numbers** ("line 56"), **no cross-references** to other items by id, and **no PoC mentions**. If code is needed to illustrate the deviation, embed a minimal fenced ```` ```solidity ```` block in the `finding` and refer to it by function/variable name. The precise line range stays in `code_location` for internal navigation only — do not transcribe it into the `finding` prose.
+
 Also write a human-readable `.hex/spec-conformance.md` rendering the same data grouped by status (DEVIATES first, CONFORMS last).
 
 ## Phase 6 — Materialize conformance items onto the board

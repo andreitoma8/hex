@@ -97,6 +97,14 @@ The finding is rendered as a flat template (`## [Severity] Title`, then `**Descr
 - Affected file paths belong in `--file` (the File(s) line), not in an "Affected code" section in the description.
 - **Be concise.** Prefer a single tight paragraph: what the issue is, why it exists, and its impact — just enough to drive the point home. Don't restate the title, don't pad with background the reader doesn't need, and don't repeat the recommendation. There's no hard word count; brevity is the goal.
 
+### Report-facing content (STRICT)
+
+The description, recommendation, and title end up verbatim in the client's published report. Keep them free of anything that only makes sense inside Hex or that rots when the code moves:
+
+- **Stand alone — no cross-references to other findings.** Never point at another issue by its Hex id (`H-NNN`) or by its number/title ("see H-005", "as in the previous finding"). Report readers have no Hex ids and sections get reordered. If two issues share a mechanism, describe that mechanism inline in each.
+- **No line numbers — show the code.** Do not cite specific source lines ("line 56", "on lines 43, 55"). Line numbers drift the moment code or comments change. Instead embed a minimal fenced ```` ```solidity ```` block in the description showing the relevant code, and refer to it by function or variable name in the prose. (The report renders those blocks; it also renders `root_cause.locations[].snippet` when a materialized finding carries one.)
+- **No PoC references.** Do not name or link the proof-of-concept test or its path. The PoC belongs in the validation memo (`poc.validation_memo`), which the report never renders.
+
 ## Code Block Formatting Rules (STRICT)
 
 When including code snippets in the finding:

@@ -63,9 +63,9 @@ Parse the AuditAgent output (markdown with severity-tagged sections per finding)
   "tool": "auditagent",
   "title": "<finding title>",
   "severity": "Critical | High | Medium | Low | Info",
-  "description": "<concise description — what it is, why it exists, the impact; trim AuditAgent's verbosity. The verbatim original stays in raw-output.md>",
+  "description": "<concise description — what it is, why it exists, the impact; trim AuditAgent's verbosity. The verbatim original stays in raw-output.md. Report-facing: no source line numbers (put code in affected_code[].snippet), no cross-references to other findings by id, no PoC mentions>",
   "affected_code": [
-    { "file": "<path>", "snippet": "<relevant code if present>" }
+    { "file": "<path>", "snippet": "<relevant code if present — this materializes into root_cause.locations[].snippet and is rendered in the report>" }
   ],
   "confidence": "high | medium | low",
   "category": "<auditor-style category, e.g., Access Control, Math/Rounding>",
