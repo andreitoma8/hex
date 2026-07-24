@@ -18,7 +18,7 @@ Seven report sections in `<output_dir>/report/`, each emitted in **two forms** (
 4. **System Overview** (§4) — descriptive protocol architecture: components, actors & roles, per-module or per-flow subsections. Built from `overview.md` + access-control/deps analysis.
 5. **Issues** (§6) — one `\subsection{[Sev] title}\label{issue:N}` per synced finding, with description, code blocks, recommendation, status, client update.
 6. **Documentation Evaluation** (§7) — a `tcolorbox` remarks paragraph about the client's documentation.
-7. **Test Suite Evaluation** (§8) — coverage summary and automated-tooling note, generated from `stats.json.test_coverage`.
+7. **Test Suite Evaluation** (§8) — the test-run result (passed/failed/skipped), coverage summary, and automated-tooling note, generated from a live test run plus `stats.json.test_coverage`.
 
 The skill does NOT compile LaTeX itself. Sections §5 (risk methodology) and §9 (conclusion) are static in the Overleaf template and are not generated here.
 
@@ -39,6 +39,42 @@ Every section is generated **once** as a LaTeX string, then written to two paths
 The `.txt` and `.tex` bodies are byte-identical. The `.txt` copies power the dashboard `/report` viewer (with copy buttons); the `.tex` copies drop straight into an Overleaf `main.tex` that `\input`s the numbered files.
 
 All prose written by this skill must follow the project writing style (no em dashes, "Consider..." recommendations, banned-word list in the project CLAUDE.md).
+
+## Incremental regeneration (reruns)
+
+The skill is designed to be **re-run repeatedly** across an engagement: a finding gets validated, a client comment lands, an issue is marked fixed, the scope shifts. On each run, **only rewrite the sections whose inputs actually changed.** Sections whose inputs are unchanged are left exactly as they are on disk, which also preserves any hand-edits the auditor made to them (e.g. a polished System Overview).
+
+Mechanism — a manifest at `<output_dir>/report/.manifest.json`:
+
+```json
+{ "<section-key>": { "inputs_hash": "<sha256>", "written_at": "<iso8601>" } }
+```
+
+Section keys are the `.txt` basenames: `executive_summary`, `audited_files`, `summary_of_findings`, `system_overview`, `findings`, `documentation_eval`, `test_suite`.
+
+Each section has a defined **input signature** — the exact set of data it derives from. Compute a stable `sha256` over a canonical (sorted-key) JSON of that section's inputs (a `sha256sum` shell one-liner over the serialized inputs is fine):
+
+| Section | Input signature (hash over) |
+|---|---|
+| `executive_summary` | severity + resolution histograms, `stats.totals.nsloc`, all `settings.report.*` fields, and the `overview.md` bytes (the synopsis derives from it) |
+| `audited_files` | the per-file LoC results for every `project.scope` file, `repository_url`, `initial_commit` |
+| `summary_of_findings` | the ordered synced-findings list: `(id, title, severity, resolution)` each |
+| `system_overview` | `overview.md`, `access-control.json`, `deps.json` bytes |
+| `findings` | the synced-findings full content: `(title, severity, description, code blocks, recommendation, resolution, update_from_client, root_cause.locations)` each |
+| `documentation_eval` | `settings.report.{doc_assessment,kickoff_call,client_availability}`, `project.docs_url`, and the NatSpec-presence signal (`stats.totals.comment_lines`) |
+| `test_suite` | the test-run summary (pass/fail/skip counts) and `stats.test_coverage`, `settings.report.test_assessment` |
+
+Per-run algorithm:
+1. Compute each section's current `inputs_hash`.
+2. If the manifest has a matching hash for that section **and both** its `.txt` and `.tex` exist on disk, **skip** it (do not regenerate, do not rewrite) and report it as `unchanged`.
+3. Otherwise regenerate the section (both `.txt` + `.tex`), update its manifest entry, and report it as `updated` (or `new` if there was no prior entry).
+4. Write the manifest back at the end.
+
+This is what makes a "found another issue, rerun" touch only `executive_summary` (counts changed), `summary_of_findings`, and `findings`, while `system_overview` and `audited_files` stay byte-identical and untouched. A client comment or a resolution change likewise only moves `findings`, `summary_of_findings` (Update column), and `executive_summary` (status histogram).
+
+Skipping the expensive AI prose sections (`system_overview`, `documentation_eval`) when their inputs are unchanged is the point — do not re-run their generation just to discard the result.
+
+**Force a full rebuild:** if the skill is invoked with `--force` / `all` (or the auditor asks to "regenerate everything"), ignore the manifest and rewrite all seven sections.
 
 ## Phase 0 — Gather report metadata
 
@@ -391,15 +427,47 @@ Determine what documentation was available:
 - Kick-off call: only if `settings.report.kickoff_call` is set (append its text as the focus).
 - Client availability: `settings.report.client_availability` if set, otherwise the standard closing sentence.
 
-Emit the exact `tcolorbox` wrapper (from gauss `documentation-eval.md`):
+This section has two parts: a **fixed boilerplate preamble** that is identical in every Nethermind report, followed by the **client-specific `tcolorbox`** remarks.
+
+Reproduce the preamble **verbatim** (do not paraphrase, do not restyle). It is fixed template text, so the project writing-style rules do NOT apply to it — it intentionally contains words like "Moreover" that are otherwise banned for AI-written prose:
 
 ```latex
 \pagebreak \vspace*{0cm}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \sectioncolor
 \section{Documentation Evaluation}
 \black
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\begin{tcolorbox}[colback=blue!5,colframe=blue!50!black!70,title=Remarks about <CLIENT> <PRODUCT> documentation]
+Software documentation refers to the written or visual information that describes the functionality, architecture, design, and implementation of software. It provides a comprehensive overview of the software system and helps users, developers, and stakeholders understand how the software works, how to use it, and how to maintain it. Software documentation can take different forms, such as user manuals, system manuals, technical specifications, requirements documents, design documents, and code comments.
+%
+Software documentation is critical in software development, enabling effective communication between developers, testers, users, and other stakeholders. It helps to ensure that everyone involved in the development process has a shared understanding of the software system and its functionality. Moreover, software documentation can improve software maintenance by providing a clear and complete understanding of the software system, making it easier for developers to maintain, modify, and update the software over time.
+%
+Smart contracts can use various types of software documentation. Some of the most common types include:
+
+\begin{itemize}
+    \item Technical whitepaper: A technical whitepaper is a comprehensive document describing the smart contract's design and technical details. It includes information about the purpose of the contract, its architecture, its components, and how they interact with each other;
+
+    \item User manual: A user manual is a document that provides information about how to use the smart contract. It includes step-by-step instructions on how to perform various tasks and explains the different features and functionalities of the contract;
+
+    \item Code documentation: Code documentation is a document that provides details about the code of the smart contract. It includes information about the functions, variables, and classes used in the code, as well as explanations of how they work;
+
+    \item API documentation: API documentation is a document that provides information about the API (Application Programming Interface) of the smart contract. It includes details about the methods, parameters, and responses that can be used to interact with the contract;
+
+    \item Testing documentation: Testing documentation is a document that provides information about how the smart contract was tested. It includes details about the test cases that were used, the results of the tests, and any issues that were identified during testing;
+
+    \item Audit documentation: Audit documentation includes reports, notes, and other materials related to the security audit of the smart contract. This type of documentation is critical in ensuring that the smart contract is secure and free from vulnerabilities.
+
+\end{itemize}
+
+These types of documentation are essential for smart contract development and maintenance. They help ensure that the contract is properly designed, implemented, and tested, and they provide a reference for developers who need to modify or maintain the contract in the future.
+```
+
+Then, after the preamble, emit the client-specific `tcolorbox` (this part IS AI-written and must follow the writing style):
+
+```latex
+\begin{tcolorbox}[colback=blue!5,colframe=blue!50!black!70,title=Remarks about <CLIENT> documentation]
 <one paragraph describing the documentation actually provided — NatSpec, README/docs, and what the README covers (high-level overview, objectives, architecture). Only mention what exists and is relevant to the code in scope.>
 \vspace{0.3em}
 
@@ -410,8 +478,7 @@ Emit the exact `tcolorbox` wrapper (from gauss `documentation-eval.md`):
 \end{tcolorbox}
 ```
 
-- `<CLIENT>` ← client/org name (derive from `repository_url` org or `project.name`).
-- `<PRODUCT>` ← `config.json.project.name`.
+- `<CLIENT>` ← the full client/product name, e.g. `Cardinal Trading`. Derive it from `project.name` (or the org in `repository_url`); use the complete name the client goes by, not a truncated token.
 - Do not include full file paths when referring to a file — use the basename.
 - Keep it factual: do not claim documentation exists that the analysis does not support.
 
@@ -419,14 +486,16 @@ Emit the exact `tcolorbox` wrapper (from gauss `documentation-eval.md`):
 
 Write to `test_suite.txt` **and** `08-test-suite.tex`.
 
-Read `stats.json.test_coverage`.
+**Step 1 — run the test suite and capture the output.** Detect the framework in `project.project_dir` and run the tests, capturing the summary (not the full verbose log):
+- Foundry (a `foundry.toml` exists): `forge test` from the project dir. Parse the tail: the per-suite `Suite result: ok. N passed; M failed; K skipped` lines and the final `Ran N test suites ...: X tests passed, Y failed, Z skipped` totals.
+- Hardhat (a `hardhat.config.*` exists): `npx hardhat test`; parse the mocha `N passing / M failing / K pending` summary.
+- If neither is present, or the run cannot build, record that tests could not be executed (with the short reason) and continue — do not abort the whole report.
 
-If `test_coverage.status === "available"`:
-- Report `overall_line_pct` and `overall_branch_pct`.
-- Render a per-contract coverage table from `test_coverage.per_contract[]` (`contract`, `line_pct`, `branch_pct`).
+Keep totals only: passed, failed, skipped, and the number of suites/files. Do not paste the full stdout.
 
-If `test_coverage.status !== "available"` (`failed` / `skipped` / null):
-- State plainly that automated coverage could not be collected (include `failure_reason` if present), and describe the test suite qualitatively, falling back to the `settings.report.test_assessment` grade.
+**Step 2 — read coverage** from `stats.json.test_coverage`:
+- `status === "available"`: use `overall_line_pct`, `overall_branch_pct`, and `per_contract[]`.
+- `status !== "available"` (`failed` / `skipped` / null): state plainly that coverage could not be collected (include `failure_reason` if present) and lean on the qualitative read.
 
 Always close with an automated-tools paragraph: manual analysis plus automated tooling. If `config.json.settings.ai.auditagent_scan_id` is set, name Nethermind AuditAgent explicitly.
 
@@ -436,7 +505,18 @@ Always close with an automated-tools paragraph: manual analysis plus automated t
 \section{Test Suite Evaluation}
 \black
 
-<paragraph on the test suite: overall line/branch coverage, or the reason coverage is unavailable, plus a qualitative read tied to the Test Suite Assessment grade.>
+<paragraph on the test suite: the test-run result (how many tests passed/failed/skipped, or the reason the suite could not be executed), the overall line/branch coverage (or why it is unavailable), and a qualitative read tied to the Test Suite Assessment grade.>
+
+\begin{table}[H]
+    \centering
+    \begin{footnotesize}
+    \begin{tabular}{|p{6cm}|p{2cm}|p{2cm}|p{2cm}|}
+        \hline
+        \textbf{Test Result} & \textbf{Passed} & \textbf{Failed} & \textbf{Skipped} \\ \hline
+        \texttt{forge test} & <passed> & <failed> & <skipped> \\ \hline
+    \end{tabular}
+    \end{footnotesize}
+\end{table}
 
 \begin{table}[H]
     \centering
@@ -453,21 +533,22 @@ Always close with an automated-tools paragraph: manual analysis plus automated t
 <automated-tools paragraph: manual review + automated analysis; name Nethermind AuditAgent if a scan id is configured.>
 ```
 
-(Omit the coverage table entirely when coverage is unavailable.)
+- Replace `forge test` in the results table with the command actually run (e.g. `npx hardhat test`).
+- Omit the results table if the suite could not be executed; omit the coverage table if coverage is unavailable. State the reason in the paragraph in either case.
 
 ## Phase 11 — Final report
 
-After writing all sections, print:
+After writing, print a per-section status so the auditor sees what a rerun actually touched (`updated` / `new` / `unchanged`, per the Incremental regeneration rules):
 
 ```
-Wrote 7 report sections (14 files) to <output_dir>/report/:
-  §1 Executive Summary       executive_summary.txt     01-executive-summary.tex
-  §2 Audited Files           audited_files.txt         02-audited-files.tex
-  §3 Summary of Issues       summary_of_findings.txt   03-summary-of-findings.tex
-  §4 System Overview         system_overview.txt       04-system-overview.tex
-  §6 Issues                  findings.txt              06-issues.tex
-  §7 Documentation Eval      documentation_eval.txt    07-documentation-eval.tex
-  §8 Test Suite Evaluation   test_suite.txt            08-test-suite.tex
+Report sections in <output_dir>/report/ (each as .txt + numbered .tex):
+  §1 Executive Summary       executive_summary.txt     [<status>]
+  §2 Audited Files           audited_files.txt         [<status>]
+  §3 Summary of Issues       summary_of_findings.txt   [<status>]
+  §4 System Overview         system_overview.txt       [<status>]
+  §6 Issues                  findings.txt              [<status>]
+  §7 Documentation Eval      documentation_eval.txt    [<status>]
+  §8 Test Suite Evaluation   test_suite.txt            [<status>]
 
 Synced findings included: <count>
   Critical=<C> High=<H> Medium=<M> Low=<L> Info=<I>
@@ -482,6 +563,8 @@ Nethermind Overleaf main.tex. Sections 5 (risk methodology) and 9 (conclusion) a
 ## What this skill does NOT do
 
 - Does not compile LaTeX (no `pdflatex` invocation).
+- Does run the project's test suite (`forge test` / `npx hardhat test`) read-only to capture §8 results; it does not modify tests or source.
+- Does not rewrite sections whose inputs are unchanged (see Incremental regeneration) unless invoked with `--force` / `all`.
 - Does not generate §5 (risk rating methodology) or §9 (conclusion) — those are static in the Overleaf template.
 - Does not modify any file outside `<output_dir>/report/` and (with permission) `config.json` under `settings.report.*`.
 - Does not push to Overleaf, GitHub, or any remote — output is local plain-text.
