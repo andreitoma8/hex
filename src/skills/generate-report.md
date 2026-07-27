@@ -392,6 +392,8 @@ If the finding has multiple `root_cause.locations[]`, list them in the **File(s)
 
 **A finding shows the relevant code as a fenced code block, not a line reference.** Authors embed a minimal ` ```solidity ` block in the description illustrating the issue; the report renders those (and any `root_cause.locations[].snippet` that a materialized finding happens to carry) as `minted` blocks.
 
+Finding descriptions are authored already backticked and structured (identifiers in backticks, functions as `` `name(...)` `` which the markdown→LaTeX rule turns into `\texttt{name(...)}`, and short expected/flaw/impact paragraphs). Preserve that: render the paragraph breaks as-is (blank lines between paragraphs), do not collapse a multi-paragraph description into one block.
+
 **Content the report must NOT contain** (enforced upstream at authoring time — the report renders synced GitHub content verbatim and does not rewrite it, so it must arrive clean):
 - No specific source line numbers ("line 56", "on lines 43, 55") in `description` / `recommendation` — code is shown via `snippet` instead.
 - No cross-references to other findings by hex id (`H-NNN`) or number/title — each finding stands alone; report readers have no hex ids.

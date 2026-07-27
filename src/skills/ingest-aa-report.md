@@ -63,15 +63,24 @@ Parse the AuditAgent output (markdown with severity-tagged sections per finding)
   "tool": "auditagent",
   "title": "<finding title>",
   "severity": "Critical | High | Medium | Low | Info",
-  "description": "<concise description — what it is, why it exists, the impact; trim AuditAgent's verbosity. The verbatim original stays in raw-output.md. Report-facing: no source line numbers (put code in affected_code[].snippet), no cross-references to other findings by id, no PoC mentions>",
+  "description": "<reshape AuditAgent's raw text into the same structured, readable form a manual finding uses — do NOT paste its verbose single paragraph. See 'Description format' below. The verbatim original stays in raw-output.md.>",
   "affected_code": [
-    { "file": "<path>", "snippet": "<relevant code if present — this materializes into root_cause.locations[].snippet and is rendered in the report>" }
+    { "file": "<path>", "snippet": "<the offending code — this materializes into root_cause.locations[].snippet and is rendered in the report; capture it here so the finding shows code, not line numbers>" }
   ],
   "confidence": "high | medium | low",
   "category": "<auditor-style category, e.g., Access Control, Math/Rounding>",
   "raw_category": "<the raw category string from auditagent, preserved verbatim>"
 }
 ```
+
+### Description format (same standard as every source)
+
+AuditAgent emits one long unformatted paragraph per finding. Do not carry that shape into the board. Rewrite each `description` to the same standard a manual `/write-finding` finding uses, so AuditAgent, manual, conformance, and GitHub findings are indistinguishable in the report:
+
+- **Short paragraphs that separate the parts:** how the code is supposed to work (expected behavior), what is wrong (the flaw), and the impact. Not a single dense block.
+- **No markdown headings and no bold section labels** (`**Summary**:`/`**Impact**:`). The separation is paragraph breaks.
+- **Backtick every Solidity identifier**, functions as `` `functionName(...)` `` with literal `(...)`, contracts/variables/constants in plain backticks. Never leave a bare identifier in the prose.
+- **Show the offending code** via `affected_code[].snippet` (it renders in the report) rather than describing it only in words; no source line numbers.
 
 Write the full array under:
 

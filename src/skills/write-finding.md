@@ -59,7 +59,7 @@ The `id`, `poc`, and `created_at` fields are managed by `hex issue new` (see Act
   "title": "<concise, descriptive title>",
   "severity": "Critical|High|Medium|Low|Info",
   "category": "<e.g., Math / Rounding, Access Control, Reentrancy, Oracle Manipulation>",
-  "description": "<flat prose covering what the vulnerability is, why it exists, and its impact — no markdown headings; see Description format below>",
+  "description": "<short structured paragraphs (expected behavior, the flaw, the impact) with a fenced solidity snippet and every identifier backticked as `name(...)`; no headings or bold section labels — see Description format below>",
   "root_cause": {
     "locations": [
       { "file": "<path>", "snippet": "<relevant code>" }
@@ -90,12 +90,14 @@ Phrase recommendations as suggestions, not commands. The auditor proposes direct
 
 ### Description format (STRICT)
 
-The finding is rendered as a flat template (`## [Severity] Title`, then `**Description**:`, `**Recommendation(s)**:` …). The description goes inline after `**Description**:`, so it must read as **flat prose**:
+The finding is rendered inline after `**Description**:` in the report, so it must be prose (no markdown headings), but it must be **structured and readable**, not a wall of text:
 
-- **No markdown headings and nothing that looks like one** — no `#`/`##`/`###`, and no section labels such as `Summary`, `Details`, `Impact`, `Affected code`, whether as a heading or a bold line on its own. Weave the impact into the prose instead of giving it its own section.
-- **Code blocks are allowed when a snippet is genuinely needed** — a fenced ```` ```solidity ```` block illustrating the bug is fine. Keep it to what's relevant; follow the Code Block Formatting Rules below.
-- Affected file paths belong in `--file` (the File(s) line), not in an "Affected code" section in the description.
-- **Be concise.** Prefer a single tight paragraph: what the issue is, why it exists, and its impact — just enough to drive the point home. Don't restate the title, don't pad with background the reader doesn't need, and don't repeat the recommendation. There's no hard word count; brevity is the goal.
+- **Split into short paragraphs that separate the parts of the finding.** Cover, in order, how the code is supposed to work (the expected behavior or spec), what is wrong (the flaw), and the impact. Give each its own short paragraph rather than one dense block. Look at how a clean finding reads: a paragraph of context/expected behavior, the offending code, then a paragraph on what breaks and why it matters.
+- **No markdown headings and no bold section labels.** The separation is paragraph breaks, not headers. Do not write `#`/`##`, and do not introduce paragraphs with `**Summary**:`, `**Impact**:`, `**Details**:`, `**Affected code**:` or similar labels — those read as machine-generated. Let the prose carry the structure.
+- **Backtick every Solidity identifier** so the report renders it in monospace. Functions are written as `` `functionName(...)` `` with the literal `(...)`, e.g. `` `deposit(...)` ``, `` `sweepTreasury(...)` ``. Contracts, interfaces, variables, constants, and hex/number literals get plain backticks: `` `CardinalExchange` ``, `` `undeployedLpCapital` ``, `` `feeBps` ``. Standard names (ERC-4626, UUPS, ERC-20) stay as plain text. Never leave a bare identifier in the prose.
+- **Show the offending code.** Include a fenced ```` ```solidity ```` block of the relevant lines (with `@audit-issue` comments per the Code Block Formatting Rules below) rather than describing the code only in words. Keep it minimal — just what's needed to see the issue.
+- Affected file paths belong in `--file` (the File(s) line), not narrated in the description.
+- **Be concise within the structure.** Short paragraphs, no padding, don't restate the title or repeat the recommendation. Readable and specific beats long.
 
 ### Report-facing content (STRICT)
 

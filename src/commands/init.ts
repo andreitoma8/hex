@@ -332,10 +332,13 @@ Recommendations are suggestions, not orders. The protocol team owns the fix; you
 
 ### Findings (report-facing content)
 
-A finding's title, description, and recommendation are published verbatim in the client's report. Keep them free of anything that only means something inside Hex or that rots when the code moves:
+A finding's title, description, and recommendation are published verbatim in the client's report. Write them to a single standard, whatever the source:
 
-- **Stand alone, no cross-references to other findings.** Never cite another issue by its Hex id (\`H-NNN\`) or by number/title ("see H-005", "as in the previous finding"). Report readers have no Hex ids and sections get reordered. Describe any shared mechanism inline.
-- **No line numbers, show the code.** Don't cite specific source lines ("line 56", "on lines 43, 55"); they drift when code or comments change. Embed a minimal fenced \`\`\`solidity block showing the relevant code and refer to it by function or variable name.
+- **Structure for readability.** Split the description into short paragraphs that separate how the code is supposed to work (expected behavior), what is wrong (the flaw), and the impact. Not one dense block. No markdown headings and no bold section labels (\`**Summary**:\`, \`**Impact**:\`) — the separation is paragraph breaks.
+- **Backtick every Solidity identifier.** Functions as \`\` \`functionName(...)\` \`\` with literal \`(...)\`; contracts, variables, constants, and hex/number literals in plain backticks. Standard names (ERC-4626, UUPS) stay plain. Never leave a bare identifier in the prose.
+- **Show the offending code.** Include a minimal fenced \`\`\`solidity block of the relevant code rather than describing it only in words.
+- **No line numbers.** Don't cite specific source lines ("line 56"); they drift when code or comments change. The code snippet replaces them.
+- **Stand alone, no cross-references to other findings.** Never cite another issue by its Hex id (\`H-NNN\`) or by number/title. Report readers have no Hex ids and sections get reordered. Describe any shared mechanism inline.
 - **No PoC references.** Don't name or link the proof-of-concept test or its path. The PoC lives in the validation memo, not the report.
 
 These apply to findings from every source (manual, spec-conformance, AuditAgent, GitHub) identically.
