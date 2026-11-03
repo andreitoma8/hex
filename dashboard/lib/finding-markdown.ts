@@ -1,4 +1,4 @@
-import type { BoardIssue } from '@/app/issues/IssuesBoardClient';
+import type { BoardIssue } from '@/lib/types';
 
 /**
  * Single source of truth for the finding markdown format used by the board's

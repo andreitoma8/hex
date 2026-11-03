@@ -27,12 +27,14 @@ By hand:
 
 - `SKILL.md` — `name: ai-audit` and a Hex description; a "Hex fork" note; Mode Selection gains
   `hex-scope` (files from `.hex/config.json` → `project.scope`) and `diff` (changed + impacted
-  files from `npx hex diff --scan-files`), with upstream's `find` kept as the fallback outside a
+  files from `npx --no-install hex diff --scan-files`), with upstream's `find` kept as the fallback outside a
   Hex project; Turn 1 resolves `{resolved_path}` from the skill's base directory (never a
   `**/references/...` Glob, which matches other copies of this skill) and drops the `VERSION`
-  check against pashov/skills; Turn 2 step 1b writes `diff-focus.md` via `npx hex diff --focus`
+  check against pashov/skills; Turn 2 step 1b writes `diff-focus.md` via `npx --no-install hex diff --focus`
   and the bundle table appends it in a differential audit; the prune does not run in `diff`
   mode; **Turn 6** publishes to the Hex board; a one-line Hex banner replaces the ASCII banner.
+- `SKILL.md` Turn 2 step 1c — accepted invariants (`hex invariant export`) and triage rules
+  (`hex rules list`) are appended to every bundle when the Hex project has them.
 - `references/agent-prompts.md` — a "differential audit" paragraph in both prompt templates,
   included only when `diff-focus.md` is appended.
 - `references/dedup-and-assembly.md` — Turn 4 step 5a: the `key` is built on every scan (memory
@@ -41,6 +43,9 @@ By hand:
   `{dir}/winners.tsv` before the work dir is deleted. The report it writes is unchanged apart
   from the disclaimer.
 - New: `references/hex-export.sh` (winners → `hex-digest.md`) and `references/hex-board.md`
-  (Turn 6: digest → raw records → `hex issue new` cards with dedup; leads → `hex note lead`).
+  (Turn 6: digest → raw records → `hex issue new` cards; triage-rule exclusions; dedup through
+  the shared `hex issue dedup` / `mark-duplicate` engine; leads → `hex note lead`; then
+  `/prevalidate` on the new cards).
+- Every Hex command is `npx --no-install hex …` (an unrelated npm package is named `hex`).
 - Removed: upstream `README.md` and `VERSION` (Hex ships the skill inside `hex-audit`; use
-  `npx hex update`).
+  `npx --no-install hex update`).

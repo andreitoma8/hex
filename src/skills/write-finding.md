@@ -4,7 +4,6 @@ description: "Write a manual issue as a Potential card on the board (pending val
 
 # Skill: Write Finding
 
-**Recommended model:** Sonnet
 
 This skill records a manual issue that the auditor has spotted during review. The issue lands on the dashboard's Issues board as a **Potential** card with `status: "pending_validation"` and `source: "manual"`. The auditor promotes it to Verified later (via drag-drop on the board, or by running `/validate-finding <id>` which produces a validation memo and optional PoC).
 
@@ -17,11 +16,11 @@ Read:
 
 ## Step 0: Duplicate gate
 
-Scan `findings.json` and `tracking.json` for any existing entry that covers the same vulnerability (same affected contract/function, same or overlapping root cause). If a match is found, warn the auditor:
+After filling the card (Actions steps 1 and 2), run `npx --no-install hex issue dedup <id>`: it finds the exact functions from the description's code block and backticked names, lists existing cards on those functions, and prints the match rules. Run it on the filled card; on an empty one it finds no functions and misses every duplicate. If a candidate matches under those rules, warn the auditor:
 
 > "This appears to duplicate `<H-NNN>`: \<title\>. Proceed anyway?"
 
-Only continue if confirmed.
+If they say it is a duplicate, record it with `npx --no-install hex issue mark-duplicate <id> --of <H-NNN> …` (signals as the rules describe) instead of filling in the fields. Otherwise continue.
 
 ## Severity Guide
 
@@ -133,16 +132,18 @@ Persist through the `hex issue` CLI — never hand-edit `findings.json` or `trac
 
 1. **Create the issue** — pass `--file` once per affected file so the **File(s)** line is populated (repeatable). Do **not** narrate the affected files in the description instead:
    ```bash
-   npx hex issue new --source manual --title "<concise title>" --severity <Severity> \
+   npx --no-install hex issue new --source manual --title "<concise title>" --severity <Severity> \
      --file src/Foo.sol [--file src/Bar.sol]
    ```
    This prints the allocated id (e.g. `H-007`). Capture it.
 
 2. **Fill the fields** (write the description and recommendation to temp files first, to preserve newlines):
    ```bash
-   npx hex issue patch <id> --description-file /tmp/<id>_desc.md --recommendation-file /tmp/<id>_reco.md
+   npx --no-install hex issue patch <id> --description-file /tmp/<id>_desc.md --recommendation-file /tmp/<id>_reco.md
    ```
    The description must be self-contained (what the issue is, why it exists, the impact) and follow the **Description format** rules below. The recommendation is prose only, hedged (`Consider...`), no code.
+
+3. **Run the duplicate gate** (Step 0) on the filled card.
 
 There is **no source-file annotation** — Hex does not write `@audit-issue` comments into the client's `.sol` files. The board and the finding record are the single place the issue lives.
 

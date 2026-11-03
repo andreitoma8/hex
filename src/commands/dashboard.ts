@@ -65,7 +65,13 @@ export const dashboardCommand = new Command('dashboard')
     // loads the model once and serves transcription while the dashboard is up.
     // It's killed on exit (see cleanup), so the model is freed the moment you
     // close the dashboard — and never loaded more than once per session.
-    const nextEnv: NodeJS.ProcessEnv = { ...process.env, PORT: port };
+    // HEX_CLI lets the dashboard run Hex itself (rebuild facts after it writes
+    // an `// @audit` comment into a source file, which shifts line numbers).
+    const nextEnv: NodeJS.ProcessEnv = {
+      ...process.env,
+      PORT: port,
+      HEX_CLI: fileURLToPath(new URL('../index.js', import.meta.url)),
+    };
     let whisperChild: ReturnType<typeof spawn> | null = null;
     const engine = detectWhisper();
     if (engine?.kind === 'faster') {
@@ -83,9 +89,11 @@ export const dashboardCommand = new Command('dashboard')
     // via process.cwd(). This replaces the old HEX_PROJECT_DIR env-var bridge,
     // which was a vestige from the monorepo days when the dashboard was started
     // from a different working directory.
+    // A shell only on Windows, where `next` is a .cmd shim; elsewhere it triggers
+    // Node's DEP0190 warning and splits paths that contain spaces.
     const child = spawn(nextBin, [mode, dashboardDir, '--port', port], {
       stdio: 'inherit',
-      shell: true,
+      shell: process.platform === 'win32',
       cwd: projectDir,
       env: nextEnv,
     });

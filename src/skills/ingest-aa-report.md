@@ -4,7 +4,6 @@ description: "Ingest a completed Nethermind AuditAgent scan into the board and d
 
 # Skill: Ingest AuditAgent Report
 
-**Recommended model:** Sonnet
 
 This skill is the single point of integration with Nethermind's AuditAgent. It does **not** start scans — the auditor starts a scan separately (e.g. via the Nethermind portal or `aa scan ...` from the command line) and passes the resulting scan ID into this skill. The skill fetches the results, normalizes them into the board, and inline-dedupes against everything already there.
 
@@ -110,48 +109,30 @@ to `<output_dir>/ai-results/auditagent/findings.json`. Also write a small `metad
 The raw AuditAgent findings keep their own `AA-<NNN>` ids inside `ai-results/auditagent/findings.json` (that file is the source record). The **board** card gets a uniform `H-NNN` id. Create one per finding via the CLI — it allocates the id and materializes the full finding (title, severity, description, affected code) from the raw record by `source_ref`:
 
 ```bash
-npx hex issue new --source auditagent --source-ref <AA-NNN> --title "<title>" --severity <Severity>
+npx --no-install hex issue new --source auditagent --source-ref <AA-NNN> --title "<title>" --severity <Severity>
 ```
 
 Capture each printed `H-NNN`. Cards land in the Potential column with `status: unverified`. Never hand-edit `tracking.json`.
 
 ## Step 6 — Inline dedup
 
-Read all existing tracking entries (manual, conformance, github, and any previously ingested auditagent runs) — all uniform `H-NNN` ids. For each **new** auditagent card, run a semantic comparison against each existing entry on these axes:
-
-| Signal | How to compare |
-|---|---|
-| **contract** (boolean) | Does the affected contract name match? |
-| **function** (boolean) | Does the affected function name match? |
-| **root_cause** | `same` / `overlapping` / `different` — judge the technical mechanism (e.g. "reentrancy on external call before state update" is `same` as "missing CEI pattern around external call"). |
-| **attack_vector** | `same` / `overlapping` / `different` — judge what an attacker actually does to exploit it. |
-
-A match is **at least one of**:
-- `root_cause = same` AND `function = true`, or
-- `root_cause = same` AND `contract = true` AND `attack_vector = same`, or
-- `root_cause = overlapping` AND `function = true` AND `attack_vector = same`.
-
-On match, **move the new auditagent card to the Duplicate column** (the canonical is the existing entry — the auditor already filed or already has it from another source):
+For each new card, run the one Hex dedup engine:
 
 ```bash
-npx hex issue move <new-H-id> --to duplicate
+npx --no-install hex issue dedup <new-H-id>
 ```
 
-Then record the match in `<output_dir>/comparison.json` under `duplicates`. The board reads this to show the "dup of `<canonical-H-id>`" chip and the match signals (it derives `duplicate_of` from the `matches` field here):
+It maps the card to the exact functions it is about (from its code and the compiler facts), ranks existing cards that touch the same function or contract, and prints **the match rules** (four signals: contract, function, root cause, attack vector; three clauses) and the triage rules. Judge each strong candidate against those rules (root cause and attack vector are your call; the rules decide). On a match:
 
-```json
-{
-  "ai_finding": "<new-H-id>",
-  "matches": "<canonical-H-id>",
-  "confidence": "high | medium | low",
-  "match_signals": { "contract": true, "function": true, "root_cause": "same", "attack_vector": "same" },
-  "reasoning": "<one short sentence: which signals carried the call>"
-}
+```bash
+npx --no-install hex issue mark-duplicate <new-H-id> --of <canonical-H-id> \
+  --root-cause <same|overlapping|different> --attack-vector <same|overlapping|different> \
+  [--same-contract] [--same-function] --reasoning "<one sentence: which signals carried the call>"
 ```
 
-If `comparison.json` doesn't exist, create it with `{ "duplicates": [], "novel": [], "rejected": [] }`.
+It moves the card and records the signals in `comparison.json` in one step (the board shows the "dup of" chip). When a **triage rule** covers the finding's whole impact, exclude it instead: `npx --no-install hex issue exclude <new-H-id> --rule R-NNN`.
 
-For entries that don't match anything, leave them as `status: "unverified"` (the auditor will run `/validate-finding AA-<NNN>` on them).
+Cards that match nothing stay `unverified`. Then run **`/prevalidate`** on them: background agents reproduce or refute each one, conclusive cases move automatically, and the auditor triages the rest.
 
 ## Step 7 — Report
 
@@ -163,7 +144,7 @@ Ingested N AuditAgent findings (scan <scan_id>).
 - K flagged as Duplicate of existing entries
 - 0 errors
 
-Run /validate-finding <id> on any new finding to confirm and promote it to Verified.
+Pre-validation ran on the new cards; see its summary. Run /validate-finding <id> on anything left uncertain.
 ```
 
 ## Outputs (recap)

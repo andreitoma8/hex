@@ -4,8 +4,6 @@ description: "Validate any potential finding on the board (manual / ai-audit / a
 
 # Skill: Validate Finding
 
-**Recommended model:** Opus
-
 ## What this skill does
 
 Takes a single potential issue from the dashboard's Issues board and runs an independent validation pass on it. Source-agnostic — the issue can come from any of:
@@ -46,8 +44,10 @@ Once the issue is resolved, read:
   - `prior-audit` → `<output_dir>/previous-audit/findings.json` (the prior finding) and `previous-audit/review.json` (why it was judged a regression).
   - `conformance` → `<output_dir>/spec-conformance.json` (the matching `items[*]` entry).
   - `github` → `<output_dir>/external/github/findings.json` (the matching entry).
-- `<output_dir>/state-vars.json`, `<output_dir>/access-control.json`, `<output_dir>/external-calls.json` for cross-referenced facts.
-- The affected contract source via `npx hex context --target <affected_contract>`.
+- The affected source files themselves (read them; do not rely on summaries).
+- Exact relationships from the compiler facts: `npx --no-install hex facts query function|callers|callees|readers|writers|reach <ref>` (who can reach the vulnerable code, who else writes the state it depends on).
+- The protocol model (`.hex/model/protocol.json`): trust assumptions and privileges, which decide many reality-gate calls.
+- The triage rules: `npx --no-install hex rules list`. A finding whose whole impact depends on a rule (trusted role, out-of-scope token type, known issue) is not security-relevant.
 
 ## Validation pass
 
@@ -96,17 +96,17 @@ Combine the two axes — correctness (Step 2) and security relevance (Step 2.5):
 
 **Verified — true and security-relevant:**
 
-1. Use **AskUserQuestion** to ask:
-   > The finding appears **VALID and security-relevant**. How would you like to proceed?
-   >
-   > 1. Generate a full PoC test, then promote to Verified.
-   > 2. Accept with rational verification only — validation memo, no PoC.
-   >
-   > Reply **1** or **2**.
+1. **Write a PoC. This is the default.** Follow the `generate-poc` flow: read the project's test setup, write `test/hex-pocs/<id>_<name>.t.sol` (or `.test.ts`), assert the **impact**, run it, and iterate until it passes. The PoC is what fix review re-runs later to prove the fix.
 
-2. **If PoC chosen:** invoke the `generate-poc` skill flow (read the project test setup, write the PoC, run and iterate until it passes). Note the test path, e.g. `test/hex-pocs/<id>_<name>.t.sol`.
+2. **Memo-only is the exception.** Skip the PoC only when one cannot reasonably exist (an off-chain or governance-process issue, a pure spec deviation with no exploit, an Info-level code-quality finding), and say why in the memo.
 
-3. **If memo-only chosen:** no PoC file.
+3. **Record the result on the card:**
+   ```bash
+   npx --no-install hex issue validation <id> --verdict reproduced --by auditor \
+     --poc test/hex-pocs/<id>_<name>.t.sol --poc-status passing --memo .hex/validations/<id>_memo.md
+   # memo-only:
+   npx --no-install hex issue validation <id> --verdict valid_no_poc --by auditor --memo .hex/validations/<id>_memo.md
+   ```
 
 4. **Calibrate severity — don't inherit it.** The source's severity (especially AuditAgent's) is a *hypothesis*, not authoritative. Re-derive it from realistic impact × likelihood; many technically-true findings collapse to Info. A finding whose worst case is self-inflicted or chain-conditional must say so and re-rate accordingly.
 
@@ -114,17 +114,17 @@ Combine the two axes — correctness (Step 2) and security relevance (Step 2.5):
 
    ```bash
    # Land the editable fields (materializes a finding for conformance/auditagent/github ids):
-   npx hex issue patch <id> \
+   npx --no-install hex issue patch <id> \
      --severity <Severity> \
      --description-file <output_dir>/validations/<id>_memo.md \
      --recommendation-file /tmp/<id>_reco.md
    # Promote to Verified:
-   npx hex issue move <id> --to verified
+   npx --no-install hex issue move <id> --to verified
    ```
 
    For a memo-only verdict, the same two commands apply (the PoC fields just stay unset). For `--description-file`, you may pass either the memo or a dedicated description file; prefer a clean description file if the memo is long.
 
-   Any description you write must be **structured, readable prose** (no markdown headings), not a single dense block. Split it into short paragraphs that separate how the code is supposed to work (expected behavior / the spec), what is wrong (the flaw), and the impact, and include a fenced ```` ```solidity ```` block of the offending code. Do not introduce paragraphs with bold section labels (`**Summary**:`/`**Impact**:`/`**Details**:`/`**Affected code**:`) — the separation is paragraph breaks, not headers. **Backtick every Solidity identifier**, writing functions as `` `functionName(...)` `` with literal `(...)` and contracts/variables/constants in plain backticks; never leave a bare identifier in the prose. Keep each paragraph tight (no padding), and add a 1–2 sentence hedged recommendation. This matches the finding template used by the dashboard copy and the GitHub issue body. If the affected files are missing or wrong, set them with `--file` (repeatable) rather than narrating them in the description: `npx hex issue patch <id> --file src/Foo.sol [--file src/Bar.sol]`.
+   Any description you write must be **structured, readable prose** (no markdown headings), not a single dense block. Split it into short paragraphs that separate how the code is supposed to work (expected behavior / the spec), what is wrong (the flaw), and the impact, and include a fenced ```` ```solidity ```` block of the offending code. Do not introduce paragraphs with bold section labels (`**Summary**:`/`**Impact**:`/`**Details**:`/`**Affected code**:`) — the separation is paragraph breaks, not headers. **Backtick every Solidity identifier**, writing functions as `` `functionName(...)` `` with literal `(...)` and contracts/variables/constants in plain backticks; never leave a bare identifier in the prose. Keep each paragraph tight (no padding), and add a 1–2 sentence hedged recommendation. This matches the finding template used by the dashboard copy and the GitHub issue body. If the affected files are missing or wrong, set them with `--file` (repeatable) rather than narrating them in the description: `npx --no-install hex issue patch <id> --file src/Foo.sol [--file src/Bar.sol]`.
 
    **A conformance-sourced (or auditagent/github) finding must be rewritten to the exact same standard as a manual `/write-finding` finding** — do not pass the raw source text through. AuditAgent findings in particular arrive as one long unformatted paragraph; reshape them into the structured, backticked, snippet-bearing form above. Specifically, the prose you land must obey the report-facing content rules:
    - **Structure + identifiers:** short expected/flaw/impact paragraphs, a ```solidity snippet, every identifier backticked and functions as `` `name(...)` `` (as above).
@@ -142,20 +142,21 @@ Combine the two axes — correctness (Step 2) and security relevance (Step 2.5):
    >
    > Would you like to change the severity? Reply with the new severity (Critical / High / Medium / Low / Info), or **no** to keep it.
 
-7. If the user provides a new severity, run `npx hex issue patch <id> --severity <NewSeverity>`.
+7. If the user provides a new severity, run `npx --no-install hex issue patch <id> --severity <NewSeverity>`.
 
 **Rejected — true but not a security issue (by-design / informational):**
 
 The claim is correct, but Step 2.5 says it isn't a vuln worth reporting (self-inflicted, design decision, missing feature, defense-in-depth noise). This is **not** the same as "incorrect" — give it its own disposition so it's distinguishable from a false positive and AuditAgent gets honest feedback.
 
-1. Write the memo with `Disposition: by-design` (or `informational`) and the Step-2.5 reasoning.
-2. Mark the disposition and move it:
+1. Write the memo with `Disposition: by-design` (or `informational`) and the Step-2.5 reasoning, and record it: `npx --no-install hex issue validation <id> --verdict refuted --by auditor --memo .hex/validations/<id>_memo.md`.
+2. **Propose a triage rule** when the reason is general (a trusted role, an out-of-scope token type, a deliberate design choice), so AI runs stop raising the same class. Ask the auditor once, with AskUserQuestion: "Add a triage rule: *<one sentence>*?". On yes: `npx --no-install hex rules add --kind <trusted_role|out_of_scope|by_design|known_issue> --text "<sentence>" --from <id>`.
+3. Mark the disposition and move it:
    ```bash
-   npx hex issue patch <id> --resolution Acknowledged
-   npx hex issue move <id> --to rejected
+   npx --no-install hex issue patch <id> --resolution Acknowledged
+   npx --no-install hex issue move <id> --to rejected
    ```
    `Acknowledged` on a Rejected card means "AA was right, but it's by-design / not a security issue" — the board shows a **By-design** chip. (A Rejected card with *no* resolution = factually incorrect; see below.)
-3. Do NOT write a finding body or carry it into the report.
+4. Do NOT write a finding body or carry it into the report.
 
 **Rejected — incorrect (false positive):**
 
@@ -164,13 +165,13 @@ The claim is factually wrong. Explain why:
 - Are the preconditions impossible? Why?
 - Is the impact assessment wrong? What actually happens?
 
-Move it to the Rejected column with **no** resolution (the board shows an **Invalid** chip): `npx hex issue move <id> --to rejected`. Do NOT write a finding body — the memo records the reasoning.
+Record and move it with **no** resolution (the board shows an **Invalid** chip): `npx --no-install hex issue validation <id> --verdict refuted --by auditor --memo .hex/validations/<id>_memo.md`, then `npx --no-install hex issue move <id> --to rejected`. Do NOT write a finding body — the memo records the reasoning.
 
 **Uncertain:**
 
 1. List specific questions that need manual investigation.
 2. State what would confirm or deny the issue.
-3. Leave the column as-is (no `hex issue move`). Record the open questions on the card: `npx hex issue patch <id> --notes "<open questions>"`.
+3. Leave the column as-is (no `hex issue move`). Record it: `npx --no-install hex issue validation <id> --verdict uncertain --by auditor --memo .hex/validations/<id>_memo.md` and the open questions: `npx --no-install hex issue patch <id> --notes "<open questions>"`.
 
 ## Output: validation memo
 

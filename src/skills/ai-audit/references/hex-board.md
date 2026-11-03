@@ -12,7 +12,7 @@ The report Turn 5 printed is not touched. The board copy is a **rewrite** of eac
 Hex's report standard, because the board's text ends up verbatim in the client's report.
 
 **Never** hand-edit `.hex/tracking.json` or `.hex/findings.json` — cards go through
-`npx hex issue`, leads through `npx hex note lead`. **Never** move a card to Verified, and never
+`npx --no-install hex issue`, leads through `npx --no-install hex note lead`. **Never** move a card to Verified, and never
 run `/validate-finding` or `/sync-issues` from here: those are the auditor's calls.
 
 ---
@@ -46,42 +46,25 @@ Read, in one parallel message:
 
 ## Step 3 — Triage each FINDING
 
+Also read the triage rules once: `npx --no-install hex rules list`.
+
 Go through the digest's FINDINGs in order. For each one decide **exactly one** outcome:
 
 1. **already on board** — its key is in the set above. Skip it. Do not update that card: the
    auditor may have edited, validated or rejected it, and a re-scan does not overrule them.
-2. **known from the prior audit** — differential audit only. It matches a prior finding (match
-   rules below) that the prior audit left open: `review.json` status
-   `acknowledged_still_present`, or a prior `resolution` of `Acknowledged`, `Unresolved` or
-   `Not Fixed`. Skip it; the client already knows. A match to a prior finding that was **fixed**
-   is not "known" — that is a regression, and it is filed (outcome 4, or 3 if `/init-audit`
-   already carded the regression).
-3. **duplicate** — it matches an existing card from any other source, or an `ai-audit` card with
-   a different key. It is filed, then moved to the Duplicate column (Step 5).
-4. **new** — none of the above. It is filed.
-
-### Match rules (the same rules `/ingest-aa-report` uses)
-
-Compare the finding against each candidate on four signals:
-
-| Signal | How to compare |
-|---|---|
-| **contract** (boolean) | Does the affected contract name match? |
-| **function** (boolean) | Does the affected function name match? |
-| **root_cause** | `same` / `overlapping` / `different` — judge the technical mechanism. |
-| **attack_vector** | `same` / `overlapping` / `different` — judge what an attacker actually does. |
-
-A match is **at least one of**:
-- `root_cause = same` AND `function = true`, or
-- `root_cause = same` AND `contract = true` AND `attack_vector = same`, or
-- `root_cause = overlapping` AND `function = true` AND `attack_vector = same`.
-
-When several cards match, the canonical one is the earliest-created card that is not itself in
-the Duplicate column.
+2. **excluded by a triage rule** — the finding's whole impact depends on a rule (a trusted role,
+   an out-of-scope token type, a known issue). Skip it and list it in the summary with the rule
+   id. A finding a rule only partly covers is filed.
+3. **known from the prior audit** — differential audit only. It is the same issue as a prior
+   finding the prior audit left open: `review.json` status `acknowledged_still_present`, or a
+   prior `resolution` of `Acknowledged`, `Unresolved` or `Not Fixed`. Skip it; the client already
+   knows. A match to a prior finding that was **fixed** is a regression, and it is filed.
+4. **file it** — everything else. Whether it duplicates an existing card is decided after
+   filing, by the dedup engine (Step 5).
 
 ## Step 4 — Write the raw records
 
-For every finding that is **new** or a **duplicate**, read the code at its location
+For every finding you **file**, read the code at its location
 (`Contract.function` — find the contract's file in the scope, then read the function), and write
 one record. Ids continue from the highest `AI-NNN` already in the file (`AI-001` when empty).
 
@@ -110,7 +93,7 @@ Write the whole file once with the Write tool, keeping every earlier record:
 
 This file is the source record behind the cards (as `ai-results/auditagent/findings.json` is for
 AuditAgent); `hex issue new` materializes each card from it. Writing it directly is correct.
-Skipped findings (already on board, known from the prior audit) get **no** record.
+Skipped findings (already on board, excluded by a rule, known from the prior audit) get **no** record.
 
 ### Field rules
 
@@ -164,29 +147,26 @@ code-block rules as above). This is what fills the card's File(s) line and the r
 For each record, in id order:
 
 ```bash
-npx hex issue new --source ai-audit --source-ref AI-NNN --title "<title>" --severity <Severity>
+npx --no-install hex issue new --source ai-audit --source-ref AI-NNN --title "<title>" --severity <Severity>
 ```
 
 It prints the allocated `H-NNN`; capture it. The card lands in Potential as `unverified`, with
 description, recommendation and code materialized from the record.
 
-For each **duplicate**, move it and record why:
+Then run the dedup engine on each new card:
 
 ```bash
-npx hex issue move <new H-NNN> --to duplicate --duplicate-of <canonical H-NNN>
+npx --no-install hex issue dedup <new H-NNN>
 ```
 
-Then append to `.hex/comparison.json` → `duplicates` (create the file as
-`{ "duplicates": [], "novel": [], "rejected": [] }` if it does not exist):
+It lists existing cards on the same exact functions first and prints the match rules (the same
+rules every source uses). Judge each strong candidate against those rules. On a match (the
+canonical card is the earliest-created one that is not itself a duplicate):
 
-```json
-{
-  "ai_finding": "<new H-NNN>",
-  "matches": "<canonical H-NNN>",
-  "confidence": "high | medium | low",
-  "match_signals": { "contract": true, "function": true, "root_cause": "same", "attack_vector": "same" },
-  "reasoning": "<one short sentence: which signals carried the call>"
-}
+```bash
+npx --no-install hex issue mark-duplicate <new H-NNN> --of <canonical H-NNN> \
+  --root-cause <same|overlapping|different> --attack-vector <same|overlapping|different> \
+  [--same-contract] [--same-function] --reasoning "<one short sentence>"
 ```
 
 ## Step 6 — Leads to notes
@@ -195,7 +175,7 @@ For each LEAD in the digest, add it to the contract's note. `<Contract>` is the 
 location before the first `.`:
 
 ```bash
-npx hex note lead "<Contract>" \
+npx --no-install hex note lead "<Contract>" \
   --text "<title> (\`Contract.function\`): <the lead's body, one line>" \
   --source ai-audit --source-ref "<key>"
 ```
@@ -204,7 +184,14 @@ The command is idempotent on the key: a lead already added by an earlier scan (o
 dismissed) is left as it is, and the command says so on stderr. Open leads keep the contract
 unreviewed on `/progress` until the auditor closes them — that is intended.
 
-## Step 7 — Summary
+## Step 7 — Pre-validate
+
+Run the **`/prevalidate`** skill on the cards this scan filed that are not duplicates. Background
+agents reproduce or refute each one; conclusive cases move on their own (reproduced with a passing
+PoC → Verified; refuted by two independent agents → Rejected), the rest stay in Potential with a
+verdict. Skip this step only when the auditor passed `--no-prevalidate`.
+
+## Step 8 — Summary
 
 Print, and nothing else:
 
@@ -213,6 +200,7 @@ Hex board — scan {stamp}
 - N new Potential card(s): H-0xx, H-0yy, ...
 - K marked Duplicate of existing cards
 - J already on the board from an earlier scan (not re-filed)
+- E excluded by triage rules (R-…)
 - P known from the prior audit (not filed)
 - L lead(s) added to contract notes (M already there)
 Report: .hex/ai-audit/runs/{stamp}/full-report.md

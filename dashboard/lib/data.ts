@@ -42,26 +42,6 @@ export function readMarkdownFile(filename: string): string | null {
 }
 
 /**
- * Write a JSON file to the output directory.
- */
-export function writeJsonFile(filename: string, data: unknown): void {
-  const filePath = path.join(getOutputDir(), filename);
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
-}
-
-/**
- * Check if a file exists in the output directory.
- */
-export function fileExists(filename: string): boolean {
-  try {
-    const filePath = path.join(getOutputDir(), filename);
-    return fs.existsSync(filePath);
-  } catch {
-    return false;
-  }
-}
-
-/**
  * Get the output directory path.
  */
 export function getOutputDirPath(): string {
@@ -75,7 +55,8 @@ export function listSubdirs(dir: string): string[] {
   try {
     const fullPath = path.join(getOutputDir(), dir);
     if (!fs.existsSync(fullPath)) return [];
-    return fs.readdirSync(fullPath, { withFileTypes: true })
+    return fs
+      .readdirSync(fullPath, { withFileTypes: true })
       .filter((d) => d.isDirectory())
       .map((d) => d.name);
   } catch {

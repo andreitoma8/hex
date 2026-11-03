@@ -1,3 +1,7 @@
 # Vendored from pashov/skills (see src/skills/ai-audit/UPSTREAM.md). assemble.sh parses the
 # templates in these files at fixed line offsets, so they must never be reformatted.
 src/skills/ai-audit/
+# Vendored from pashov/skills fizz (see src/skills/fuzz/UPSTREAM.md); scripts and templates parse fixed formats.
+src/skills/fuzz/
+src/skills/fuzz-sync/
+src/skills/fuzz-convert/

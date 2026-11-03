@@ -1,461 +1,259 @@
-# Hex
+# Hex — AI-enhanced manual review for Solidity audits
 
-A toolkit for Solidity smart contract auditors. Hex combines Claude Code skills, deterministic analysis tools, and a local dashboard to take you from "I just received the code" to "here are my validated findings" — faster and with better coverage.
+You read the code and make the calls. Hex keeps an exact map of the protocol, runs AI where breadth beats depth, and makes the AI prove what it claims.
 
-Hex does not replace your expertise. It automates the mechanical parts of auditing (parsing, stat collection, diagramming, PoC scaffolding, finding write-ups, LaTeX report generation) so you can spend your time on what actually matters: reading code and thinking about what can break.
+The first versions of Hex automated the boring parts of an audit. Hex is now a way of auditing in which manual review and AI work as one loop: the AI covers ground fast and checks itself, and you spend your time where judgement matters.
 
-![Hex dashboard — VaultX Protocol home page with KPI strip, AI-generated overview, and contract architecture](dashboard.png)
+[![Watch the demo: Hex in Claude Code, from an empty repo to a fix review](docs/media/demo-poster.png)](https://youtu.be/VIDEO_ID)
+<!-- Replace VIDEO_ID with the YouTube video id once the demo is uploaded. -->
 
-## How It Works
+## The hybrid loop
 
-You drive Hex through Claude Code. Type `/init-audit` and Claude runs the whole pre-review pipeline. Three components do the work behind the scenes off a shared project directory:
+| You | Hex |
+|---|---|
+| Read the code, follow the flows, decide what breaks | Exact facts from the compiler: call graph, every read and write, storage layout, every reference |
+| Question the model and accept the invariants that hold | A protocol model built by agents working in silos, then attacked by skeptics; contested claims are marked |
+| Write findings, narrate what you see, sign off function by function | Attacker agents over your scope; every finding deduplicated, then reproduced with a PoC or refuted twice |
+| Judge the client's fixes | Fix review re-runs every PoC on the fix commit and flags the changes nobody explained |
+| Own the report | A report drafted from what you verified |
 
-**Claude Code skills** are the front door. They handle anything that requires reasoning — generating the protocol overview and diagrams, checking spec conformance, writing PoCs, drafting findings, ingesting external AI reports, syncing with GitHub, producing the final LaTeX report. You invoke them as native slash commands (e.g., `/init-audit`, `/write-finding`, `/validate-finding`). Skills are markdown files that ship with the `hex` package and get copied into your project's `.claude/skills/` directory. They're editable per-project if you need to customise them.
+The two halves meet on the dashboard's **Review** page, a calm workspace next to your Claude Code session:
+- **Blind spots:** the riskiest code that nobody, human or AI, has looked at hard yet.
+- **Walk flows like in your IDE:** go to definition through interfaces, peek inline, list every caller and every write.
+- **Comments in the code**, pull-request style, and **Diane**, a voice pair-auditor who checks what you say against the code.
+- **Ask about *this*:** select anything and ask Claude why it is safe; the Hex MCP server tells it what you are looking at.
 
-**The `hex` CLI** is the deterministic engine the skills call into. It wraps battle-tested tools like Slither, solc, and Forge rather than reinventing static analysis, and it emits structured JSON with confidence metadata so you always know how much to trust a given data point. You can call it directly when you want to, but you usually won't — `/init-audit` does it for you.
+![The Review page: walking a flow through an interface, with an inline peek](dashboard.png)
 
-**The dashboard** is a local Next.js app that visualises everything the tools and skills produce. It reads directly from your project directory and auto-refreshes when files change. The Issues board writes back to `tracking.json`/`findings.json` when you drag a card between columns or edit it in the modal.
+## What Hex does
 
-All three components read from and write to the same project directory. There is no server, no database, no accounts. Everything stays local.
+**Exact facts from the compiler.** `hex analyze` compiles the project into Hex's own cache (never your `out/`) and reads the solc AST: every call edge resolved by the compiler (`internal`, `super`, `library`, `external`, virtual dispatch, modifiers), every read and write of every state variable, inheritance linearization, entry points, and the compiler's own storage layout. No regexes, no heuristics. When a project does not compile, Hex falls back to a parser and says so.
+
+**A verified protocol model, built by agents.** `/init-audit` runs a team of agents in waves:
+- Independent readers each model one cluster of contracts, and a docs reader extracts what the documentation promises without ever seeing the code.
+- A synthesizer merges the drafts into one model: actors, assets, privileges and their worst cases, trust assumptions, dependencies, state machines, accounting equations, risky flows, and proposed invariants.
+- Skeptics then check every claim against the code without seeing the synthesizer's reasoning. Claims end up `verified` or `contested`, and contested claims are often where the bugs are.
+
+**Diagrams that explain.** Five views drawn from the verified model, rendered in Excalidraw, each with a one-sentence takeaway:
+- **custody**: where the money sits and who can move it
+- **privilege**: who can do what, and the worst case
+- **accounting**: the conservation law and every function that moves each term
+- **state machine**: lifecycles and their guards
+- **sequence**: the riskiest cross-contract flows
+
+You can edit them in the dashboard and put them in the report.
+
+**Findings with proof.** `/ai-audit` runs 12 attacker agents (a fork of pashov's solidity-auditor). `/prevalidate` reproduces each new machine finding with a PoC or refutes it with two independent agents, and conclusive cases move on their own. `/validate-finding` writes a PoC by default. One dedup engine serves every source. Triage rules (trusted roles, out-of-scope tokens, known issues) feed back into every AI run so the same false positives stop coming back.
+
+**A review workspace next to the CLI.** The dashboard tracks review per function (unread → read → questioned → cleared), ranks blind spots by risk, lets you walk flows and comment in the code, and shows the board, the model and the report. Select something in the dashboard and ask Claude about "this": the Hex MCP server tells the CLI session what you are looking at.
+
+Everything stays local: no server, no database, no accounts.
 
 ## Prerequisites
 
-Before using Hex, make sure you have the following installed:
-
-- **Claude Code** — Anthropic's CLI tool for agentic coding
+- **Claude Code**
 - **Node.js** (v18+) and npm
-- **Foundry** (`forge`, `cast`) — or Hardhat if that's what the project uses
-- **Slither** — `pip install slither-analyzer`
-- **solc** — the Solidity compiler (managed via `solc-select` or Foundry)
-- (Optional, for `/ingest-aa-report`) **AuditAgent CLI** — `pip install git+https://github.com/NethermindEth/auditagent-cli.git`
+- **Foundry** (`forge`), or Hardhat if that is what the project uses
+- Optional: **Medusa** / **Echidna** for `/fuzz`; `gh` (GitHub CLI) for `/sync-issues` and `/fix-review`; a local Whisper engine (`pip install faster-whisper`) for Diane; the AuditAgent CLI for `/ingest-aa-report`
 
-Run `hex doctor` once you've installed Hex (next section) to confirm everything is in place — it prints a labelled preflight table with install hints for anything missing.
+`hex doctor` checks all of it.
 
 ## Quick Start
 
-### 1. Clone the client project and install Hex
-
 ```bash
-# Clone or receive the client project as usual
-git clone https://github.com/client/protocol.git
-cd protocol
-
-# Install Hex globally
+git clone https://github.com/client/protocol.git && cd protocol
 npm install -g hex-audit
+hex claude      # installs the skills and registers the Hex MCP server in .mcp.json
+claude          # approve the "hex" MCP server once when asked
 ```
 
-### 2. Drop the skills into the project and open Claude Code
-
-```bash
-hex claude   # copies the audit skills into .claude/skills/
-claude       # open Claude Code in this directory
-```
-
-`hex claude` is the only CLI call you need before Claude Code can take over — it copies the skill files so `/init-audit` and friends show up as native slash commands.
-
-### 3. Let Claude initialise the audit
-
-Inside Claude Code (switch to **Opus** first):
+Inside Claude Code:
 
 ```
 /init-audit
 ```
 
-Claude will ask you for scope, commit, chain, and docs URL, then run the entire pre-manual-review pipeline in one skill: dependency-safety audit → `hex analyze` → protocol overview → system diagram → flow charts → spec conformance → materialize conformance deviations onto the issue board as Potential cards.
+It asks for the scope, commit, chain, docs and (optionally) the GitHub repo, then:
+1. Runs the dependency-safety gate before anything compiles.
+2. Builds the exact facts.
+3. Runs the agent waves.
+4. Builds the diagrams.
+5. Files conformance deviations as Potential cards.
+6. Opens the dashboard at `http://localhost:3000`.
 
-By the time `/init-audit` finishes, every analysis page on the dashboard has data and the `/issues` board shows the conformance-derived items waiting for manual triage.
+Accept the invariants that hold (on the Model page or with `hex invariant accept`), then start reading. The **Today** page tells you where.
 
-### 4. Dashboard opens automatically
-
-`/init-audit` launches `hex dashboard` in the background as its last step, so `http://localhost:3000` opens in your browser when the pre-review pipeline finishes. Leave it open as you work — every page fills in automatically as Claude generates more analysis. If you ever need to start it manually, just run `hex dashboard` in a second terminal (`--port 8080` for a custom port, `--no-open` to skip the auto-open).
+> Always call the CLI as `hex …` or `npx --no-install hex …`. An unrelated npm package is named `hex`; a bare `npx hex` on a machine without hex-audit would download and run it.
 
 ---
 
 ## The Audit Workflow
 
-Hex follows a four-phase workflow. You move through the phases sequentially, but you can always go back and re-run earlier steps. Every command in this section is typed inside Claude Code.
+### Phase 1: Pre-review (`/init-audit`)
 
-### Phase 1 — Pre-review (`/init-audit`)
+**Waves and silos.** Agents work in silos where independence matters and share context where integration matters. They never message each other; they communicate through files under `.hex/model/` and answer exact questions with `hex facts query`.
 
-One skill does it all:
-
-```
-/init-audit
-```
-
-Inside `/init-audit`:
-
-- **Dependency safety scan.** Inspects `package.json` install hooks, Foundry `lib/` submodules, `foundry.toml` (FFI, fs_permissions, remappings), `.env*` for plaintext secrets, `.vscode/extensions.json` for untrusted publishers. Stops before compilation if anything looks risky.
-- **`hex analyze`** runs stats, deps, access, state, calls, patterns, constraints in parallel, then surface last.
-- **`overview.md`** — a 2-3 paragraph protocol overview with a key contracts table, external dependencies, and architecture notes. Same scope as the simpler standalone skill it replaced — pure description, no findings or speculation.
-- **System diagram** — `.hex/diagrams/diagram.mmd` (split into multiple files if >15 nodes). Semantic symbols (🏦 Vault, 💰 Token, 🔮 Oracle, 🔒 Governance, 📦 Storage), trust-zone colour coding, typed edge labels (delegatecall, external call, access-controlled), visual legend.
-- **Flow charts** — `.hex/diagrams/flow-*.mmd` per archetype (Vault → deposit/withdraw/strategy; Lending → borrow/repay/liquidate; Bridge → send/receive; Governance → propose/vote/execute; AMM → swap/add/remove; Staking → stake/claim/compound). Distinct shapes by semantic role. Every decision diamond shows both success and revert paths.
-- **Spec conformance** — cross-references docs, NatSpec, interfaces, ERC/EIPs. Canonical specs are fetched from `eips.ethereum.org`. Output: `spec-conformance.json` with `CONFORMS / DEVIATES / PARTIAL / UNVERIFIABLE / UNDOCUMENTED` + spec-section URLs.
-- **Materialize conformance items.** Every DEVIATES/PARTIAL spec item is materialized as a Potential card on the issue board (source `conformance`).
-
-All pages support filtering by confidence level so you can focus on entries that need manual verification.
+| Wave | Who | Silo? | Output |
+|---|---|---|---|
+| 0 | You + orchestrator: inputs, dependency-safety gate, `hex init`, `hex analyze` | — | `facts.json`, `stats.json`, `diff.json` |
+| 1 | Contract readers (one per cluster), docs extractor (docs only), standards checker, prior-audit importer | **siloed** | claim drafts |
+| 2 | Synthesizer | shared | `model/protocol.json`, `model/invariants.json`, `overview.md` |
+| 3 | Skeptics (per model section), conformance checker, regression checker | **siloed** | verified / contested claims, conformance cards |
+| 4 | Diagram composers (per view) | shared | `model/diagrams/*.excalidraw` |
 
 #### Differential audits
 
-For a re-audit, pick **Differential** when `/init-audit` asks for the audit type. You give a **base commit** (what the previous audit covered), the **head commit** (checked out), and optionally the **previous audit**: the old engagement's `.hex/` folder, or its report as PDF or Markdown.
+Pick **Differential** when `/init-audit` asks. Give the base commit (what the previous audit covered), the head commit, and optionally the previous audit (its `.hex/` folder or its report).
+- **What changed:** `hex diff` compiles both commits and reports every changed function, modifier, variable, event, error, struct and base list.
+- **Storage layout:** the compiler storage-layout diff, slot by slot. An insertion that shifts every later slot is called out explicitly.
+- **Impact:** every function the change reaches, through calls, modifiers, state coupling, virtual dispatch and inheritance.
+- **Focus:** every wave then focuses on the change.
+- **Prior findings:** imported, and the ones the change touched are regression-checked. Only regressions become cards.
+- **Dashboard and report:** a Changes page appears, and `/generate-report` writes a differential review.
 
-```bash
-# what /init-audit runs for you
-npx hex init --mode diff --base <base-commit> --scope "src/**/*.sol" [--previous-audit ../old-audit/.hex]
-npx hex analyze        # the usual analyses at head, then `hex diff`
-```
+### Phase 2: Review
 
-`hex diff` is deterministic (AST + git, no model). It writes `.hex/diff.json`:
+**Review map.** Read the code with the dashboard's **Review** page open:
+- Every in-scope function has a state (unread, read, questioned, cleared) and a risk score built from facts and the model: moves value, updates accounting, external calls, privileged, changed in a diff, and so on.
+- **Blind spots** are the riskiest functions nobody, human or AI, has looked at hard.
+- Mark functions with the keyboard (`r`/`q`/`c`) or the inspector.
+- **Walk flows like in your IDE.** Ctrl/⌘-click (or F12) any call, variable, type or event to go to its definition; calls through an interface land where they run (`IToken.transferFrom` → `MockToken.transferFrom`). Alt-click (⌥F12) peeks the code inline under the call. On a function's name, or with ⇧F12, a band lists every call site (or every read and write of a state variable). Back and Forward retrace the path, and the code header shows the trail. Upstream and downstream come from the compiler (`.hex/xref.json`, written by `hex facts`); `hex facts query call-sites|implementations` gives the same answers to Claude.
+- **Comment on code** like a pull request: hover a line and click `+`, or select lines and click *Comment*. Comments are stored in `.hex/notes/comments.json` and follow their code when lines move. *Write to source* puts a comment into the file as `// @audit` lines (and *Remove from file* takes it out again); Hex rebuilds the facts afterwards because the line numbers shift. Diane and Claude read them (`hex note comments`, MCP `hex_code_comments`).
 
-- **Changed entities**: functions, modifiers, state variables, events, errors, structs and inheritance, each `added` / `modified` / `removed` / `comments_only`. Comment and whitespace edits do not count as code changes, and overloads are told apart by signature.
-- **Storage layout changes**: variables inserted, removed, reordered or retyped, changed storage structs, and every contract that inherits a changed layout.
-- **Impacted flows**: every function the change reaches, with the reason chain. A function is impacted when it calls into changed code, applies a changed modifier, reads state a changed function writes, dispatches to a changed override, or exposes an impacted function by inheritance. Entry points are flagged, and every row carries a confidence.
+**Diane, the voice pair-auditor.** Narrate while you read: record on the Review page, then run `/diane`. Diane:
+- turns the narration into a structured note for the contract;
+- checks your claims against the code, then corrects mistakes and flags what you missed;
+- **ticks the functions you say you are done with**. Only what you say counts; she never ticks on inference, and a function where she found a problem goes to *questioned* instead.
 
-`/init-audit` then narrows each phase to that change set: a `diff-overview.md` explains what changed and why (from the diff and the commit log), the flow charts cover the impacted flows, and conformance checks only changed and impacted functions. With a previous audit, prior findings are imported to `.hex/previous-audit/` and regression-checked; only **regressions** become board cards (source `prior-audit`), while acknowledged issues stay known issues. The dashboard gains a **Changes** page, and `/generate-report` writes the report as a differential review of base → head.
+Transcription is local (Whisper).
 
-#### AI audit (`/ai-audit`)
+**Record findings and run the AI.**
+- **Manual findings:** `/write-finding`.
+- **AI audit:** `/ai-audit` runs 12 attacker agents over the scope, or over the changed and impacted code in a differential audit. Every agent is briefed with your accepted invariants and triage rules. Findings land on the board, deduped against everything there, and leads go to the contract notes. Then `/prevalidate` runs on the new cards.
+- **AuditAgent:** `/ingest-aa-report <scan-id>` ingests a Nethermind AuditAgent scan the same way.
+- **Fuzzing:** `/fuzz` (a fork of pashov's fizz) turns accepted invariants into Echidna/Medusa/Foundry suites. Results sync back to each invariant; a violation becomes a card whose repro test is its PoC.
 
-`/ai-audit` runs **12 specialised attacker agents in parallel** over the audit scope, gates their output, and assembles one report. It is a fork of [pashov's `solidity-auditor` skill](https://github.com/pashov/skills/tree/main/solidity-auditor) (v4.1, MIT), adapted for Hex:
+### Phase 3: Validate, sync
 
-- **Scope** comes from `.hex/config.json`. In a differential audit it scans only the changed and impacted files, and every agent gets a brief on the change.
-- **Findings land on the board** as Potential cards (source `ai-audit`, status `unverified`). Each one is rewritten to Hex's finding standard and given a severity, then deduped against every card already on the board. Re-scans never file the same finding twice.
-- **Leads** (trails without a complete proof) go to the contract's **Notes** as open leads, not to the board.
-- Loop mode (`--loop 3`, or pick a pass count when asked) and the cross-scan memory work as upstream. Everything the skill writes lives under `.hex/ai-audit/`.
+- **`/prevalidate`.** Validates every new machine-generated card in parallel. It moves a card on its own only in two conclusive cases:
+  - **reproduced:** the PoC passes, asserts the impact, and the finding passes the reality gate → Verified;
+  - **refuted:** two independent agents cite the blocking code → Rejected.
 
-```
-/ai-audit
-/ai-audit --loop 3
-/ai-audit src/Vault.sol
-```
+  Everything else waits for you with a verdict and memo. Every auto-move is marked and can be reverted with one click.
+- **`/validate-finding`** and **`/validate-all-findings`**: correctness, then a reality gate (true *and* a security issue?). A PoC is the default and is recorded on the card. Rejecting a finding as by-design or out of scope proposes a triage rule.
+- **`/sync-issues`.** Two-way sync with GitHub Issues, and GitHub is the source of truth:
+  - Identity is the issue number.
+  - Synced cards are read-only in Hex: edit on GitHub and pull.
+  - Verified cards are pushed as the five-field body (File(s), Description, Recommendation(s), Status, Update from the client).
 
-### Phase 2 — Manual review
+### Phase 4: Fix review and report
 
-Read the code in your editor. Drop `@audit-issue` comments above anything suspicious:
-
-```solidity
-// @audit-issue Possible reentrancy — external call before state update.
-IERC20(token).transfer(recipient, amount);
-```
-
-When you have something concrete, file it as a Potential issue:
-
-```
-/write-finding for the rounding error in src/Vault.sol
-```
-
-`/write-finding` allocates a uniform `H-NNN` id (all issues share one scheme regardless of origin; `source` is a separate field) and records the finding with `status: "pending_validation"` and `source: "manual"`, so the card lands in the **Potential** column. It does not write `@audit-issue` comments into the source — the board is the only place the issue lives.
-
-Phase 2 is where Hex gets out of your way. You think; the toolkit just gives you a place to record what you find.
-
-### Phase 3 — Validate, ingest, sync
-
-#### Validate any Potential card (`/validate-finding`)
-
-`/validate-finding` is source-agnostic. It validates:
-
-- Manual `pending_validation` entries from `/write-finding`.
-- Conformance DEVIATES/PARTIAL entries materialized by `/init-audit`.
-- Auditagent `unverified` entries materialized by `/ingest-aa-report`.
-- AI audit `unverified` entries filed by `/ai-audit`.
-- Prior-audit regressions filed by `/init-audit` in a differential audit.
-- GitHub teammate entries materialized by `/sync-issues`.
-
-```
-/validate-finding H-003
-/validate-finding for the rounding issue in Vault.sol
-```
-
-Claude reads the relevant source record, traces the attack path in the code, and writes a validation memo to `.hex/validations/<id>_memo.md`. Then it asks per issue:
-
-> The issue appears valid. PoC or memo-only?
-
-If PoC: invokes `/generate-poc` to produce a runnable test and iterates until it passes. If memo-only: skips PoC, just records the validation reasoning.
-
-Valid → the card moves to Verified (`hex issue move`). Invalid → it moves to Invalid. Severity adjustment is offered after promotion. To clear a whole backlog, **`/validate-all-findings`** runs this same flow over every Potential card, one at a time.
-
-#### Ingest a Nethermind AuditAgent scan (`/ingest-aa-report`)
-
-Hex's only AI integration is **Nethermind AuditAgent**, and it expects the scan to already exist. The skill **does not start scans** — you start the scan separately (the Nethermind portal or `aa scan --quality auditor <scope-files>` from the command line), then paste the scan ID:
-
-```
-/ingest-aa-report <scan-id>
-```
-
-The skill:
-
-1. Calls `aa scan --status <scan_id>`. If the scan is still running, it prints status and exits — come back later. (`hex ai-status --watch` in a second terminal notifies when the scan finishes.)
-2. On completion, fetches the report and writes raw output to `.hex/ai-results/auditagent/raw-output.md` plus normalised findings to `findings.json` + `metadata.json` under the same folder.
-3. Materializes each finding as a Potential card (source `auditagent`, status `unverified`).
-4. **Runs inline dedup** against every existing tracking entry. Auditagent findings that match a manual / conformance / github entry on contract+function+root_cause+attack_vector flip to `duplicate` and surface in the Duplicate column with the match_signals visible on the card.
-
-#### Team mode (`/sync-issues`)
-
-GitHub is the source of truth for an audit's findings. Set the repo at init time with `hex init --github-repo <owner/repo>` (or `settings.github.repo` in `.hex/config.json`) — the firm's internal repo, e.g. `nethermind/audit-vaultx` — and authenticate the `gh` CLI once:
-
-```bash
-gh auth login
-```
-
-Hex never stores GitHub credentials — `/sync-issues` drives the `gh` CLI directly. Then:
-
-```
-/sync-issues
-```
-
-One invocation does both directions. **Identity is the GitHub issue number `#N`** — there is no hidden footer in the issue body (auditors create issues by hand), so reconciliation matches a local finding to the issue number it has stored.
-
-- **Pull every issue** in the repo (no label filter — audit repos contain only findings). Each issue's title (`[Severity] Title`) and five-field body are parsed back into the local finding. If a body is blatantly not in the Hex format it's skipped with a warning. Issues already linked by `#N` are refreshed from GitHub; new ones become local findings. All pulled issues land in the **Synced** column.
-- **Push** every local finding whose tracking status is in `settings.github.publish_status` (default `["verified"]`) and that isn't already on GitHub. The body is exactly the five-field template (File(s), Description, Recommendation(s), Status, Update from the client) — no labels, no footer. The returned issue number is stored on the finding, which locks it into Synced.
-
-**Once synced, an issue is read-only in Hex.** Edit it on GitHub (severity, description, recommendation, status), then re-run `/sync-issues` to pull the changes back. `/generate-report` reports only from synced issues. The board's `/issues` page surfaces sync state as a chip: `GH unsynced` (verified, not pushed), `GH #N open` / `GH #N closed`, or `GH conflict`.
-
-Comments stay on GitHub — Hex never posts, edits, or deletes comments. Auditors discuss inside GitHub itself.
-
-### Phase 4 — Deliverable (`/generate-report`)
-
-Once findings are validated and the engagement is winding down:
-
-```
-/generate-report
-```
-
-The skill prompts once for any missing report metadata (initial/final commit, dates, audit type, documentation/test assessment, kick-off/availability notes) and persists them to `config.json` under `settings.report.*` so reruns don't re-prompt. Then it emits seven report sections into `.hex/report/`, each in two forms: a `.txt` for the dashboard viewer / copy-paste and a numbered `.tex` (`01-executive-summary.tex`, …) for direct `\input{}` into the Overleaf `main.tex`:
-
-1. **Executive Summary** (§1) — project synopsis, severity histogram, status histogram, summary table.
-2. **Audited Files** (§2) — LaTeX table of scope files (LoC, comments, ratio, blank, total).
-3. **Summary of Issues** (§3) — table with `\hyperref` rows.
-4. **System Overview** (§4) — descriptive protocol architecture (components, actors & roles, per-module/flow subsections) built from `overview.md` and the access-control/deps analysis.
-5. **Issues** (§6) — one `\subsection{[Sev] title}\label{issue:N}` per synced finding (description, code blocks via `minted`, recommendation, status, client update).
-6. **Documentation Evaluation** (§7) — a `tcolorbox` remarks paragraph about the client's documentation.
-7. **Test Suite Evaluation** (§8) — coverage summary and automated-tooling note, generated from `stats.json.test_coverage`.
-
-Upload these into the Nethermind Overleaf template's matching slots (§5 risk methodology and §9 conclusion stay template-static). Only `synced` findings make the report; duplicates, rejected, and pending entries are skipped.
+- **`/fix-review`**. After the client fixes the issues, it:
+  1. Maps fix commits to cards.
+  2. Re-runs every PoC at the fix commit in a throwaway worktree. A PoC that reproduced the bug and now fails is the strongest proof of a fix.
+  3. Sends the rest to judgement agents.
+  4. Flags code the fixes changed that no finding explains, reviews each change, and records the verdict (a new card when it finds a problem).
+  5. After **one confirmation**, updates only the Status and Update-from-the-client fields of each GitHub issue.
+- **`/generate-report`**. Emits the seven LaTeX report sections, as `.txt` + `.tex`, from the synced issues. The System Overview uses the verified model and embeds the diagrams you marked "Use in report".
 
 ---
 
-## Claude Code Skills Reference
+## Claude Code Skills
 
-Each skill has a recommended model — switch your Claude Code model before invoking skills that recommend Opus.
+| Skill | What it does |
+|---|---|
+| `init-audit` | Safety gate, exact facts, multi-agent protocol model + invariants + conformance + diagrams; full or differential |
+| `ai-audit` | 12 parallel attacker agents (pashov solidity-auditor v4.1 fork); findings → board (deduped, pre-validated), leads → notes |
+| `prevalidate` | Parallel PoC-or-refute validation of new machine cards; conclusive cases auto-move |
+| `fuzz`, `fuzz-sync`, `fuzz-convert` | Fuzz accepted invariants (pashov fizz fork); violations become cards |
+| `write-finding` | Record a manual finding as a Potential card |
+| `validate-finding`, `validate-all-findings` | Validate cards; PoC by default; propose triage rules |
+| `generate-poc` | Write and run a PoC (used by the validators) |
+| `diane` | Narration → structured notes, pair-audit corrections, review ticks |
+| `ingest-aa-report` | Ingest a Nethermind AuditAgent scan |
+| `sync-issues` | Two-way GitHub Issues sync (GitHub canonical) |
+| `fix-review` | Check fixes (PoCs re-run at the fix commit) and update GitHub after confirmation |
+| `generate-report` | LaTeX report sections + figures |
 
-| Skill                   | Phase | Recommended Model | What it does                                                                                                                                     |
-| ----------------------- | ----- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `init-audit`            | 1     | Opus              | Dependency-safety → `hex analyze` → overview → diagram → flows → spec conformance → materialize DEVIATES/PARTIAL items as Potential cards. Full or differential (base → head, impacted flows, prior-findings regression check) |
-| `ai-audit`              | 1-3   | Opus              | 12 parallel attacker agents (fork of pashov's solidity-auditor v4.1); findings → Potential cards with dedup, leads → contract notes; diff-aware |
-| `write-finding`         | 2     | Sonnet            | Records a manual issue to `findings.json` as a Potential card (`status: pending_validation`, `source: manual`)                                   |
-| `diane`                 | 2     | Sonnet            | Voice pair-auditor: ingests recorded narration into a structured per-contract profile (Leads / Description / Questions), verifies your claims against the code, and surfaces leads                |
-| `validate-finding`        | 3     | Opus              | Validates any Potential card (manual / ai-audit / auditagent / conformance / github / prior-audit); per-issue choice of PoC vs memo-only; promotes to Verified or Invalid |
-| `validate-all-findings` | 3     | Opus              | Runs the `/validate-finding` flow over every Potential card, one at a time                                                                         |
-| `generate-poc`          | 3     | Opus              | Generates and runs a PoC test (invoked by `/validate-finding`)                                                                                     |
-| `ingest-aa-report`      | 3     | Sonnet            | Ingests a completed Nethermind AuditAgent scan by ID; materializes findings + inline dedup                                                       |
-| `sync-issues`           | 3     | Sonnet            | Two-way GitHub Issues sync; GitHub is the source of truth (issue number is identity, synced issues are read-only)                                |
-| `generate-report`       | 4     | Sonnet            | Writes the LaTeX report sections (exec summary, audited files, summary, system overview, issues, documentation eval, test suite) as `.txt` + `.tex` from synced issues |
+Skills live in `.claude/skills/<name>/` and are editable per project. `hex claude` / `hex update-skills` only remove skills Hex installed itself (tracked in `.claude/skills/.hex-skills.json`).
 
-### Where Skills Live
+## The Hex MCP Server
 
-Skills use Claude Code's native skill format, stored in `.claude/skills/<name>/SKILL.md`. They're copied there when you run `hex claude` or `hex init`.
+`hex claude` registers `hex mcp` in the project's `.mcp.json` (Claude Code asks you to approve it once). It gives the CLI session typed tools:
+- **`hex_focus`**: what you have selected in the dashboard.
+- **`hex_facts_query`**: exact callers, callees, readers, writers, layout, linearization and reach.
+- **Model:** `hex_model_get`, `hex_invariant_*`.
+- **Board:** `hex_board_list`, `hex_issue_*` (including validation, dedup and mark-duplicate).
+- **Review map:** `hex_review_*`.
+- **Notes and rules:** `hex_note_*`, `hex_rules_*`.
 
-```
-.claude/skills/
-├── .hex-skills.json         # which skills Hex installed (cleanup never touches your own skills)
-├── init-audit/SKILL.md
-├── ai-audit/                # directory skill: SKILL.md + references/ (agents, assembler, LICENSE)
-├── write-finding/SKILL.md
-├── diane/SKILL.md
-├── validate-finding/SKILL.md
-├── validate-all-findings/SKILL.md
-├── generate-poc/SKILL.md
-├── ingest-aa-report/SKILL.md
-├── sync-issues/SKILL.md
-└── generate-report/SKILL.md
-```
+So "why is this safe?" in the terminal knows what "this" is.
 
-**How Claude Code finds them:** Claude Code auto-discovers skills in `.claude/skills/`. They appear as native slash commands — type `/` in Claude Code to see them.
+## The Dashboard
 
-**Customising skills:** Edit any `SKILL.md` file in place. `hex claude` and `hex update-skills` only remove skills Hex installed itself (tracked in `.hex-skills.json`), so a project's own skills, such as a separate `solidity-auditor` install, are left alone.
+Six destinations, one question each:
 
-**Upgrading Hex:**
+| Page | What it answers |
+|---|---|
+| **Today** | What should I do next? Progress, the top blind spots, cards that need triage, recent changes |
+| **Model** | How does the system work? Excalidraw diagrams with takeaways (editable, exportable to the report), actors, assets, privileges, trust, dependencies, accounting, invariants, spec conformance; verified vs contested claims |
+| **Review** | What have I read? Contracts → functions with review state and risk; full code viewer; inspector with facts, notes, cards and Diane's recorder |
+| **Changes** | (differential audits, or after `/fix-review`) What changed, what it reaches, storage layout; fix review results |
+| **Board** | Potential / Verified / Synced / Rejected / Duplicate, with validation verdicts, PoCs and auto-move reverts |
+| **Report** | The LaTeX sections and figures, ready to paste into Overleaf |
 
-```bash
-hex update                    # install latest hex-audit + prompt to re-sync skills (one command)
-hex update --check            # check for an available update without installing
-hex update-skills             # re-sync skills only (use if you've already npm-installed manually)
-hex update-skills --keep-custom  # skip existing skill files to preserve per-project modifications
-```
+It refreshes live as the CLI writes to `.hex/`. `⌘K` searches pages, contracts, functions, cards and invariants.
 
-`hex update` detects how Hex was installed (global or local), runs the appropriate `npm install …@latest`, then asks whether to re-copy the bundled skill files into the current project's `.claude/skills/`. Both commands remove orphaned skill directories so renamed/deleted skills clean up across versions.
-
----
-
-## Notes & Diane (voice pair-auditor)
-
-Diane is an optional companion for **Phase 2 manual review**. You read a contract top-to-bottom and narrate your thinking out loud; Diane records it, organizes it into a living per-contract profile, and audits alongside you.
-
-**The loop:**
-
-1. **Record** — open the dashboard **Notes** page (`/notes`), pick the contract from the dropdown, and hit Record. Audio is transcribed **locally** with a Whisper engine — nothing leaves your machine. The model is loaded only while the dashboard is running and is freed when you close it.
-2. **Process** — run **`/diane`** in Claude Code. It ingests the latest recording into the contract's structured profile:
-   - **Leads** — things worth investigating (only open ones are shown; closing one or logging it as a finding removes it).
-   - **Description** — Purpose / Inheritance / Storage / Roles & Modifiers / Functions (one collapsible entry per function).
-   - **Questions** — your questions with answers, collapsible.
-3. **Pair-audit** — Diane verifies the claims you make against the code, corrects what's wrong (with `file:line`), flags what you missed, and ends each run with a candid verdict.
-4. **Track** — once a contract is marked "done reading" with no open leads and no unanswered questions, it auto-ticks as reviewed on `/progress`.
-
-**Whisper setup (one-time):** install a local engine — `pip install faster-whisper` (lightweight, CPU) or `pip install openai-whisper`. Without one, recordings are still saved and Hex shows a setup hint; transcription just waits until an engine is present.
-
----
-
-## Dashboard Pages
-
-The dashboard runs locally at `http://localhost:3000` and auto-refreshes when output files change. A live "Updated Ns ago" indicator in the sidebar footer tells you the watcher is connected.
-
-| Page             | URL            | What you see                                                                                                                                                                                                                                                                                                                                                                               |
-| ---------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Home             | `/`            | Project info, AI overview, key stats. In a differential audit, a base → head banner linking to Changes                                                                                                                                                                                                                                                                                    |
-| **Changes**      | `/changes`     | **Differential audits only.** Base → head summary, `diff-overview.md`, storage-layout changes, a filterable table of changed entities, the impacted flows with their reason chain and confidence, and the prior-findings regression check                                                                                                                                                  |
-| Progress         | `/progress`    | Weighted progress bar (70% nSLOC reviewed, 20% audit steps, 10% findings triage), contract review checklist (auto-ticks a contract once its Diane notes are done — see Notes)                                                                                                                                                                                                               |
-| **Notes**        | `/notes`       | **Diane's workspace.** Record voice narration (local Whisper), then `/diane` builds a structured per-contract profile — **Leads** (open only), **Description** (Purpose / Inheritance / Storage / Roles / Functions, collapsible), **Questions** (collapsible). Per-contract section nav; close leads; "mark done reading."                                                                  |
-| Statistics       | `/stats`       | Per-contract metrics, test coverage, dependencies, ERCs                                                                                                                                                                                                                                                                                                                                    |
-| System Diagram   | `/diagram`     | Mermaid architecture diagram with zoom/pan                                                                                                                                                                                                                                                                                                                                                 |
-| Flows            | `/flows`       | Mermaid flow charts with zoom/pan                                                                                                                                                                                                                                                                                                                                                          |
-| Access Control   | `/access`      | Role → function matrix with "Show unprotected only" and "Show inferred / unknown modifiers" toggles                                                                                                                                                                                                                                                                                        |
-| State Variables  | `/state`       | Variable inventory with reader/writer tracking and storage-collision warnings                                                                                                                                                                                                                                                                                                              |
-| External Calls   | `/calls`       | Call surface with filterable Trust column                                                                                                                                                                                                                                                                                                                                                  |
-| Functions        | `/functions`   | Aggregated function view                                                                                                                                                                                                                                                                                                                                                                   |
-| Spec Conformance | `/conformance` | Code vs spec check results, deviations first, clickable spec links                                                                                                                                                                                                                                                                                                                         |
-| **Issues**       | `/issues`      | **The board.** Five columns (Potential / Verified / Synced / Invalid / Duplicate). Drag cards between the editable columns, click to edit (severity, description, recommendation, resolution, client update), or copy a finding as HackMD markdown. The **Synced** column is reached only via `/sync-issues` and is read-only (edit on GitHub). GitHub-sync chip per verified/synced card. |
-| **Report**       | `/report`      | The seven LaTeX report sections from `/generate-report`, each with a copy-to-clipboard button — paste straight into the Nethermind Overleaf template.                                                                                                                                                                                                                                     |
-
----
-
-## Understanding Confidence Levels
-
-Every analysis output includes confidence metadata so you know how much to trust it.
-
-**High confidence** — Derived from compiler artifacts or established static analysis tools (solc AST, Slither detectors, compiler storage layout). Treat as ground truth.
-
-**Medium confidence** — Derived from AST pattern matching or known library detection (e.g., recognising OpenZeppelin Ownable). Reliable for standard patterns, but may miss custom implementations.
-
-**Low confidence** — Derived from naming heuristics (e.g., inferring a "keeper" role from a modifier named `onlyKeeper`). Use as a starting point, then verify manually.
-
-Access-control roles also carry a `kind` field (`access_control`, `state_check`, `guard`, or `unknown`) and an `is_likely_access_control` flag. `/access` hides roles classified as `unknown` by default and exposes a "Show inferred / unknown modifiers" toggle.
-
-Storage-slot collisions and inheritance-layout divergences detected from the compiler's storage layout are flagged with `Critical` severity in `state-vars.json` and roll into `attack-surface.json`.
-
----
-
-## Output Directory Structure
-
-All Hex outputs live in a single directory inside the project (default: `.hex/`, configurable in `config.json`).
+## Output Directory (`.hex/`)
 
 ```
 .hex/
-├── config.json              # Audit scope, settings (incl. settings.ai.auditagent_scan_id, settings.report.*)
-├── overview.md              # AI-generated protocol overview
-├── stats.json               # Codebase statistics and test coverage
-├── deps.json                # Contract dependency graph
-├── access-control.json      # Role → function mapping (with `kind`, `is_likely_access_control`)
-├── state-vars.json          # State variable inventory + storage_collisions
-├── external-calls.json      # External call surface
-├── patterns.json            # Security pattern flags (ORACLE, TEMPORAL, etc.)
-├── constraints.json         # Setter validation and event analysis
-├── attack-surface.json      # Attack surface summary
-├── spec-conformance.json    # Spec vs code conformance checks (with spec_location.url for ERCs)
-├── spec-conformance.md      # Rendered conformance report
-├── diagrams/                # All Mermaid diagram files
-│   ├── diagram.mmd          # System architecture diagram (possibly split)
-│   └── flow-*.mmd           # Flow charts (one per flow)
-├── progress.json            # Audit progress tracking (contract review state)
-├── findings.json            # Canonical finding data (incl. resolution, update_from_client)
-├── tracking.json            # Board state (status, source, duplicate_of)
-├── comparison.json          # Dedup match_signals (written by /ingest-aa-report, /ai-audit and /sync-issues)
-├── diff.json                # Differential mode: changed entities, storage-layout changes, impacted flows
-├── diff/changes.patch       # Differential mode: in-scope unified diff, base → head
-├── diff-overview.md         # Differential mode: what changed and why (written by /init-audit)
-├── previous-audit/          # Differential mode with a prior audit
-│   ├── findings.json        # Prior findings, normalized
-│   └── review.json          # Regression check per prior finding
-├── ai-audit/                # /ai-audit scans
-│   ├── runs/<stamp>/        # Run files, assembled full-report.md, winners.tsv, hex-digest.md
-│   └── memory.tsv           # Cross-scan ledger (when memory is on)
-├── validations/             # Issue validation memos
-│   ├── F001_memo.md
-│   └── SC-003_memo.md
-├── ai-results/ai-audit/     # /ai-audit records behind the board cards
-│   └── findings.json
-├── ai-results/auditagent/   # AuditAgent ingest output
-│   ├── raw-output.md
-│   ├── findings.json
-│   └── metadata.json
-├── ai-status.json           # AuditAgent run status (used by `hex ai-status`)
-├── external/github/         # Pulled teammate findings + sync metadata
-│   ├── findings.json
-│   ├── sync-status.json
-│   └── raw-issues.json
-└── report/                  # Final LaTeX report sections, .txt + .tex (produced by /generate-report)
-    ├── executive_summary.txt
-    ├── audited_files.txt
-    ├── summary_of_findings.txt
-    └── findings.txt
+├── config.json              # scope, mode, commits, settings
+├── facts.json               # exact compiler facts (or parser fallback, flagged)
+├── stats.json               # nSLOC, ERCs, coverage
+├── model/
+│   ├── protocol.json        # verified protocol model
+│   ├── invariants.json      # invariants + test results
+│   ├── drafts/, verdicts/   # agent working files
+│   └── diagrams/            # <name>.spec.json, <name>.excalidraw, index.json
+├── overview.md, diff-overview.md
+├── spec-conformance.json/.md
+├── diff.json, diff/changes.patch           # differential mode
+├── previous-audit/{findings,review}.json   # differential mode with a prior audit
+├── findings.json, tracking.json, comparison.json
+├── validations/<id>_memo.md
+├── progress.json            # per-function review state
+├── triage-rules.json
+├── notes/                   # Diane: contract notes, sessions, audio
+├── ai-audit/runs/<stamp>/   # /ai-audit run files and reports
+├── ai-results/{ai-audit,auditagent}/findings.json
+├── fuzz/                    # /fuzz PROPERTIES.md, run data, corpora
+├── fix-review/<sha>.json
+├── focus.json               # current dashboard selection (read by hex_focus)
+├── report/                  # LaTeX sections + figures/
+└── .cache/                  # build-info, compiler output, worktrees
 ```
-
-You can change the output directory by setting `settings.output_dir` in `config.json` before running init.
-
----
-
-## Scope vs. Full Project Access
-
-When you initialise an audit, you specify which files are in scope. This is the set of contracts you're responsible for auditing — all analysis tools focus on these files.
-
-But the entire project remains accessible. Claude Code can read out-of-scope contracts, run the existing test suite, compile everything, and leverage the project's test infrastructure when writing PoCs. The scope simply tells the tools where to focus their output.
-
-```
-# In-scope: these are what you're auditing
-src/core/Vault.sol, src/core/Strategy.sol, src/libraries/Math.sol
-
-# Still accessible: tests, mocks, deploy scripts, dependencies, interfaces
-# Claude Code can read them all, forge can compile and run tests against them
-```
-
----
 
 ## CLI Reference
 
-You usually don't call these directly — `/init-audit` and the other skills do. But they're the deterministic engine underneath, and they're useful when you want to re-run a single analysis, script something, or troubleshoot.
-
-All commands run from within the project directory (or with `--project /path/to/project`).
-
-| Command                           | What it does                                                                                                       |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `hex doctor`                      | Preflight check: node, forge, slither, solc, Claude Code, output-dir writability, project config                   |
-| `hex claude`                      | Copy skills to `.claude/skills/` for Claude Code discovery                                                         |
-| `hex init`                        | Initialise audit config — scope, commit, chain, docs URL, `--github-repo` (called by `/init-audit`)                |
-| `hex init --mode diff --base <c>` | Differential audit against base commit `<c>`; `--previous-audit <path>` records the prior `.hex/` or report       |
-| `hex diff`                        | Differential mode: changed entities, storage-layout changes and impacted flows → `diff.json` (run by `analyze`)   |
-| `hex analyze`                     | Run all analysis commands in parallel (stats, deps, access, state, calls, patterns, constraints), then surface; then `diff` in differential mode |
-| `hex stats`                       | Generate codebase statistics and test coverage                                                                     |
-| `hex deps`                        | Build contract dependency graph                                                                                    |
-| `hex access`                      | Extract access control mapping (roles → functions, including inherited)                                            |
-| `hex state`                       | Generate state variable inventory + storage-collision detection                                                    |
-| `hex calls`                       | Map external call surface (AST-based, Slither optional)                                                            |
-| `hex patterns`                    | Detect security-relevant patterns (ORACLE, FLASH_LOAN, TEMPORAL, etc.)                                             |
-| `hex constraints`                 | Extract setter validation status (AST-aware, follows helpers and modifiers)                                        |
-| `hex surface`                     | Build attack surface summary cross-referencing all analysis                                                        |
-| `hex context`                     | Assemble optimised AI context from codebase                                                                        |
-| `hex context --target Vault`      | Context for a specific contract and its dependencies                                                               |
-| `hex context --estimate`          | Show token count without generating context                                                                        |
-| `hex dashboard`                   | Start local dashboard and open in browser                                                                          |
-| `hex dashboard --port 8080`       | Start dashboard on a custom port                                                                                   |
-| `hex update`                      | Update hex-audit to the latest version on npm, then prompt to re-sync skills into the current project              |
-| `hex update --check`              | Check for an available update without installing                                                                   |
-| `hex update --yes`                | Update and re-sync skills without the post-install prompt                                                          |
-| `hex update-skills`               | Re-copy skill files from package, removing orphans (overwrites by default)                                         |
-| `hex update-skills --keep-custom` | Skip existing skill files instead of overwriting                                                                   |
-| `hex issue new\|move\|patch\|show`  | Create and mutate board cards (sources: manual, conformance, auditagent, ai-audit, github, prior-audit)              |
-| `hex note lead <Contract>`        | Add an open lead to a contract note; idempotent with `--source` + `--source-ref` (used by `/ai-audit`)             |
-| `hex ai-status`                   | Show the latest status for AuditAgent scans                                                                        |
-| `hex ai-status --watch`           | Poll every 5 minutes until pending scans resolve (typical scan: 30-60 min)                                         |
-| `hex issue new --source <s> ...`  | Allocate a uniform `H-NNN` id and create a board card (used by the skills)                                         |
-| `hex issue move <id> --to <col>`  | Move an issue between board columns (potential / verified / invalid / duplicate); materializes a finding on verify |
-| `hex issue patch <id> [...]`      | Edit an issue's severity / resolution / description-file / recommendation-file / update-from-client / notes        |
-| `hex issue sync-set <id> ...`     | Mark an issue synced to a GitHub issue number (used by `/sync-issues`)                                             |
-| `hex issue show <id>`             | Print the merged finding + tracking record for an issue                                                            |
+| Command | What it does |
+|---|---|
+| `hex doctor` | Preflight check |
+| `hex claude` | Install skills into `.claude/skills/`, register the MCP server |
+| `hex init [--mode diff --base <c>] …` | Initialise the audit config |
+| `hex analyze` | `facts` + `stats` (+ `diff` in differential mode) |
+| `hex facts` / `hex facts query <q> [ref]` | Build exact facts and the navigation index (`.hex/xref.json`) / query them: `callers`, `call-sites`, `callees`, `implementations`, `readers`, `writers`, `layout`, `linearization`, `entry-points`, `reach`, `function` |
+| `hex stats` | nSLOC, ERCs, coverage |
+| `hex diff [--focus <file>] [--scan-files]` | Differential analysis |
+| `hex model show\|validate\|apply-verdicts` | The protocol model |
+| `hex invariant list\|accept\|reject\|set-test\|link-issue\|export\|sync-fuzz` | Invariants |
+| `hex diagram build\|list` | Build Excalidraw scenes from specs |
+| `hex review mark\|status\|blind-spots` | The per-function review map |
+| `hex issue new\|move\|patch\|show\|validation\|revert-auto\|dedup\|mark-duplicate\|exclude\|sync-set` | Board cards |
+| `hex rules list\|add\|remove\|export` | Triage rules |
+| `hex note …` | Notes (Diane), including `note lead` |
+| `hex fix-review [run]\|propose\|reviewed\|apply` | Fix review |
+| `hex mcp` | The MCP server (started by Claude Code) |
+| `hex dashboard [--port <n>] [--no-open]` | The review workspace |
+| `hex ai-status [--watch]` | AuditAgent scan status |
+| `hex update`, `hex update-skills` | Update the package / re-sync skills |

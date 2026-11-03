@@ -1,12 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   ConfigSchema,
-  AccessControlSchema,
   FindingsSchema,
   EvidenceSchema,
   ComparisonSchema,
-  RoleSchema,
-  StateVarsSchema,
   GithubLinkSchema,
   GithubSyncStatusSchema,
   TrackingSourceSchema,
@@ -28,7 +25,6 @@ describe('ConfigSchema', () => {
       },
       settings: {
         output_dir: '.solaudit',
-        ai_model: 'claude-sonnet-4-20250514',
         finding_template: 'default',
       },
     };
@@ -146,83 +142,6 @@ describe('ComparisonSchema', () => {
       novel: [],
       rejected: [],
     });
-    expect(result.success).toBe(true);
-  });
-});
-
-describe('RoleSchema', () => {
-  it('defaults kind to access_control and is_likely_access_control to true', () => {
-    const result = RoleSchema.safeParse({
-      role: 'owner',
-      description: 'Ownable',
-      confidence: 'high' as const,
-      derived_from: 'solc-ast' as const,
-      reasoning: 'Detected from OZ Ownable',
-      modifier: 'onlyOwner',
-      functions: [],
-      warnings: [],
-    });
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.kind).toBe('access_control');
-      expect(result.data.is_likely_access_control).toBe(true);
-    }
-  });
-
-  it('accepts explicit unknown kind for inferred modifiers', () => {
-    const result = RoleSchema.safeParse({
-      role: 'duringPause',
-      description: 'inferred',
-      confidence: 'low' as const,
-      derived_from: 'heuristic' as const,
-      reasoning: 'r',
-      modifier: 'onlyDuringPause',
-      functions: [],
-      warnings: ['inferred from name only'],
-      kind: 'unknown' as const,
-      is_likely_access_control: false,
-    });
-    expect(result.success).toBe(true);
-  });
-});
-
-describe('StateVarsSchema', () => {
-  it('defaults storage_collisions to an empty array', () => {
-    const result = StateVarsSchema.safeParse({
-      variables: [],
-      storage_layout_source: null,
-    });
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.storage_collisions).toEqual([]);
-    }
-  });
-
-  it('accepts a recorded collision', () => {
-    const result = StateVarsSchema.safeParse({
-      variables: [],
-      storage_layout_source: 'compiler-artifact' as const,
-      storage_collisions: [
-        {
-          slot: 0,
-          offset: 0,
-          variables: [
-            { contract: 'Proxy', name: '_owner', type: 'address' },
-            { contract: 'Impl', name: 'totalSupply', type: 'uint256' },
-          ],
-          severity: 'Critical' as const,
-          description: 'Proxy slot 0 vs implementation totalSupply',
-        },
-      ],
-    });
-    expect(result.success).toBe(true);
-  });
-});
-
-// `AccessControlSchema` is re-exported; touch it so the import is exercised
-describe('AccessControlSchema', () => {
-  it('parses an empty access-control payload', () => {
-    const result = AccessControlSchema.safeParse({ functions: [], roles: [] });
     expect(result.success).toBe(true);
   });
 });

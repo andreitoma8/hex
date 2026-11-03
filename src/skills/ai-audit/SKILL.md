@@ -19,7 +19,7 @@ You are the orchestrator of a parallelized smart contract security audit.
   - **Differential audit** — `project.mode` is `diff`: scan only the in-scope files that hold changed or impacted code. Get the list from the CLI, never by reading `diff.json` by eye:
 
     ```bash
-    npx hex diff --scan-files
+    npx --no-install hex diff --scan-files
     ```
 
     It recomputes `.hex/diff.json` and prints the files, space separated, on one line, in scope order. `{mode}` is `diff`. Turn 2 also writes `{bundle_dir}/diff-focus.md` (Turn 2 step 1b). If the command fails, print its error and stop: a differential scan without the diff is a full scan under a wrong label.
@@ -70,7 +70,7 @@ The pass count the scan runs is `{passes}` — settled in Turn 1b, 1 or more. Th
 
 **Turn 1 — Discover.** Print the banner, then make these parallel tool calls in one message:
 
-a. The in-scope file list, per Mode Selection. In a Hex project this depends on step d, so it may take a second message: `hex-scope` mode needs no Bash (the list is `project.scope`), `diff` mode runs `npx hex diff --scan-files`, and only the upstream default mode runs the `find`. Everything else in this turn stays parallel.
+a. The in-scope file list, per Mode Selection. In a Hex project this depends on step d, so it may take a second message: `hex-scope` mode needs no Bash (the list is `project.scope`), `diff` mode runs `npx --no-install hex diff --scan-files`, and only the upstream default mode runs the `find`. Everything else in this turn stays parallel.
 b. Resolve `{resolved_path}` — the `references/` directory next to this `SKILL.md`. Claude Code prints the skill's base directory when it loads the skill (`Base directory for this skill: …`); `{resolved_path}` is that directory plus `/references`. Only when no base directory was printed, Glob for exactly `.claude/skills/ai-audit/references/hacking-agents/shared-rules.md` and take the directory two levels up. **Never Glob `**/references/hacking-agents/shared-rules.md`**: it also matches pashov's own `solidity-auditor`, a `node_modules/hex-audit` copy or a `lib/` vendor, and the scan would then run another skill's assembler.
 c. ToolSearch `select:Agent`
 d. Read `.hex/config.json` — it settles Mode Selection (`project.scope`, `project.mode`). Absent → the upstream default mode.
@@ -100,7 +100,7 @@ printf '%s\t%s\n' files "{file list}"    >> .hex/ai-audit/runs/{stamp}/scope.tsv
 >
 > `name` and `mode` are the **only two keys a model types**. Everything else is either shell knowledge or read by the assembler for itself: the threshold from the constant, `N` in `seen in k/N runs` from counting run files, the stamp from the directory's own name.
 
-> **No upstream version check.** Upstream compares a local `VERSION` file against pashov/skills on every scan. Hex ships this skill inside `hex-audit`, so `npx hex update` is the upgrade path and the check is removed.
+> **No upstream version check.** Upstream compares a local `VERSION` file against pashov/skills on every scan. Hex ships this skill inside `hex-audit`, so `npx --no-install hex update` is the upgrade path and the check is removed.
 
 **Turn 1b — Model and pass count.** This turn asks **two questions in one `AskUserQuestion` call**: which model the 12 agents use, and how many passes the scan runs. The runner is interrupted once, before any work starts.
 
@@ -279,10 +279,19 @@ Then build `source.md`, run the memory step, and only then cat the bundles — i
    1b. **Differential audit only** (`{mode}` is `diff`) — write the agents' focus brief, once per scan, from the CLI:
 
    ```bash
-   npx hex diff --focus {bundle_dir}/diff-focus.md
+   npx --no-install hex diff --focus {bundle_dir}/diff-focus.md
    ```
 
    It lists the changed entities, the storage-layout changes and the impacted functions with their reason chains, then the in-scope patch, and opens with the rule the agents follow: effort on the change and the flows it reaches; a bug in unchanged code is reported only when the change makes it reachable or worse. Do not write or edit this file by hand.
+
+   1c. **Hex project only** — the auditor's decisions, once per scan, from the CLI:
+
+   ```bash
+   npx --no-install hex invariant export > {bundle_dir}/invariants.md
+   npx --no-install hex rules export > {bundle_dir}/triage-rules.md
+   ```
+
+   Both print nothing when there is nothing to say (no accepted invariants, no rules); delete an empty file rather than appending it, because an empty section sends agents hunting.
 2. **Turn 2 step 2 — Name map, prune and known findings** (below). SKIPPED whole when memory is off. Parts a and b run once per scan; part c runs **every pass**, because the ledger it reads grows as the loop learns.
 3. **Every pass.** Agent bundles, in a single Bash command using `cat` (not shell variables or heredocs) = `source.md` + agent-specific files:
 
@@ -302,9 +311,10 @@ Then build `source.md`, run the memory step, and only then cat the bundles — i
 | `agent-12-bundle.md`  | `source.md` + `senior-auditor-sop.md` + `hacking-agents/flow-gap-agent.md` + `hacking-agents/shared-rules.md`                                  |
 | **every one of the 12** | **+ `report-language.md`, appended after `shared-rules.md`** — unconditional, every mode, every pass. The agent's `description:` is the seed of the report's Description, so the language rule has to reach the writer and not only the editor. |
 | **every one of the 12** | **+ `{bundle_dir}/diff-focus.md`, appended after `report-language.md`** — only in a differential audit (`{mode}` is `diff`). Before the known findings, which stay last. |
+| **every one of the 12** | **+ `{bundle_dir}/invariants.md` and `{bundle_dir}/triage-rules.md`**, after `diff-focus.md` — only when step 1c wrote them. Accepted invariants are properties a finding can break; triage rules are what the auditor already decided not to report. |
 | **every one of the 12** | **+ `{bundle_dir}/known-findings.md`, appended last** — only when memory is on **and** step 2 wrote that file. Never appended on a plain scan, and never appended when the ledger holds no record. |
 
-Each bundle = source.md + SOP + specialty + shared-rules + report-language (+ diff focus, in a differential audit) (+ known findings, when there are any). Agents read the bundle; no Read/Grep needed for the initial scan. Targeted Read/Grep allowed for cross-file investigation.
+Each bundle = source.md + SOP + specialty + shared-rules + report-language (+ diff focus, in a differential audit) (+ invariants and triage rules, in a Hex project that has them) (+ known findings, when there are any). Agents read the bundle; no Read/Grep needed for the initial scan. Targeted Read/Grep allowed for cross-file investigation.
 
 **Turn 2 step 2 — Name map, prune and known findings.** **SKIP this step entirely when memory is off.** It lives in Turn 2 and not in a turn of its own because all three parts read `source.md`, which Turn 2 has just built — a separate turn would only carry that file across a boundary. It is numbered **2**, ahead of the bundle cat, because part c writes a file every bundle carries; a pruned record must never reach an agent.
 
@@ -463,7 +473,7 @@ Then, after the loop body has run `{passes}` times (or stopped early), go to Tur
 
 Follow `{resolved_path}/dedup-and-assembly.md`, section **"Turn 5"**, step by step. Its step 1 is SKIPPED when memory is off; its step 4 runs only when `--file-output` was passed.
 
-**Turn 6 — Publish to the Hex board.** Runs **once per scan**, after Turn 5, at any pass count — a scan that raised nothing publishes nothing and says so. SKIPPED only when there is no `.hex/config.json` (the upstream default mode, outside a Hex project). Read `{resolved_path}/hex-board.md` now, not earlier, and follow it step by step. It is the only turn that writes outside `.hex/ai-audit/`: board cards through `npx hex issue`, leads through `npx hex note lead`, and the raw records in `.hex/ai-results/ai-audit/`. It never edits the report Turn 5 printed.
+**Turn 6 — Publish to the Hex board.** Runs **once per scan**, after Turn 5, at any pass count — a scan that raised nothing publishes nothing and says so. SKIPPED only when there is no `.hex/config.json` (the upstream default mode, outside a Hex project). Read `{resolved_path}/hex-board.md` now, not earlier, and follow it step by step. It is the only turn that writes outside `.hex/ai-audit/`: board cards through `npx --no-install hex issue`, leads through `npx --no-install hex note lead`, and the raw records in `.hex/ai-results/ai-audit/`. It never edits the report Turn 5 printed.
 
 ## Banner
 

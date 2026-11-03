@@ -4,9 +4,8 @@ description: "Generate the LaTeX report sections for the final audit report (Ove
 
 # Skill: Generate Report
 
-**Recommended model:** Sonnet
 
-This skill produces the LaTeX section files an auditor assembles into the Nethermind Overleaf report template at the end of an engagement. It runs from the GitHub-synced issues (the report's source of truth), after findings have been pushed via /sync-issues, and reuses the analysis Hex already produced during /init-audit (`overview.md`, `stats.json`, `access-control.json`, `deps.json`).
+This skill produces the LaTeX section files an auditor assembles into the Nethermind Overleaf report template at the end of an engagement. It runs from the GitHub-synced issues (the report's source of truth), after findings have been pushed via /sync-issues, and reuses the analysis Hex already produced during /init-audit (`overview.md`, `stats.json`, the verified protocol model in `model/protocol.json`, and the diagrams the auditor marked for the report).
 
 ## What it writes
 
@@ -15,7 +14,7 @@ Seven report sections in `<output_dir>/report/`, each emitted in **two forms** (
 1. **Executive Summary** (§1) — project synopsis, severity histogram, status histogram, summary table of audit metadata.
 2. **Audited Files** (§2) — a LaTeX table of in-scope files (LoC, comments, ratio, blank, total).
 3. **Summary of Issues** (§3) — hyperlinked finding rows.
-4. **System Overview** (§4) — descriptive protocol architecture: components, actors & roles, per-module or per-flow subsections. Built from `overview.md` + access-control/deps analysis.
+4. **System Overview** (§4) — descriptive protocol architecture: components, actors & roles, per-module or per-flow subsections. Built from `overview.md` + the verified protocol model, with the diagrams marked "Use in report" as figures.
 5. **Issues** (§6) — one `\subsection{[Sev] title}\label{issue:N}` per synced finding, with description, code blocks, recommendation, status, client update.
 6. **Documentation Evaluation** (§7) — a `tcolorbox` remarks paragraph about the client's documentation.
 7. **Test Suite Evaluation** (§8) — the test-run result (passed/failed/skipped), coverage summary, and automated-tooling note, generated from a live test run plus `stats.json.test_coverage`.
@@ -59,7 +58,7 @@ Each section has a defined **input signature** — the exact set of data it deri
 | `executive_summary` | severity + resolution histograms, `stats.totals.nsloc`, all `settings.report.*` fields, and the `overview.md` bytes (the synopsis derives from it); differential: also `diff.json` `base_commit` / `head_commit` / `summary` |
 | `audited_files` | the per-file LoC results for every `project.scope` file (differential: every changed file, with its +/- counts), `repository_url`, `initial_commit` |
 | `summary_of_findings` | the ordered synced-findings list: `(id, title, severity, resolution)` each |
-| `system_overview` | `overview.md`, `access-control.json`, `deps.json` bytes |
+| `system_overview` | `overview.md`, `model/protocol.json` and `model/diagrams/index.json` bytes, and the bytes of every `report/figures/*.png` marked `in_report` |
 | `findings` | the synced-findings full content: `(title, severity, description, code blocks, recommendation, resolution, update_from_client, root_cause.locations)` each |
 | `documentation_eval` | `settings.report.{doc_assessment,kickoff_call,client_availability}`, `project.docs_url`, and the NatSpec-presence signal (`stats.totals.comment_lines`) |
 | `test_suite` | the test-run summary (pass/fail/skip counts) and `stats.test_coverage`, `settings.report.test_assessment` |
@@ -305,7 +304,20 @@ For each synced finding in severity-sorted order (Critical → Info), assign a s
 
 Write to `system_overview.txt` **and** `04-system-overview.tex`.
 
-Primary source: `<output_dir>/overview.md` (produced by /init-audit — it already carries an intro, a `## Key Contracts` table, `## External Dependencies`, and `## Architecture Notes`). Enrich the actors/roles material from `<output_dir>/access-control.json` (roles, modifiers, gated functions) and cross-contract relationships from `<output_dir>/deps.json`.
+Primary source: `<output_dir>/overview.md` (produced by /init-audit — it already carries an intro, a `## Key Contracts` table, `## External Dependencies`, and `## Architecture Notes`). Take actors, roles and privileges from the protocol model (`npx --no-install hex model show actors` / `privileges`), using **only claims with `status: "verified"`**; a contested claim is not a fact about the system. Exact relationships (inheritance, who calls what) come from `npx --no-install hex facts query linearization|callers|callees <ref>`.
+
+**Figures.** For every entry in `<output_dir>/model/diagrams/index.json` with `in_report: true` and a PNG at `<output_dir>/report/figures/<name>.png`, add a figure in the subsection it explains (custody near the components, privilege under Actors and Roles, sequences in their flow subsection), with the diagram's `takeaway` as the caption:
+
+```latex
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{figures/<name>.png}
+    \caption{<takeaway, LaTeX-escaped>}
+    \label{fig:<name>}
+\end{figure}
+```
+
+Tell the auditor to upload `report/figures/` next to the `.tex` files in Overleaf.
 
 **If `overview.md` is absent, abort**: "System Overview needs `<output_dir>/overview.md`. Run `/init-audit` first, then re-run `/generate-report`."
 

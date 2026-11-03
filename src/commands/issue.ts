@@ -16,8 +16,13 @@ import {
   type SyncFields,
   COLUMN_TO_STATUS,
   ISSUE_SOURCES,
+  recordValidation,
+  revertAutoMove,
   type IssueSource,
+  type Verdict,
 } from '../core/issues.js';
+import { dedupCandidates, excludeByRule, markDuplicate, type MatchSignals } from '../core/dedup.js';
+import { readRules } from '../core/rules.js';
 
 function readFileTrim(p: string): string {
   return fs.readFileSync(path.resolve(p), 'utf-8').trim();
@@ -35,7 +40,10 @@ function resolveOutputDir(opts: { project?: string }): string {
 const moveCmd = new Command('move')
   .description('Move an issue between board columns (potential | verified | rejected | duplicate)')
   .argument('<id>', 'Issue id (e.g. H-001)')
-  .requiredOption('--to <column>', 'Target column: potential | verified | rejected (alias: invalid) | duplicate')
+  .requiredOption(
+    '--to <column>',
+    'Target column: potential | verified | rejected (alias: invalid) | duplicate',
+  )
   .option('--duplicate-of <id>', 'When moving to duplicate, the canonical issue this duplicates')
   .option('--project <dir>', 'Project directory')
   .action((id: string, opts: { to: string; duplicateOf?: string; project?: string }) => {
@@ -251,9 +259,196 @@ const syncSetCmd = new Command('sync-set')
     },
   );
 
+const validationCmd = new Command('validation')
+  .description('Record a validation verdict, memo and PoC result on a card')
+  .argument('<id>', 'Issue id')
+  .requiredOption('--verdict <verdict>', 'reproduced | refuted | uncertain | valid_no_poc')
+  .option('--by <who>', 'auditor | agent', 'auditor')
+  .option('--memo <path>', 'Validation memo path (e.g. .hex/validations/H-012_memo.md)')
+  .option('--poc <path>', 'PoC test file')
+  .option('--poc-status <status>', 'passing | failing | not_started')
+  .option('--refuters <n>', 'Independent refuter agents that agreed (auto-reject needs 2)')
+  .option('--reality-gate', 'The finding passed the reality gate (true and security-relevant)')
+  .option(
+    '--auto-move',
+    'Agent only: move the card when the verdict is conclusive (see autoMoveTarget)',
+  )
+  .option('--project <dir>', 'Project directory')
+  .action(
+    (
+      id: string,
+      opts: {
+        verdict: string;
+        by: string;
+        memo?: string;
+        poc?: string;
+        pocStatus?: string;
+        refuters?: string;
+        realityGate?: boolean;
+        autoMove?: boolean;
+        project?: string;
+      },
+    ) => {
+      try {
+        const verdicts = ['reproduced', 'refuted', 'uncertain', 'valid_no_poc'];
+        if (!verdicts.includes(opts.verdict))
+          throw new Error(`--verdict must be one of ${verdicts.join(', ')}`);
+        if (opts.by !== 'auditor' && opts.by !== 'agent')
+          throw new Error('--by must be auditor or agent');
+        const outputDir = resolveOutputDir(opts);
+        const { movedTo } = recordValidation(
+          outputDir,
+          id,
+          {
+            verdict: opts.verdict as Verdict,
+            validated_by: opts.by,
+            memo: opts.memo,
+            poc_file: opts.poc,
+            poc_status: opts.pocStatus as 'passing' | 'failing' | 'not_started' | undefined,
+            refuters: opts.refuters !== undefined ? parseInt(opts.refuters, 10) : undefined,
+            reality_gate: opts.realityGate === true,
+          },
+          { autoMove: opts.autoMove },
+        );
+        logger.success(`${id}: ${opts.verdict}${movedTo ? ` → auto-moved to ${movedTo}` : ''}`);
+      } catch (err) {
+        reportError(err);
+        process.exit(1);
+      }
+    },
+  );
+
+const revertAutoCmd = new Command('revert-auto')
+  .description("Undo an agent's auto-move: back to Potential")
+  .argument('<id>', 'Issue id')
+  .option('--project <dir>', 'Project directory')
+  .action((id: string, opts: { project?: string }) => {
+    try {
+      revertAutoMove(resolveOutputDir(opts), id);
+      logger.success(`${id} → potential (auto-move reverted)`);
+    } catch (err) {
+      reportError(err);
+      process.exit(1);
+    }
+  });
+
+const dedupCmd = new Command('dedup')
+  .description(
+    'Rank cards that may duplicate <id> (exact function overlap first) and print the match rules',
+  )
+  .argument('<id>', 'Issue id')
+  .option('--json', 'Machine-readable output')
+  .option('--project <dir>', 'Project directory')
+  .action((id: string, opts: { json?: boolean; project?: string }) => {
+    try {
+      const outputDir = resolveOutputDir(opts);
+      const report = dedupCandidates(outputDir, id);
+      const rules = readRules(outputDir);
+      if (opts.json) {
+        console.log(JSON.stringify({ ...report, triage_rules: rules }, null, 2));
+        return;
+      }
+      console.log(`${id} touches: ${report.functions.join(', ') || '(no exact function found)'}`);
+      if (report.candidates.length === 0) console.log('No candidates.');
+      for (const c of report.candidates) {
+        const sig = [
+          c.same_function ? 'same function' : c.same_contract ? 'same contract' : '',
+          `title ${c.title_similarity}`,
+        ]
+          .filter(Boolean)
+          .join(', ');
+        console.log(
+          `  ${c.strength === 'strong' ? '●' : '○'} ${c.id} [${c.status}, ${c.source}] ${c.title} (${sig})`,
+        );
+      }
+      console.log('\n' + report.rules);
+      if (rules.length) {
+        console.log('\nTriage rules (exclude with `hex issue exclude <id> --rule R-NNN`):');
+        for (const r of rules) console.log(`  ${r.id} ${r.kind}: ${r.text}`);
+      }
+    } catch (err) {
+      reportError(err);
+      process.exit(1);
+    }
+  });
+
+const markDuplicateCmd = new Command('mark-duplicate')
+  .description('Move <id> to Duplicate of --of and record the match signals (one step)')
+  .argument('<id>', 'Issue id that is the duplicate')
+  .requiredOption('--of <canonical>', 'Canonical issue id')
+  .requiredOption('--root-cause <v>', 'same | overlapping | different')
+  .requiredOption('--attack-vector <v>', 'same | overlapping | different')
+  .option('--same-contract', 'Contract matches')
+  .option('--same-function', 'Function matches')
+  .requiredOption('--reasoning <text>', 'One sentence: which signals carried the call')
+  .option('--confidence <lvl>', 'high | medium | low', 'high')
+  .option('--project <dir>', 'Project directory')
+  .action(
+    (
+      id: string,
+      opts: {
+        of: string;
+        rootCause: string;
+        attackVector: string;
+        sameContract?: boolean;
+        sameFunction?: boolean;
+        reasoning: string;
+        confidence: string;
+        project?: string;
+      },
+    ) => {
+      try {
+        const agree = ['same', 'overlapping', 'different'];
+        if (!agree.includes(opts.rootCause) || !agree.includes(opts.attackVector)) {
+          throw new Error('--root-cause/--attack-vector must be same | overlapping | different');
+        }
+        const signals: MatchSignals = {
+          contract: opts.sameContract === true,
+          function: opts.sameFunction === true,
+          root_cause: opts.rootCause as MatchSignals['root_cause'],
+          attack_vector: opts.attackVector as MatchSignals['attack_vector'],
+        };
+        markDuplicate(resolveOutputDir(opts), id, opts.of, {
+          signals,
+          reasoning: opts.reasoning,
+          confidence: opts.confidence as 'high' | 'medium' | 'low',
+        });
+        logger.success(`${id} → duplicate of ${opts.of}`);
+      } catch (err) {
+        reportError(err);
+        process.exit(1);
+      }
+    },
+  );
+
+const excludeCmd = new Command('exclude')
+  .description('Reject <id> because a triage rule covers it (records the rule)')
+  .argument('<id>', 'Issue id')
+  .requiredOption('--rule <id>', 'Triage rule id (R-NNN)')
+  .option('--project <dir>', 'Project directory')
+  .action((id: string, opts: { rule: string; project?: string }) => {
+    try {
+      const outputDir = resolveOutputDir(opts);
+      const rule = readRules(outputDir).find((r) => r.id === opts.rule);
+      if (!rule) throw new Error(`No triage rule ${opts.rule}`);
+      excludeByRule(outputDir, id, rule.id, rule.text);
+      logger.success(`${id} → rejected (${rule.id})`);
+    } catch (err) {
+      reportError(err);
+      process.exit(1);
+    }
+  });
+
 export const issueCommand = new Command('issue')
-  .description('Inspect and mutate issues on the board (new / move / patch / sync-set / show)')
+  .description(
+    'Inspect and mutate issues on the board (new / move / patch / show / validation / dedup / mark-duplicate / exclude / sync-set)',
+  )
   .addCommand(newCmd)
+  .addCommand(validationCmd)
+  .addCommand(revertAutoCmd)
+  .addCommand(dedupCmd)
+  .addCommand(markDuplicateCmd)
+  .addCommand(excludeCmd)
   .addCommand(moveCmd)
   .addCommand(patchCmd)
   .addCommand(syncSetCmd)

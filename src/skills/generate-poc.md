@@ -4,16 +4,12 @@ description: "Validate an issue and generate a proof-of-concept test"
 
 # Skill: Generate Proof of Concept
 
-**Recommended model:** Opus
-
 ## Context Assembly
 
 Read:
 - The issue description provided by the auditor
-- Run: `npx hex context --target <relevant_contract>` for focused context
-- `<output_dir>/state-vars.json` — for relevant state variable info
-- `<output_dir>/access-control.json` — for access restrictions
-- `<output_dir>/external-calls.json` — for external call surface (if relevant)
+- The relevant source files (read them in full).
+- Exact facts from the compiler: `npx --no-install hex facts query function <Contract.fn>` (modifiers, calls, reads, writes, external calls), `callers` / `reach` (which entry points reach the bug), `writers <Contract.var>` (who else can change the state the exploit depends on), `layout <Contract>` (storage slots, for `vm.store` setups).
 
 ## Step 0: Understand the Project's Test Infrastructure
 
@@ -160,27 +156,13 @@ If it fails, debug and fix. Iterate until the PoC passes.
 
 ## Output
 
-**Always produce a validation memo** at `<output_dir>/validations/<finding_id_or_short_name>_memo.md`:
+The validation memo is written by the caller (`/validate-finding` or `/prevalidate`) at `<output_dir>/validations/<id>_memo.md`, with one template for every caller: **Claim**, **Analysis** (the traced path), **Protections evaluated**, **Reality gate**, **PoC** (file and result, or why there is none), **Verdict**. Add the PoC section's content from this skill: the test file path, the command, and the observed impact.
 
-```markdown
-# Validation Memo: <Title>
+Record the PoC on the card so the board shows it and fix review can re-run it:
 
-**Verdict:** Valid / Invalid / Uncertain
-**Date:** <YYYY-MM-DD>
-
-## Reasoning
-[Step-by-step reasoning from Step 1]
-
-## Execution Path
-[Traced call path: function1() -> function2() -> ...]
-
-## Protections Considered
-[Existing guards, checks, or mitigations evaluated and why they don't prevent the issue]
-
-## Conclusion
-[If valid: summary of exploit + pointer to PoC file]
-[If invalid: clear explanation of why not exploitable]
-[If uncertain: specific questions for manual investigation]
+```bash
+npx --no-install hex issue validation <id> --verdict reproduced --by <auditor|agent> \
+  --poc test/hex-pocs/<id>_<name>.t.sol --poc-status passing --memo <output_dir>/validations/<id>_memo.md
 ```
 
-If valid, also write the test file to the project's test directory.
+A PoC that cannot be made to pass is evidence too: record `--poc-status failing` with `--verdict uncertain` and say in the memo what blocked it.

@@ -40,7 +40,7 @@ const config: Config = {
           DEFAULT: 'var(--accent)',
           subtle: 'var(--accent-subtle)',
           secondary: 'var(--accent-secondary)',
-          warm: 'var(--accent-warm)',
+          contrast: 'var(--accent-contrast)',
         },
         severity: {
           critical: 'var(--critical)',
@@ -71,11 +71,14 @@ const config: Config = {
         md: 'var(--shadow-md)',
         lg: 'var(--shadow-lg)',
       },
+      transitionTimingFunction: {
+        out: 'var(--ease-out)',
+      },
       fontSize: {
         display: ['28px', { lineHeight: '1.2', fontWeight: '600' }],
-        title:   ['20px', { lineHeight: '1.3', fontWeight: '600' }],
+        title: ['20px', { lineHeight: '1.3', fontWeight: '600' }],
         heading: ['15px', { lineHeight: '1.4', fontWeight: '500' }],
-        body:    ['14px', { lineHeight: '1.55', fontWeight: '400' }],
+        body: ['14px', { lineHeight: '1.55', fontWeight: '400' }],
         caption: ['12px', { lineHeight: '1.4', fontWeight: '400' }],
       },
     },

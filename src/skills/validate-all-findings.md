@@ -4,11 +4,11 @@ description: "Walk every Potential issue on the board and validate them one by o
 
 # Skill: Validate All Findings
 
-**Recommended model:** Opus
-
 Runs `/validate-finding` over every issue currently in the **Potential** column, one at a time, so the auditor can clear the backlog in a single pass without naming each id.
 
 Each issue gets `/validate-finding`'s full two-axis verdict — correctness **and** the Step-2.5 security-relevance gate. **`auditagent` / `ai-audit` / `github` findings skew recall-over-precision, so the realism gate is mandatory for them**; `manual` / `conformance` items already passed an auditor's eye and can lean lighter.
+
+**Machine-generated cards first go through `/prevalidate`.** If the Potential column holds `unverified` cards (AI audit, AuditAgent, invariant) that have no `validation` yet, offer to run `/prevalidate` on them first: it validates them in parallel with PoCs and moves the conclusive ones, so this interactive pass only sees what really needs the auditor. Cards that already carry an agent verdict show it; start from that memo (`.hex/validations/<id>_memo.md`) instead of from scratch.
 
 ## Step 1 — Build the work list
 

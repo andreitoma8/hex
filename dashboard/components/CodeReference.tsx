@@ -1,129 +1,122 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { CodeViewer } from './CodeViewer';
+import { IconClose } from './ui/Icons';
+import { setFocus } from '@/lib/focus';
+import { cn } from '@/lib/cn';
 
-interface CodeReferenceProps {
+/**
+ * A clickable `file:line` reference. Opens a code peek over the page with the
+ * whole file, scrolled to and tinting the range, and tells the CLI about it.
+ */
+export function CodeReference({
+  file,
+  lineStart,
+  lineEnd,
+  className,
+  label,
+}: {
   file: string;
-  lineStart: number;
+  lineStart?: number;
   lineEnd?: number;
-  snippet?: string;
-}
-
-export function CodeReference({ file, lineStart, lineEnd, snippet }: CodeReferenceProps) {
-  const [modalOpen, setModalOpen] = useState(false);
-  const [code, setCode] = useState<string | null>(snippet ?? null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const label = `${file}:${lineStart}${lineEnd && lineEnd !== lineStart ? `-${lineEnd}` : ''}`;
-
-  const handleClick = async () => {
-    setModalOpen(true);
-    if (code) return;
-
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({
-        file,
-        start: String(Math.max(1, lineStart - 3)),
-        end: String((lineEnd ?? lineStart) + 3),
-      });
-      const res = await fetch(`/api/code?${params}`);
-      if (!res.ok) throw new Error('Failed to load source');
-      const data = await res.json();
-      setCode(data.code);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load');
-    } finally {
-      setLoading(false);
-    }
-  };
+  className?: string;
+  label?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const loc = lineStart
+    ? `${file}:${lineStart}${lineEnd && lineEnd !== lineStart ? `-${lineEnd}` : ''}`
+    : file;
 
   return (
     <>
       <button
         type="button"
-        onClick={handleClick}
-        className="font-mono text-caption text-accent hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent rounded-sm"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen(true);
+          setFocus({
+            ref: loc,
+            kind: 'code_range',
+            label: loc,
+            file,
+            ...(lineStart ? { line_start: lineStart, line_end: lineEnd ?? lineStart } : {}),
+          });
+        }}
+        className={cn(
+          'max-w-full truncate rounded-sm text-left font-mono text-caption text-accent hover:underline',
+          className,
+        )}
+        title={`Open ${loc}`}
       >
-        {label}
+        {label ?? loc}
       </button>
-
-      {modalOpen && (
-        <ModalOverlay onClose={() => setModalOpen(false)}>
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-label={`Source code: ${label}`}
-            className="relative max-h-[80vh] w-full max-w-3xl overflow-auto border border-border-emphasis bg-surface-1 shadow-2xl"
-            style={{ borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-accent)' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="sticky top-0 flex items-center justify-between border-b border-border-default bg-surface-2 px-sp-4 py-sp-3">
-              <span className="font-mono text-body text-text-primary">{label}</span>
-              <button
-                type="button"
-                onClick={() => setModalOpen(false)}
-                aria-label="Close"
-                className="rounded p-1 text-text-tertiary hover:bg-surface-3 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-              >
-                <svg className="h-5 w-5" aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            {/* Content */}
-            <div className="p-sp-4">
-              {loading && <p className="text-body text-text-secondary">Loading...</p>}
-              {error && <p className="text-body text-severity-critical">{error}</p>}
-              {code && (
-                <pre className="overflow-x-auto rounded-md bg-surface-0 p-sp-4 text-caption leading-relaxed text-text-secondary">
-                  {code.split('\n').map((line, i) => {
-                    const lineNum = Math.max(1, lineStart - 3) + i;
-                    const isHighlighted = lineNum >= lineStart && lineNum <= (lineEnd ?? lineStart);
-                    return (
-                      <div
-                        key={i}
-                        className={isHighlighted ? 'bg-accent/10' : ''}
-                      >
-                        <span className="mr-4 inline-block w-10 select-none text-right text-text-tertiary">
-                          {lineNum}
-                        </span>
-                        {line}
-                      </div>
-                    );
-                  })}
-                </pre>
-              )}
-            </div>
-          </div>
-        </ModalOverlay>
+      {open && (
+        <CodePeek
+          file={file}
+          start={lineStart}
+          end={lineEnd}
+          title={loc}
+          onClose={() => setOpen(false)}
+        />
       )}
     </>
   );
 }
 
-function ModalOverlay({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
-  const overlayRef = useRef<HTMLDivElement>(null);
-
+export function CodePeek({
+  file,
+  start,
+  end,
+  title,
+  onClose,
+}: {
+  file: string;
+  start?: number;
+  end?: number;
+  title: string;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    overlayRef.current?.focus();
+    ref.current?.focus();
   }, []);
-
   return (
     <div
-      ref={overlayRef}
+      ref={ref}
       tabIndex={-1}
-      className="fixed inset-0 z-50 flex items-center justify-center outline-none"
+      className="fade-in fixed inset-0 z-[8000] flex items-center justify-center p-6 outline-none"
       style={{ background: 'var(--overlay-bg)' }}
       onClick={onClose}
       onKeyDown={(e) => {
-        if (e.key === 'Escape') onClose();
+        if (e.key === 'Escape') {
+          e.stopPropagation();
+          onClose();
+        }
       }}
     >
-      {children}
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        onClick={(e) => e.stopPropagation()}
+        className="rise-in flex h-[min(78vh,760px)] w-full max-w-4xl flex-col overflow-hidden rounded-lg border border-border-default bg-surface-0 shadow-lg"
+      >
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border-subtle px-4 py-2.5">
+          <span className="truncate font-mono text-caption text-text-secondary">{title}</span>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="rounded-md p-1 text-text-tertiary hover:bg-surface-2 hover:text-text-primary"
+          >
+            <IconClose className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="min-h-0 flex-1">
+          <CodeViewer file={file} range={start ? { start, end: end ?? start } : null} />
+        </div>
+      </div>
     </div>
   );
 }

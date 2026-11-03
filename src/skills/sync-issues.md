@@ -4,7 +4,6 @@ description: 'Two-way sync between local Hex findings and GitHub Issues — GitH
 
 # Skill: Sync Issues
 
-**Recommended model:** Sonnet
 
 Hex's GitHub Issues integration. Hex never authenticates with GitHub — you authenticate once via `gh auth login` and this skill drives the `gh` CLI. One invocation runs both directions.
 
@@ -66,15 +65,15 @@ Extract severity from the title, and the four body fields. If a body is **blatan
 **1c. Reconcile by issue number `#N`:**
 - **A local finding already records `github.issue_number === N`** → it's the same issue; pull GitHub's content into it:
   ```bash
-  npx hex issue sync-set <local-H-id> --issue-number N --issue-url <url> --state <open|closed> \
+  npx --no-install hex issue sync-set <local-H-id> --issue-number N --issue-url <url> --state <open|closed> \
     --title "<title-without-[Severity]>" --severity <Severity> \
     --description-file /tmp/N_desc.md --recommendation-file /tmp/N_reco.md \
     --resolution "<Status>" --update-from-client-file /tmp/N_update.md
   ```
 - **No local finding has `#N`** (a teammate's hand-added issue, or one created outside Hex) → create a local finding for it, then sync-set:
   ```bash
-  ID=$(npx hex issue new --source github --source-ref N --title "<title>" --severity <Severity>)
-  npx hex issue sync-set "$ID" --issue-number N --issue-url <url> --state <open|closed> \
+  ID=$(npx --no-install hex issue new --source github --source-ref N --title "<title>" --severity <Severity>)
+  npx --no-install hex issue sync-set "$ID" --issue-number N --issue-url <url> --state <open|closed> \
     --description-file /tmp/N_desc.md --recommendation-file /tmp/N_reco.md \
     --resolution "<Status>" --update-from-client-file /tmp/N_update.md
   ```
@@ -83,32 +82,19 @@ Either way the card lands in the **Synced** column, locked. Reconcile strictly b
 
 ## Phase 1.5 — Dedup before push (GitHub is canonical)
 
-Before pushing, guard against filing a finding that is already on GitHub (e.g. a teammate created it by hand, and you pulled it into Synced in Phase 1). For each **verified** local finding that has no `github.issue_number` yet, semantically compare it against every **synced** finding on these axes:
-
-| Signal | Compare |
-|---|---|
-| **contract** (boolean) | affected contract name |
-| **function** (boolean) | affected function name |
-| **root_cause** (`same`/`overlapping`/`different`) | the technical mechanism |
-| **attack_vector** (`same`/`overlapping`/`different`) | what an attacker actually does |
-
-A match is at least one of: `root_cause = same` AND `function = true`; or `root_cause = same` AND `contract = true` AND `attack_vector = same`; or `root_cause = overlapping` AND `function = true` AND `attack_vector = same`.
-
-On match — the synced (on-GitHub) finding is canonical, so the local verified copy becomes the duplicate. Do **not** push it:
+Before pushing, guard against filing a finding that is already on GitHub (e.g. a teammate created it by hand, and you pulled it into Synced in Phase 1). For each **verified** local finding with no `github.issue_number` yet:
 
 ```bash
-npx hex issue move <verified-H-id> --to duplicate --duplicate-of <synced-H-id>
+npx --no-install hex issue dedup <verified-H-id>
 ```
 
-Then append to `<output_dir>/comparison.json` under `duplicates` (the board renders the chip + signals from this):
+It lists candidates touching the same exact functions first and prints the match rules (one engine for every source). Judge only **synced** candidates here. On a match, the synced (on-GitHub) finding is canonical, so the local verified copy becomes the duplicate and is **not** pushed:
 
-```json
-{ "ai_finding": "<verified-H-id>", "matches": "<synced-H-id>", "confidence": "high|medium|low",
-  "match_signals": { "contract": true, "function": true, "root_cause": "same", "attack_vector": "same" },
-  "reasoning": "<one sentence>" }
+```bash
+npx --no-install hex issue mark-duplicate <verified-H-id> --of <synced-H-id> \
+  --root-cause <same|overlapping|different> --attack-vector <same|overlapping|different> \
+  [--same-contract] [--same-function] --reasoning "<one sentence>"
 ```
-
-If `comparison.json` doesn't exist, create it with `{ "duplicates": [], "novel": [], "rejected": [] }`.
 
 ## Phase 2 — Push (verified local findings → GitHub)
 
@@ -137,7 +123,7 @@ Stamp labels **only at creation** — never edit labels on an issue that already
 Parse the returned URL for `#N`, then lock it into Synced and record the number:
 
 ```bash
-npx hex issue sync-set <H-id> --issue-number N --issue-url <url> --state open
+npx --no-install hex issue sync-set <H-id> --issue-number N --issue-url <url> --state open
 ```
 
 From now on the finding is identified by `#N`; the next pull matches it by number, so it never duplicates.

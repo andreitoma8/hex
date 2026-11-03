@@ -8,6 +8,7 @@ import { normalizePath, getOutputDir } from '../core/paths.js';
 import { runForge, detectTools } from '../core/external-tools.js';
 import { parseSolidity, extractSolidityVersion } from '../parsers/solidity-parser.js';
 import { copySkillsToClaudeFormat, getClaudeSkillsDir } from '../core/skills.js';
+import { ensureMcpConfig } from '../core/mcp-config.js';
 import { ProgressTracker } from '../core/progress.js';
 import { HexError, reportError } from '../core/errors.js';
 import { headCommit, isGitRepo, resolveCommit } from '../core/git.js';
@@ -74,16 +75,8 @@ export const initCommand = new Command('init')
       tracker.update('check tools', allMissing ? 'failed' : 'ok', toolDetails.join(', '));
       if (!tools.find((t) => t.name === 'forge')?.available) {
         logger.warn(
-          'forge not found — compilation verification and test coverage will be unavailable',
+          'forge not found — exact compiler facts and test coverage will be unavailable (parser fallback)',
         );
-      }
-      if (!tools.find((t) => t.name === 'slither')?.available) {
-        logger.warn(
-          'slither not found — access control, state variable, and external call analysis will be limited',
-        );
-      }
-      if (!tools.find((t) => t.name === 'solc')?.available) {
-        logger.warn('solc not found — storage layout extraction will be unavailable');
       }
 
       // Audit mode
@@ -232,6 +225,7 @@ export const initCommand = new Command('init')
       tracker.update('copy skills', 'running');
       const claudeSkillsDir = getClaudeSkillsDir(projectDir);
       const skillsResult = copySkillsToClaudeFormat({ targetDir: claudeSkillsDir });
+      ensureMcpConfig(projectDir);
       tracker.update('copy skills', 'ok', `${skillsResult.updated + skillsResult.added} skill(s)`);
 
       // Create subdirectories
@@ -251,7 +245,15 @@ export const initCommand = new Command('init')
       // Optionally verify compilation
       if (opts.verify !== false && isFoundry) {
         tracker.update('verify build', 'running');
-        const result = await runForge(projectDir, ['build']);
+        // Build into Hex's cache, never the client's out/ and cache/.
+        const cache = path.join(outputDir, '.cache');
+        const result = await runForge(projectDir, [
+          'build',
+          '--out',
+          path.join(cache, 'forge-out'),
+          '--cache-path',
+          path.join(cache, 'forge-cache'),
+        ]);
         if (result.exitCode === 0) {
           tracker.update('verify build', 'ok');
         } else {
@@ -302,26 +304,25 @@ ${uniqueScope.map((f) => `- \`${f}\``).join('\n')}
 
 ## Output Directory (\`${config.settings.output_dir}/\`)
 
-All analysis outputs live here. Key files and what they answer:
+All Hex data lives here. Key files and what they answer:
 
 | File | Contains | Use when asked about... |
 |------|----------|------------------------|
-| \`config.json\` | Project config (scope, chain, docs URL, commit) | project setup, documentation, scope |
-| \`stats.json\` | nSLOC, contracts, functions, test coverage, dependencies | codebase size, complexity, coverage |
-| \`deps.json\` | Inheritance, imports, calls, clusters | contract relationships, dependency graph |
-| \`access-control.json\` | Roles, modifiers, function access | who can call what, privileged functions |
-| \`state-vars.json\` | State variables, types, visibility, read/write | storage, mutability, state layout |
-| \`external-calls.json\` | External calls, reentrancy guards, trust levels | external interactions, reentrancy risk |
-| \`overview.md\` | AI-generated protocol overview | what the protocol does, architecture |
-| \`spec-conformance.json\` | Spec vs code deviations | spec compliance, ERC conformance |
-| \`findings.json\` | Audit findings (canonical), wrapped as \`{ "findings": [...] }\` | reported issues, vulnerabilities |
-| \`tracking.json\` | Board state per issue (status, source, duplicate_of), wrapped as \`{ "findings": [...] }\` | finding triage, board columns |
-| \`comparison.json\` | Dedup match_signals (auditagent / ai-audit / github) | duplicate detection |
-| \`ai-results/ai-audit/\` | /ai-audit findings (raw records behind the board cards) | AI audit results |
-| \`ai-audit/runs/\` | /ai-audit scan runs and assembled markdown reports | AI audit reports |
-| \`progress.json\` | Audit progress tracking | what has been reviewed |
-| \`diagrams/\` | Mermaid architecture and flow diagrams | system diagrams, flows |
-| \`report/\` | LaTeX report sections (executive summary, audited files, summary of issues, system overview, issues, documentation eval, test suite) as \`.txt\` + \`.tex\` | final report export |
+| \`config.json\` | Project config (scope, mode, chain, docs URL, commit) | project setup, documentation, scope |
+| \`facts.json\` | **Exact compiler facts**: call graph, reads/writes, modifiers, inheritance, entry points, storage layout | who calls what, who writes a variable, storage slots |
+| \`stats.json\` | nSLOC, ERCs, test coverage, dependencies | codebase size, complexity, coverage |
+| \`model/protocol.json\` | Verified protocol model: actors, assets, privileges, trust, dependencies, state machines, accounting, risky flows (each claim verified or contested) | how the protocol works, who can do what |
+| \`model/invariants.json\` | Invariants (proposed / accepted / rejected) and their test results | what must always hold |
+| \`model/diagrams/\` | Diagram specs and Excalidraw scenes | system pictures |
+| \`overview.md\` | Protocol overview | what the protocol does, architecture |
+| \`spec-conformance.json\` | Docs / NatSpec / ERC promises vs code | spec compliance |
+| \`findings.json\` / \`tracking.json\` | Board cards (content / status, source, validation) | reported issues, triage |
+| \`progress.json\` | Per-function review state (unread / read / questioned / cleared) | review progress, blind spots |
+| \`triage-rules.json\` | The auditor's standing decisions (trusted roles, out of scope, by design, known issues) | what not to report |
+| \`notes/\` | Contract notes, questions and leads (Diane) | auditor's notes |
+| \`ai-audit/\`, \`ai-results/\` | /ai-audit runs and the records behind AI cards | AI audit results |
+| \`fix-review/\` | Fix review results per fix commit | which issues the client fixed |
+| \`report/\` | LaTeX report sections and figures | final report |
 
 Not all files exist initially — they are created as you run skills and CLI commands.
 
@@ -329,29 +330,31 @@ Not all files exist initially — they are created as you run skills and CLI com
 
 Skills are in \`.claude/skills/\` and auto-discovered by Claude Code. Type \`/\` to list them.
 
-**Recommended workflow order:**
+1. \`/init-audit\` — Safety gate, exact facts, then agents build and verify the protocol model, invariants, conformance and diagrams
+2. \`/ai-audit\` — 12 parallel attacker agents; findings land on the board (pre-validated), leads in notes
+3. \`/write-finding\` — Record a manual issue as a Potential card
+4. \`/validate-finding\` / \`/validate-all-findings\` — Validate cards; PoC by default
+5. \`/prevalidate\` — Parallel agent validation of new machine-generated cards; conclusive cases move automatically
+6. \`/fuzz\` — Fuzz the accepted invariants (Echidna / Medusa / Foundry); violations become cards
+7. \`/diane\` — Turn recorded narration into notes and review ticks
+8. \`/ingest-aa-report\` — Ingest a Nethermind AuditAgent scan
+9. \`/sync-issues\` — Two-way GitHub Issues sync (GitHub canonical)
+10. \`/fix-review\` — Check the client's fixes (PoCs re-run at the fix commit) and update GitHub
+11. \`/generate-report\` — Emit the LaTeX report sections
 
-1. \`/init-audit\` — Initialize, dependency safety, full analysis pipeline, overview, diagrams, flows, spec conformance, board materialization (all in one)
-2. \`/write-finding\` — Record a manual issue as a Potential card on the board
-3. \`/validate-finding\` — Validate any Potential card (manual / ai-audit / auditagent / conformance / github / prior-audit); per-issue PoC or memo-only
-4. \`/generate-poc\` — Generate and run a proof-of-concept test (invoked by /validate-finding)
-5. \`/ai-audit\` — Parallel 12-agent AI audit (fork of pashov's solidity-auditor); findings land on the board, leads in notes
-6. \`/ingest-aa-report\` — Ingest a completed Nethermind AuditAgent scan by ID, with inline dedup
-7. \`/sync-issues\` — Two-way GitHub Issues sync (GitHub canonical)
-8. \`/generate-report\` — Emit the LaTeX report sections into \`${config.settings.output_dir}/report/\`
+## Hex MCP tools
 
-Each skill builds on previous outputs.
+The project's \`.mcp.json\` registers the Hex MCP server. **When the auditor says "this", "here" or "the selected …", call \`hex_focus\` first**: it returns what they have selected in the dashboard. Use \`hex_facts_query\` for exact code relationships instead of grepping.
 
-## CLI Commands
+## CLI Commands (always \`npx --no-install hex …\`; an unrelated npm package is named \`hex\`)
 
-- \`npx hex analyze\` — Run all deterministic analysis (stats, deps, access, state, calls, patterns, constraints, surface)
-- \`npx hex context\` — Assemble full codebase context for AI prompts
-- \`npx hex context --target <Contract>\` — Focused context for a single contract
-- \`npx hex diff\` — Differential mode: recompute \`diff.json\` (changed entities + impacted flows)
-- \`npx hex dashboard\` — Open browser dashboard at http://localhost:3000
-- \`npx hex issue move <id> --to <column>\` — Move an issue between board columns
-- \`npx hex issue patch <id> [--severity ...] [--resolution ...]\` — Edit issue fields
-- \`npx hex update\` — Update hex-audit to the latest version
+- \`analyze\` — stats + compiler facts (+ diff in differential mode)
+- \`facts query <callers|callees|readers|writers|layout|linearization|entry-points|reach|function> [ref]\` — exact relationships
+- \`model show|validate\`, \`invariant list|accept|reject|set-test|export\`
+- \`review mark <ref> --state <read|questioned|cleared>\`, \`review status\`, \`review blind-spots\`
+- \`issue new|move|patch|show|validation|dedup|mark-duplicate|exclude\`
+- \`rules list|add|remove|export\`
+- \`diagram build|list\`, \`diff\`, \`fix-review\`, \`dashboard\`, \`update\`
 
 ## Writing Style (applies to every skill that produces text)
 
@@ -428,9 +431,8 @@ Apply these to every skill output without being reminded.
       logger.info(`Output: ${normalizePath(outputDir)}`);
       logger.info('');
       logger.info('Next steps:');
-      logger.dim('  hex stats    # Generate codebase statistics');
-      logger.dim('  hex deps     # Build dependency graph');
-      logger.dim('  hex access   # Map access control');
+      logger.dim('  hex analyze     # Stats + exact compiler facts (+ diff in differential mode)');
+      logger.dim('  hex dashboard   # Open the review workspace');
     } catch (err) {
       tracker.finish();
       reportError(err);

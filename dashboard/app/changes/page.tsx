@@ -1,36 +1,44 @@
 import { readJsonFile, readMarkdownFile } from '@/lib/data';
-import { NotYetGenerated } from '@/components/NotYetGenerated';
+import { latestFixReview, readConfig, readReview } from '@/lib/server/workspace';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { Toolbar } from '@/components/ui/SplitView';
+import type { FixReview } from '@/lib/types';
 import { ChangesClient, type DiffData, type PriorReview } from './ChangesClient';
 
-// Read .hex/ at request time (see app/calls/page.tsx for why).
 export const dynamic = 'force-dynamic';
 
-interface ConfigFile {
-  project?: { mode?: string; diff?: { base_commit?: string } };
-}
-
+/**
+ * Changes answers: what changed since the last audit, and what does it reach?
+ * A full audit has no diff, but its fix review still lives here.
+ */
 export default function ChangesPage() {
   const diff = readJsonFile<DiffData>('diff.json');
-  const config = readJsonFile<ConfigFile>('config.json');
+  const fixReview = latestFixReview<FixReview>();
+  const config = readConfig();
 
-  if (!diff) {
+  if (!diff && !fixReview) {
     const base = config?.project?.diff?.base_commit;
     return (
-      <div>
-        <h2 className="mb-sp-5 text-title font-semibold text-text-primary">Changes</h2>
-        <p className="mb-sp-4 text-body text-text-secondary">
-          This page is for differential audits: what changed since the previously audited commit,
-          and which flows the change reaches.
-        </p>
-        <NotYetGenerated
-          command={base ? 'hex diff' : 'hex init --mode diff --base <commit> --scope "<globs>"'}
+      <div className="flex h-full flex-col">
+        <Toolbar title="Changes" />
+        <EmptyState
+          sentence="Changes shows what moved since the previously audited commit, and which flows it reaches."
+          command={base ? 'hex diff' : 'hex init --mode diff --base <commit>'}
         />
       </div>
     );
   }
 
-  const overview = readMarkdownFile('diff-overview.md');
-  const review = readJsonFile<PriorReview>('previous-audit/review.json');
+  const states: Record<string, string> = {};
+  for (const r of readReview(0).rows) states[r.id] = r.state;
 
-  return <ChangesClient diff={diff} overview={overview} review={review} />;
+  return (
+    <ChangesClient
+      diff={diff}
+      overview={readMarkdownFile('diff-overview.md')}
+      prior={readJsonFile<PriorReview>('previous-audit/review.json')}
+      fixReview={fixReview}
+      reviewStates={states}
+    />
+  );
 }

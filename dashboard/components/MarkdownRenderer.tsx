@@ -3,46 +3,48 @@
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-interface MarkdownRendererProps {
-  content: string;
-  className?: string;
-}
-
-export function MarkdownRenderer({ content, className }: MarkdownRendererProps) {
+/** Long-form markdown (overviews, descriptions) in the dashboard's reading style. */
+export function MarkdownRenderer({ content, className }: { content: string; className?: string }) {
   return (
     <div
-      className={`prose max-w-none
-        prose-headings:text-text-primary
-        prose-p:text-text-secondary
+      className={`prose max-w-none text-body
+        prose-headings:font-semibold prose-headings:text-text-primary
+        prose-h1:text-title prose-h2:text-heading prose-h3:text-body
+        prose-p:text-text-secondary prose-p:leading-relaxed
         prose-strong:text-text-primary
-        prose-code:text-accent
-        prose-code:before:content-none
-        prose-code:after:content-none
-        prose-pre:bg-surface-0
-        prose-pre:border
-        prose-pre:border-border-default
-        prose-a:text-accent
-        prose-a:no-underline
-        hover:prose-a:underline
-        prose-th:text-text-primary
-        prose-td:text-text-secondary
-        prose-hr:border-border-default
-        prose-blockquote:border-border-emphasis
-        prose-blockquote:text-text-secondary
-        prose-li:text-text-secondary
+        prose-code:rounded prose-code:bg-surface-2 prose-code:px-1 prose-code:py-px prose-code:font-normal prose-code:text-[0.88em] prose-code:text-text-primary
+        prose-code:before:content-none prose-code:after:content-none
+        prose-pre:rounded-md prose-pre:border prose-pre:border-border-subtle prose-pre:bg-surface-1 prose-pre:text-text-primary
+        prose-a:text-accent prose-a:no-underline hover:prose-a:underline
+        prose-th:text-text-primary prose-td:text-text-secondary
+        prose-hr:border-border-subtle
+        prose-blockquote:border-border-default prose-blockquote:text-text-secondary
+        prose-li:text-text-secondary prose-li:marker:text-text-tertiary
         ${className ?? ''}`}
     >
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-        {content}
-      </ReactMarkdown>
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
     </div>
   );
 }
 
 /**
- * Inline markdown for short strings inside the structured Notes UI (lead text,
- * bullets, function fields, Q&A). Renders without a block <p> wrapper so it
- * sits inline, and styles `code` / **bold** / links to match the design system.
+ * Keep inline text inline: a line that starts like a list ("1. ", "- "), a heading
+ * ("# ") or a quote ("> ") would render a block element inside the caller's <p> or
+ * <span>, which is invalid HTML; the browser re-nests it and hydration fails.
+ * Diane writes flows as "1. … 2. …", so this is the common case, not an edge.
+ */
+export function escapeBlockMarkers(text: string): string {
+  return text
+    .split('\n')
+    .map((l) =>
+      l.replace(/^(\s*)(\d+)([.)])(\s)/, '$1$2\\$3$4').replace(/^(\s*)([-*+#>])(\s)/, '$1\\$2$3'),
+    )
+    .join('\n');
+}
+
+/**
+ * Inline markdown for short strings (lead text, bullets, model claims).
+ * Renders without a block <p> wrapper so it sits inline.
  */
 export function InlineMarkdown({ children }: { children: string }) {
   return (
@@ -51,7 +53,7 @@ export function InlineMarkdown({ children }: { children: string }) {
       components={{
         p: ({ children }) => <>{children}</>,
         code: ({ children }) => (
-          <code className="rounded bg-surface-0 px-1 py-0.5 font-mono text-[0.85em] text-accent">
+          <code className="rounded bg-surface-2 px-1 py-px font-mono text-[0.86em] text-text-primary">
             {children}
           </code>
         ),
@@ -65,7 +67,7 @@ export function InlineMarkdown({ children }: { children: string }) {
         ),
       }}
     >
-      {children}
+      {escapeBlockMarkers(children)}
     </ReactMarkdown>
   );
 }

@@ -2,14 +2,8 @@ import { Command } from 'commander';
 import { logger } from '../core/logger.js';
 import { ProgressTracker } from '../core/progress.js';
 import { statsCommand } from './stats.js';
-import { depsCommand } from './deps.js';
-import { accessCommand } from './access.js';
-import { stateCommand } from './state.js';
-import { callsCommand } from './calls.js';
-import { patternsCommand } from './patterns.js';
-import { constraintsCommand } from './constraints.js';
-import { surfaceCommand } from './surface.js';
 import { diffCommand } from './diff.js';
+import { factsCommand } from './facts.js';
 import { loadProjectContext } from '../core/config.js';
 
 interface StepResult {
@@ -58,7 +52,7 @@ function truncate(message: string, max: number): string {
 
 export const analyzeCommand = new Command('analyze')
   .description(
-    'Run all deterministic analysis commands (stats, deps, access, state, calls, patterns, constraints, surface; plus diff in differential mode)',
+    'Run the deterministic layer: stats (nSLOC, ERCs, coverage) and facts (compiler AST); plus diff in differential mode',
   )
   .option('--project <dir>', 'Project directory')
   .option('--no-coverage', 'Skip test coverage (passed to stats)')
@@ -67,27 +61,11 @@ export const analyzeCommand = new Command('analyze')
     if (opts.project) {
       baseArgs.push('--project', opts.project);
     }
-
     const statsArgs = [...baseArgs];
     if (opts.coverage === false) {
       statsArgs.push('--no-coverage');
     }
 
-    // Phase 1: Run independent commands in parallel
-    // All commands gracefully handle missing cross-command data (null guards).
-    // surface is excluded — it requires all other outputs as input.
-    const phase1Steps: Array<{ name: string; command: Command; args: string[] }> = [
-      { name: 'stats', command: statsCommand, args: statsArgs },
-      { name: 'deps', command: depsCommand, args: baseArgs },
-      { name: 'access', command: accessCommand, args: baseArgs },
-      { name: 'state', command: stateCommand, args: baseArgs },
-      { name: 'calls', command: callsCommand, args: baseArgs },
-      { name: 'patterns', command: patternsCommand, args: baseArgs },
-      { name: 'constraints', command: constraintsCommand, args: baseArgs },
-      { name: 'surface', command: surfaceCommand, args: baseArgs },
-    ];
-
-    // Differential mode adds `diff` after surface.
     let diffMode = false;
     try {
       diffMode = loadProjectContext(opts.project ?? process.cwd()).config.project.mode === 'diff';
@@ -95,50 +73,29 @@ export const analyzeCommand = new Command('analyze')
       /* no config — every step reports it individually */
     }
 
-    const tracker = new ProgressTracker([
-      ...phase1Steps.map((s) => s.name),
-      ...(diffMode ? ['diff'] : []),
-    ]);
+    // facts compiles; stats may run `forge coverage`. Run them one after the
+    // other so two forge processes never fight over the same project.
+    const steps: Array<{ name: string; command: Command; args: string[] }> = [
+      { name: 'facts', command: factsCommand, args: baseArgs },
+      { name: 'stats', command: statsCommand, args: statsArgs },
+      ...(diffMode ? [{ name: 'diff', command: diffCommand, args: baseArgs }] : []),
+    ];
+    const tracker = new ProgressTracker(steps.map((s) => s.name));
     tracker.start();
-
-    const parallelSteps = phase1Steps.slice(0, -1);
-    const parallelPromises = parallelSteps.map((step) => runStep(step.name, step.command, step.args, tracker));
-    const phase1Results = await Promise.allSettled(parallelPromises);
-
-    const results: StepResult[] = phase1Results.map((settled, i) => {
-      if (settled.status === 'fulfilled') {
-        return settled.value;
-      }
-      return { name: parallelSteps[i].name, success: false, error: String(settled.reason) };
-    });
-
-    // Phase 2: surface needs all other outputs
-    const surfaceStep = phase1Steps[phase1Steps.length - 1];
-    const surfaceResult = await runStep(surfaceStep.name, surfaceStep.command, surfaceStep.args, tracker);
-    results.push(surfaceResult);
-
-    if (diffMode) {
-      results.push(await runStep('diff', diffCommand, baseArgs, tracker));
+    const results: StepResult[] = [];
+    for (const step of steps) {
+      results.push(await runStep(step.name, step.command, step.args, tracker));
     }
-
     tracker.finish();
 
-    // Summary
     const succeeded = results.filter((r) => r.success).length;
     const failed = results.filter((r) => !r.success);
-
     console.log();
     console.log('─'.repeat(50));
-    logger.info(`Analysis complete: ${succeeded}/${results.length} commands succeeded`);
-
+    logger.info(`Analysis complete: ${succeeded}/${results.length} steps succeeded`);
     if (failed.length > 0) {
-      logger.warn('Failed commands:');
-      for (const f of failed) {
-        logger.warn(`  ${f.name}: ${f.error}`);
-      }
+      logger.warn('Failed steps:');
+      for (const f of failed) logger.warn(`  ${f.name}: ${f.error}`);
     }
-
-    if (succeeded === 0) {
-      process.exit(1);
-    }
+    if (succeeded === 0) process.exit(1);
   });

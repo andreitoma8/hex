@@ -197,10 +197,42 @@ function findingFromConformance(
   f.title = tracking?.title ?? String(item.spec_text ?? id);
   f.category = 'Spec Conformance';
   f.description = String(item.finding ?? item.spec_text ?? '');
-  const loc = item.code_location as { file?: string } | undefined;
-  if (loc?.file) f.root_cause.locations = [{ file: loc.file }];
+  const loc = item.code_location as
+    | { file?: string; line_start?: number; line_end?: number }
+    | undefined;
+  if (loc?.file) {
+    const snippet = snippetAt(outputDir, loc.file, loc.line_start, loc.line_end);
+    f.root_cause.locations = [{ file: loc.file, ...(snippet ? { snippet } : {}) }];
+  }
   f.source_ref = ref;
   return f;
+}
+
+/**
+ * The code at a line range, as a location snippet. Findings stay line-free
+ * (lines go stale as code changes); the snippet is what dedup and fix review
+ * match back to the enclosing function.
+ */
+function snippetAt(
+  outputDir: string,
+  file: string,
+  start?: number,
+  end?: number,
+): string | undefined {
+  if (!start) return undefined;
+  const cfg = readJson<{ project?: { project_dir?: string } }>(path.join(outputDir, 'config.json'));
+  const root = cfg?.project?.project_dir ?? path.dirname(outputDir);
+  try {
+    const lines = fs.readFileSync(path.join(root, file), 'utf-8').split(/\r?\n/);
+    const last = Math.min(end ?? start, start + 40, lines.length);
+    const out = lines
+      .slice(start - 1, last)
+      .join('\n')
+      .trimEnd();
+    return out || undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export type IssueSource =
@@ -209,7 +241,8 @@ export type IssueSource =
   | 'auditagent'
   | 'ai-audit'
   | 'github'
-  | 'prior-audit';
+  | 'prior-audit'
+  | 'invariant';
 
 export const ISSUE_SOURCES: readonly IssueSource[] = [
   'manual',
@@ -218,10 +251,11 @@ export const ISSUE_SOURCES: readonly IssueSource[] = [
   'ai-audit',
   'github',
   'prior-audit',
+  'invariant',
 ];
 
 /** Sources whose cards start `unverified` (machine-generated, not yet triaged). */
-const UNVERIFIED_SOURCES = new Set<IssueSource>(['auditagent', 'ai-audit']);
+const UNVERIFIED_SOURCES = new Set<IssueSource>(['auditagent', 'ai-audit', 'invariant']);
 
 type RecordSource = 'auditagent' | 'ai-audit' | 'github';
 
@@ -287,6 +321,39 @@ function findingFromPriorAudit(
   return f;
 }
 
+/**
+ * Build a findings.json record from a violated invariant (fuzzing found a
+ * counterexample). The repro test becomes the card's PoC.
+ */
+function findingFromInvariant(
+  outputDir: string,
+  id: string,
+  ref: string,
+  tracking?: TrackingEntry,
+): Finding | null {
+  const file = readJson<{ invariants?: Array<Record<string, unknown>> }>(
+    path.join(outputDir, 'model', 'invariants.json'),
+  );
+  const inv = file?.invariants?.find((i) => i.id === ref);
+  if (!inv) return null;
+  const f = newEmptyFinding(id, tracking?.severity ?? 'Medium');
+  f.title = String(tracking?.title ?? `Invariant broken: ${String(inv.statement)}`);
+  f.category = 'Invariant violation';
+  f.description = String(inv.statement ?? '');
+  const evidence = (inv.evidence as Array<{ file: string }> | undefined) ?? [];
+  f.root_cause.locations = [...new Set(evidence.map((e) => e.file))].map((file) => ({ file }));
+  const test = inv.test as { repro_file?: string; file?: string } | undefined;
+  if (test?.repro_file || test?.file) {
+    f.poc = {
+      status: 'passing',
+      file: test.repro_file ?? test.file ?? null,
+      validation_memo: null,
+    };
+  }
+  f.source_ref = ref;
+  return f;
+}
+
 /** Dispatch to the source-specific materializer. */
 function materialize(
   outputDir: string,
@@ -305,6 +372,8 @@ function materialize(
       return findingFromAiOrGithub(outputDir, id, source, ref, tracking);
     case 'prior-audit':
       return findingFromPriorAudit(outputDir, id, ref, tracking);
+    case 'invariant':
+      return findingFromInvariant(outputDir, id, ref, tracking);
     default:
       return null;
   }
@@ -603,4 +672,106 @@ export function markSynced(
   writeJson(path.join(outputDir, 'tracking.json'), tracking);
 
   return target;
+}
+
+// ─── Validation (PoC results, agent pre-validation) ─────────────────
+
+export type Verdict = 'reproduced' | 'refuted' | 'uncertain' | 'valid_no_poc';
+
+export interface ValidationInput {
+  verdict: Verdict;
+  validated_by: 'auditor' | 'agent';
+  memo?: string;
+  poc_file?: string;
+  poc_status?: 'passing' | 'failing' | 'not_started';
+  /** Independent refuter agents that agreed (auto-reject needs 2). */
+  refuters?: number;
+  /** The reality gate passed: true and security-relevant, not by design. */
+  reality_gate?: boolean;
+}
+
+/**
+ * Where an agent may move a card on its own. Conservative by construction:
+ * reproduced only with a passing PoC and a passed reality gate; refuted only
+ * when two independent refuters agree. Everything else stays with the auditor.
+ */
+export function autoMoveTarget(v: ValidationInput): 'verified' | 'rejected' | null {
+  if (v.validated_by !== 'agent') return null;
+  if (v.verdict === 'reproduced' && v.poc_status === 'passing' && v.reality_gate === true)
+    return 'verified';
+  if (v.verdict === 'refuted' && (v.refuters ?? 0) >= 2) return 'rejected';
+  return null;
+}
+
+/**
+ * Record a validation on a card: verdict, memo, PoC file and status. With
+ * `autoMove`, an agent verdict that meets autoMoveTarget() moves the card and
+ * is marked so the auditor can see and revert it.
+ */
+export function recordValidation(
+  outputDir: string,
+  id: string,
+  v: ValidationInput,
+  opts: { autoMove?: boolean } = {},
+): { finding: Finding; movedTo: 'verified' | 'rejected' | null } {
+  const current = loadTracking(outputDir).findings.find((t) => t.id === id);
+  if (!current) throw new Error(`No issue ${id}`);
+  // PoC and validation results are local evidence that never reaches the GitHub
+  // body (sync rewrites only content fields), so a synced card accepts them;
+  // only its column is locked. Fix review depends on PoCs for synced cards.
+  const synced = current.status === 'synced';
+
+  ensureFindingExists(outputDir, id);
+  const target = opts.autoMove && !synced ? autoMoveTarget(v) : null;
+  const at = new Date().toISOString();
+  const validation = {
+    verdict: v.verdict,
+    validated_by: v.validated_by,
+    ...(v.memo ? { memo: v.memo } : {}),
+    ...(v.poc_file ? { poc_file: v.poc_file } : {}),
+    ...(v.poc_status ? { poc_status: v.poc_status } : {}),
+    ...(v.refuters !== undefined ? { refuters: v.refuters } : {}),
+    ...(target ? { auto_moved_to: target } : {}),
+    at,
+  };
+
+  const findings = loadFindings(outputDir);
+  const f = findings.findings.find((x) => x.id === id)!;
+  f.validation = validation;
+  f.poc = {
+    status: v.poc_status ?? f.poc?.status ?? 'not_started',
+    file: v.poc_file ?? f.poc?.file ?? null,
+    validation_memo: v.memo ?? f.poc?.validation_memo ?? null,
+  };
+  writeJson(path.join(outputDir, 'findings.json'), findings);
+
+  const tracking = loadTracking(outputDir);
+  const t = tracking.findings.find((x) => x.id === id)!;
+  t.poc_status = f.poc.status;
+  t.poc_file = f.poc.file;
+  t.validation = validation;
+  writeJson(path.join(outputDir, 'tracking.json'), tracking);
+
+  if (target) moveIssue(outputDir, id, target);
+  return { finding: f, movedTo: target };
+}
+
+/** Undo an agent's auto-move: back to Potential, auto flag cleared. */
+export function revertAutoMove(outputDir: string, id: string): TrackingEntry {
+  const entry = moveIssue(outputDir, id, 'potential');
+  const tracking = loadTracking(outputDir);
+  const t = tracking.findings.find((x) => x.id === id);
+  const v = t?.validation as Record<string, unknown> | undefined;
+  if (t && v) {
+    delete v.auto_moved_to;
+    v.reverted_at = new Date().toISOString();
+    writeJson(path.join(outputDir, 'tracking.json'), tracking);
+    const findings = loadFindings(outputDir);
+    const f = findings.findings.find((x) => x.id === id);
+    if (f) {
+      f.validation = { ...v };
+      writeJson(path.join(outputDir, 'findings.json'), findings);
+    }
+  }
+  return entry;
 }

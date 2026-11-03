@@ -1,4 +1,6 @@
 import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
 import { HexError } from './errors.js';
 
 /**
@@ -117,4 +119,48 @@ export function listFiles(dir: string, commit: string): string[] {
 export function unifiedDiff(dir: string, base: string, head: string, paths: string[]): string {
   if (paths.length === 0) return '';
   return git(dir, ['diff', '-M', '--relative', base, head, '--', ...paths]);
+}
+
+/**
+ * Check out `commit` in a throwaway worktree under `cacheDir`, run `fn` with the
+ * project directory inside it, then remove the worktree. Dependencies that live
+ * outside git (`lib/` submodules, `node_modules/`) are symlinked from the
+ * current checkout so the old commit can compile.
+ */
+export function withWorktree<T>(
+  projectDir: string,
+  commit: string,
+  cacheDir: string,
+  fn: (worktreeProjectDir: string) => T,
+): T {
+  const repoRoot = git(projectDir, ['rev-parse', '--show-toplevel']).trim();
+  const rel = path.relative(repoRoot, path.resolve(projectDir));
+  const wt = path.join(cacheDir, 'worktrees', commit.slice(0, 12));
+  fs.rmSync(wt, { recursive: true, force: true });
+  try {
+    git(repoRoot, ['worktree', 'prune']);
+  } catch {
+    /* nothing to prune */
+  }
+  git(repoRoot, ['worktree', 'add', '--detach', '--force', wt, commit]);
+  const wtProject = path.join(wt, rel);
+  try {
+    for (const dep of ['lib', 'node_modules']) {
+      const src = path.join(projectDir, dep);
+      const dst = path.join(wtProject, dep);
+      const dstEmpty =
+        !fs.existsSync(dst) || (fs.statSync(dst).isDirectory() && fs.readdirSync(dst).length === 0);
+      if (fs.existsSync(src) && dstEmpty) {
+        fs.rmSync(dst, { recursive: true, force: true });
+        fs.symlinkSync(path.resolve(src), dst, 'dir');
+      }
+    }
+    return fn(wtProject);
+  } finally {
+    try {
+      git(repoRoot, ['worktree', 'remove', '--force', wt]);
+    } catch {
+      fs.rmSync(wt, { recursive: true, force: true });
+    }
+  }
 }

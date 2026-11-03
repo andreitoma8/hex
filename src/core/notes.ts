@@ -128,7 +128,7 @@ export function writeNote(outputDir: string, target: string, body: string): void
  */
 export function appendNote(outputDir: string, target: string, body: string): void {
   const existing = readNote(outputDir, target);
-  const sep = existing.trim() === '' ? '' : (existing.endsWith('\n') ? '\n' : '\n\n');
+  const sep = existing.trim() === '' ? '' : existing.endsWith('\n') ? '\n' : '\n\n';
   writeNote(outputDir, target, existing + sep + body.trim() + '\n');
 }
 
@@ -203,7 +203,12 @@ export function createSession(
   const rel = path.join('sessions', `${opts.ts}.md`);
   const header = `# Narration — ${opts.contract} — ${opts.ts}\n\n`;
   writeTextAtomic(path.join(notesDir(outputDir), rel), header + opts.transcript.trim() + '\n');
-  return addSession(outputDir, { file: rel, contract: opts.contract, ts: opts.ts, audio: opts.audio });
+  return addSession(outputDir, {
+    file: rel,
+    contract: opts.contract,
+    ts: opts.ts,
+    audio: opts.audio,
+  });
 }
 
 // ─── Structured per-contract note (Diane v2) ────────────────────────
@@ -218,6 +223,8 @@ export function createSession(
 export interface FnEntry {
   /** Stable id derived from the function name. */
   id: string;
+  /** Exact facts id (`Contract.sig`); links notes to review state and cards. */
+  fn_ref?: string;
   /** Display signature, e.g. `deposit(assets, receiver) — external`. */
   sig: string;
   purpose?: string;
@@ -306,6 +313,7 @@ export function readContractNote(outputDir: string, contract: string): ContractN
         roles: asArray<string>(d.roles),
         functions: asArray<FnEntry>(d.functions).map((f) => ({
           id: f.id ?? fnId(f.sig ?? ''),
+          ...(f.fn_ref ? { fn_ref: f.fn_ref } : {}),
           sig: f.sig ?? '',
           purpose: f.purpose,
           access: f.access,
@@ -439,7 +447,11 @@ export function addQuestion(
   answer?: string,
 ): Question {
   const note = readContractNote(outputDir, contract);
-  const question: Question = { id: nextNumId('Q', note.questions), q, ...(answer ? { answer } : {}) };
+  const question: Question = {
+    id: nextNumId('Q', note.questions),
+    q,
+    ...(answer ? { answer } : {}),
+  };
   note.questions.push(question);
   writeContractNote(outputDir, contract, note);
   return question;

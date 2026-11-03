@@ -122,7 +122,6 @@ export function createConfig(options: CreateConfigOptions): Config {
     },
     settings: {
       output_dir: options.outputDir ?? '.hex',
-      ai_model: 'claude-sonnet-4-20250514',
       finding_template: 'default',
       ...(options.githubRepo
         ? {

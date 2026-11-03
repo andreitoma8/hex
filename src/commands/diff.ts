@@ -1,6 +1,5 @@
 import { Command } from 'commander';
 import path from 'node:path';
-import { minimatch } from 'minimatch';
 import { logger } from '../core/logger.js';
 import { loadProjectContext, type Config } from '../core/config.js';
 import { writeJsonOutput, writeMarkdownOutput } from '../core/output.js';
@@ -19,32 +18,82 @@ import { buildScopeModel, type FileModel } from '../analysis/code-model.js';
 import {
   buildImpactIndex,
   computeImpact,
+  diffCompilerLayouts,
+  impactIndexFromFacts,
   diffModels,
   propagateLayoutChanges,
   summarize,
 } from '../analysis/diff.js';
 import { DiffSchema } from '../core/schema.js';
+import { makeScopeTest } from '../core/scope.js';
+import { withWorktree } from '../core/git.js';
+import { loadFacts } from '../facts/query.js';
+import { computeFacts } from './facts.js';
+import type { Facts } from '../types/index.js';
 import type { Diff } from '../types/index.js';
-
-/**
- * Scope membership for any path (including paths that only exist at the base
- * commit): the raw --scope globs when recorded, else the resolved file list.
- */
-export function makeScopeTest(config: Config): (p: string) => boolean {
-  const globs = config.project.scope_globs;
-  const exclude = config.project.exclude ?? [];
-  const listed = new Set(config.project.scope);
-  const excluded = (p: string) => exclude.some((g) => minimatch(p, g, { dot: true }));
-  if (!globs || globs.length === 0) return (p) => listed.has(p) && !excluded(p);
-  return (p) =>
-    p.endsWith('.sol') &&
-    (listed.has(p) || globs.some((g) => minimatch(p, g, { dot: true }))) &&
-    !excluded(p);
-}
 
 export interface DiffOptions {
   base?: string;
   head?: string;
+  /** `.hex` dir; enables compiler facts (reuses facts.json for head, compiles base in a worktree). */
+  outputDir?: string;
+  /** Skip compiling the base commit (parser layout diff only). */
+  noCompile?: boolean;
+}
+
+/**
+ * Compiler facts for head (reused from facts.json when it matches) and base
+ * (compiled in a throwaway worktree). Either may be null when the build fails.
+ */
+function factsForCommits(
+  config: Config,
+  outputDir: string,
+  base: string,
+  head: string,
+  warnings: string[],
+  noCompile: boolean,
+): { baseFacts: Facts | null; headFacts: Facts | null } {
+  const projectDir = config.project.project_dir;
+  const cache = path.join(outputDir, '.cache');
+  const exact = (f: Facts | null) => (f && f.source === 'solc-ast' ? f : null);
+
+  let headFacts = exact(loadFacts(outputDir));
+  if (headFacts && headFacts.commit !== head) headFacts = null;
+  if (!headFacts && !noCompile) {
+    try {
+      headFacts = exact(
+        headCommit(projectDir) === head
+          ? computeFacts(config, projectDir, cache, { commit: head })
+          : withWorktree(projectDir, head, cache, (wt) =>
+              computeFacts(config, wt, path.join(cache, 'wt-head'), { commit: head }),
+            ),
+      );
+    } catch (err) {
+      warnings.push(
+        `Could not compile the head commit: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+  let baseFacts: Facts | null = null;
+  if (!noCompile) {
+    try {
+      baseFacts = exact(
+        withWorktree(projectDir, base, cache, (wt) =>
+          computeFacts(config, wt, path.join(cache, 'wt-base'), { commit: base }),
+        ),
+      );
+    } catch (err) {
+      warnings.push(
+        `Could not compile the base commit: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+  if (!headFacts || !baseFacts) {
+    warnings.push(
+      'Storage layout and impact use the parser for at least one commit (the compiler build was unavailable); slot positions are inferred from declaration order.',
+    );
+  }
+  return { baseFacts, headFacts };
 }
 
 /** Compute `diff.json` for a project (pure aside from git reads). */
@@ -116,9 +165,18 @@ export function computeProjectDiff(
   }
 
   const { changes, layout } = diffModels(baseModels, headChangedModels);
-  const index = buildImpactIndex(headScopeModels);
+  const { baseFacts, headFacts } = opts.outputDir
+    ? factsForCommits(config, opts.outputDir, base, head, warnings, Boolean(opts.noCompile))
+    : { baseFacts: null, headFacts: null };
+  const index = headFacts ? impactIndexFromFacts(headFacts) : buildImpactIndex(headScopeModels);
   const impacted = computeImpact(index, changes);
-  const storage = propagateLayoutChanges(layout, index.contracts);
+  const storage =
+    baseFacts &&
+    headFacts &&
+    baseFacts.layout_source === 'compiler' &&
+    headFacts.layout_source === 'compiler'
+      ? diffCompilerLayouts(baseFacts, headFacts)
+      : propagateLayoutChanges(layout, index.contracts);
 
   const files = changed
     .map((f) => ({
@@ -134,6 +192,8 @@ export function computeProjectDiff(
     generated_at: new Date().toISOString(),
     base_commit: base,
     head_commit: head,
+    analysis: headFacts ? 'compiler' : 'parser',
+    layout_analysis: baseFacts && headFacts ? 'compiler' : 'declaration-order',
     warnings,
     files,
     changes,
@@ -239,6 +299,7 @@ export const diffCommand = new Command('diff')
     '--scan-files',
     'Print only the files a differential /ai-audit scan reads, space separated',
   )
+  .option('--no-compile', 'Do not compile the base commit (parser-only layout diff; faster)')
   .action(
     (opts: {
       base?: string;
@@ -246,10 +307,16 @@ export const diffCommand = new Command('diff')
       project?: string;
       focus?: string;
       scanFiles?: boolean;
+      compile?: boolean;
     }) => {
       try {
         const { config, outputDir } = loadProjectContext(opts.project ?? process.cwd());
-        const { diff, patch } = computeProjectDiff(config, opts);
+        const { diff, patch } = computeProjectDiff(config, {
+          base: opts.base,
+          head: opts.head,
+          outputDir,
+          noCompile: opts.compile === false,
+        });
         const out = writeJsonOutput(outputDir, 'diff.json', diff);
         writeMarkdownOutput(path.join(outputDir, 'diff'), 'changes.patch', patch);
         if (opts.focus) {

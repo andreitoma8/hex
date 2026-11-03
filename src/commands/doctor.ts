@@ -40,7 +40,10 @@ function checkNodeVersion(): CheckResult {
 }
 
 function checkClaudeCode(): CheckResult {
-  const result = spawnSync('claude', ['--version'], { shell: true, encoding: 'utf-8' });
+  const result = spawnSync('claude', ['--version'], {
+    shell: process.platform === 'win32',
+    encoding: 'utf-8',
+  });
   const ok = result.status === 0;
   return {
     name: 'claude',
@@ -87,9 +90,7 @@ function checkProjectConfig(projectDir: string): CheckResult {
 
 export async function runDoctor(projectDir: string): Promise<{ checks: CheckResult[]; hasBlocker: boolean }> {
   const tools = await detectTools();
-  const slither = tools.find((t) => t.name === 'slither');
   const forge = tools.find((t) => t.name === 'forge');
-  const solc = tools.find((t) => t.name === 'solc');
 
   const isFoundry = fs.existsSync(path.join(projectDir, 'foundry.toml'));
 
@@ -101,20 +102,6 @@ export async function runDoctor(projectDir: string): Promise<{ checks: CheckResu
       ok: forge?.available ?? false,
       detail: forge?.available ? (forge.version ?? 'available') : 'not on PATH',
       errorCode: forge?.available ? undefined : 'tool.forge.missing',
-    },
-    {
-      name: 'slither',
-      category: 'recommended',
-      ok: slither?.available ?? false,
-      detail: slither?.available ? (slither.version ?? 'available') : 'not on PATH',
-      errorCode: slither?.available ? undefined : 'tool.slither.missing',
-    },
-    {
-      name: 'solc',
-      category: 'optional',
-      ok: solc?.available ?? false,
-      detail: solc?.available ? (solc.version ?? 'available') : 'not on PATH (Foundry can supply solc)',
-      errorCode: solc?.available ? undefined : 'tool.solc.missing',
     },
     checkClaudeCode(),
     checkOutputDir(projectDir),
@@ -161,7 +148,7 @@ export function printDoctor(checks: CheckResult[]): void {
 }
 
 export const doctorCommand = new Command('doctor')
-  .description('Run preflight checks: node, forge, slither, solc, claude code, output dir, project config')
+  .description('Run preflight checks: node, forge, claude code, output dir, project config')
   .option('--project <dir>', 'Project directory (default: cwd)')
   .action(async (opts) => {
     const projectDir = path.resolve(opts.project ?? process.cwd());

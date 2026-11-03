@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { logger } from '../core/logger.js';
 import { copySkillsToClaudeFormat, getClaudeSkillsDir } from '../core/skills.js';
+import { ensureMcpConfig } from '../core/mcp-config.js';
 
 export const claudeCommand = new Command('claude')
   .description('Copy skill files to .claude/skills/ for Claude Code discovery')
@@ -32,6 +33,12 @@ export const claudeCommand = new Command('claude')
 
       const total = result.updated + result.added;
       logger.success(`Copied ${total} skills to .claude/skills/`);
+      const mcp = ensureMcpConfig(projectDir);
+      if (mcp !== 'unchanged') {
+        logger.success(
+          `Registered the Hex MCP server in .mcp.json (${mcp}); Claude Code asks you to approve it once.`,
+        );
+      }
       logger.info('');
       logger.info('Skills are now available as native Claude Code slash commands.');
       logger.info('Open Claude Code and type / to see them (e.g., /init-audit).');

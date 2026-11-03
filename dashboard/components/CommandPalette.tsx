@@ -1,129 +1,204 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { NAV_GROUPS } from './DashboardLayout';
+import { NAV } from './ui/Sidebar';
+import { IconSearch } from './ui/Icons';
+import { Kbd } from './ui/Kbd';
+import { cn } from '@/lib/cn';
 
-type NavItem = { href: string; label: string };
+interface Entry {
+  kind: 'page' | 'function' | 'contract' | 'card' | 'invariant' | 'diagram';
+  label: string;
+  detail?: string;
+  href: string;
+}
 
-const ALL_ITEMS: NavItem[] = NAV_GROUPS.flatMap((g) =>
-  g.items.map((item) => ({ href: item.href, label: `${g.label} / ${item.label}` })),
-);
+const KIND_LABEL: Record<Entry['kind'], string> = {
+  page: 'Page',
+  function: 'Function',
+  contract: 'Contract',
+  card: 'Card',
+  invariant: 'Invariant',
+  diagram: 'Diagram',
+};
 
-export function CommandPalette() {
+function score(e: Entry, words: string[]): number {
+  const label = e.label.toLowerCase();
+  const hay = `${label} ${(e.detail ?? '').toLowerCase()}`;
+  if (!words.every((w) => hay.includes(w))) return -1;
+  const first = words[0];
+  let s = 0;
+  if (label.startsWith(first)) s += 30;
+  else if (new RegExp(`(^|[^a-z0-9])${first.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(label))
+    s += 20;
+  else if (label.includes(first)) s += 10;
+  if (e.kind === 'page') s += 8;
+  return s - label.length / 100;
+}
+
+/**
+ * ⌘K: jump to a page, contract, function, card, invariant or diagram. Enter
+ * navigates and selects the item on its page.
+ */
+export function CommandPalette({ showChanges }: { showChanges: boolean }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState(0);
+  const [entries, setEntries] = useState<Entry[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
-  const results = query.trim()
-    ? ALL_ITEMS.filter((item) =>
-        item.label.toLowerCase().includes(query.toLowerCase()) ||
-        item.href.includes(query.toLowerCase()),
-      )
-    : ALL_ITEMS;
+  const pages: Entry[] = useMemo(
+    () =>
+      NAV.filter((n) => showChanges || !n.changesOnly).map((n) => ({
+        kind: 'page' as const,
+        label: n.label,
+        href: n.href,
+      })),
+    [showChanges],
+  );
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-        e.preventDefault();
-        setOpen((v) => !v);
-        setQuery('');
-        setSelected(0);
-      }
-      if (e.key === 'Escape') setOpen(false);
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+  const openPalette = useCallback(() => {
+    setOpen(true);
+    setQuery('');
+    setSelected(0);
+    fetch('/api/palette', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : { entries: [] }))
+      .then((d: { entries: Entry[] }) => setEntries(d.entries ?? []))
+      .catch(() => setEntries([]));
   }, []);
 
   useEffect(() => {
-    if (open) {
-      setTimeout(() => inputRef.current?.focus(), 50);
-    }
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        if (open) setOpen(false);
+        else openPalette();
+      }
+    };
+    const onEvent = () => openPalette();
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('hex:palette', onEvent);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('hex:palette', onEvent);
+    };
+  }, [open, openPalette]);
+
+  useEffect(() => {
+    if (open) requestAnimationFrame(() => inputRef.current?.focus());
   }, [open]);
 
-  // Reset selection when results change
-  useEffect(() => setSelected(0), [query]);
+  const results = useMemo(() => {
+    const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (!words.length)
+      return [
+        ...pages,
+        ...entries.filter((e) => e.kind === 'diagram' || e.kind === 'contract'),
+      ].slice(0, 30);
+    return [...pages, ...entries]
+      .map((e) => ({ e, s: score(e, words) }))
+      .filter((x) => x.s >= 0)
+      .sort((a, b) => b.s - a.s)
+      .slice(0, 40)
+      .map((x) => x.e);
+  }, [query, pages, entries]);
 
-  const navigate = (href: string) => {
-    router.push(href);
+  useEffect(() => setSelected(0), [query]);
+  useEffect(() => {
+    listRef.current
+      ?.querySelector<HTMLElement>(`[data-index="${selected}"]`)
+      ?.scrollIntoView({ block: 'nearest' });
+  }, [selected]);
+
+  const go = (e: Entry) => {
     setOpen(false);
-    setQuery('');
+    router.push(e.href);
   };
 
   if (!open) return null;
 
   return (
     <div
-      className="fixed inset-0 z-[9000] flex items-start justify-center px-4 pt-[12vh]"
+      data-hex-palette
+      className="fade-in fixed inset-0 z-[9000] flex items-start justify-center px-4 pt-[14vh]"
       style={{ background: 'var(--overlay-bg)' }}
       onClick={() => setOpen(false)}
     >
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Quick navigation"
-        className="w-full max-w-lg rounded-lg border border-border-default bg-surface-1 shadow-lg"
+        aria-label="Go to anything"
+        className="rise-in w-full max-w-xl overflow-hidden rounded-lg border border-border-default bg-surface-1 shadow-lg"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Search input */}
-        <div className="flex items-center border-b border-border-default px-4 py-3 gap-2">
-          <span className="text-accent text-body font-medium shrink-0" aria-hidden="true">&gt;</span>
+        <div className="flex items-center gap-3 border-b border-border-subtle px-4">
+          <IconSearch className="h-4 w-4 shrink-0 text-text-tertiary" />
           <input
             ref={inputRef}
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="search pages..."
-            aria-label="Search pages"
-            className="flex-1 bg-transparent text-body text-text-primary placeholder-text-tertiary outline-none"
+            placeholder="Go to a page, function, card, invariant…"
+            aria-label="Search"
+            className="h-12 flex-1 bg-transparent text-body text-text-primary placeholder:text-text-tertiary focus:outline-none"
             onKeyDown={(e) => {
-              if (e.key === 'ArrowDown') {
+              if (e.key === 'ArrowDown' || (e.key === 'n' && e.ctrlKey)) {
                 e.preventDefault();
                 setSelected((s) => Math.min(s + 1, results.length - 1));
-              } else if (e.key === 'ArrowUp') {
+              } else if (e.key === 'ArrowUp' || (e.key === 'p' && e.ctrlKey)) {
                 e.preventDefault();
                 setSelected((s) => Math.max(s - 1, 0));
               } else if (e.key === 'Enter' && results[selected]) {
-                navigate(results[selected].href);
+                e.preventDefault();
+                go(results[selected]);
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                setOpen(false);
               } else if (e.key === 'Tab') {
-                e.preventDefault(); // focus trap
+                e.preventDefault();
               }
             }}
           />
-          <kbd
-            className="shrink-0 border border-border-default px-1.5 py-0.5 text-caption text-text-tertiary"
-            style={{ borderRadius: 'var(--radius-sm)' }}
-          >
-            ESC
-          </kbd>
+          <Kbd>esc</Kbd>
         </div>
-
-        {/* Results */}
-        <div className="max-h-72 overflow-y-auto py-1">
+        <div ref={listRef} className="max-h-[52vh] overflow-y-auto p-1.5" role="listbox">
           {results.length === 0 ? (
-            <div className="px-4 py-3 text-body text-text-tertiary">no results</div>
+            <div className="px-3 py-6 text-center text-body text-text-tertiary">No matches</div>
           ) : (
-            results.map((item, i) => (
+            results.map((e, i) => (
               <button
-                key={item.href}
+                key={`${e.kind}:${e.href}:${i}`}
                 type="button"
-                className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-body focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent ${
-                  i === selected
-                    ? 'bg-accent-subtle text-accent'
-                    : 'text-text-secondary hover:bg-surface-2 hover:text-text-primary'
-                }`}
-                onClick={() => navigate(item.href)}
-                onMouseEnter={() => setSelected(i)}
+                role="option"
+                aria-selected={i === selected}
+                data-index={i}
+                onMouseMove={() => setSelected(i)}
+                onClick={() => go(e)}
+                className={cn(
+                  'flex w-full items-center gap-3 rounded-md px-3 py-2 text-left',
+                  i === selected ? 'bg-accent-subtle' : '',
+                )}
               >
-                <span className="text-text-tertiary text-caption shrink-0">
-                  {i === selected ? '>' : ' '}
+                <span className="min-w-0 flex-1">
+                  <span
+                    className={cn(
+                      'block truncate text-body',
+                      i === selected ? 'text-accent' : 'text-text-primary',
+                    )}
+                  >
+                    {e.label}
+                  </span>
+                  {e.detail && (
+                    <span className="block truncate text-caption text-text-tertiary">
+                      {e.detail}
+                    </span>
+                  )}
                 </span>
-                <span>{item.label}</span>
-                <span className="ml-auto text-caption text-text-tertiary shrink-0">
-                  {item.href}
+                <span className="shrink-0 text-caption text-text-tertiary">
+                  {KIND_LABEL[e.kind]}
                 </span>
               </button>
             ))

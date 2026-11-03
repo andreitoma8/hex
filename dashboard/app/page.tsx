@@ -1,26 +1,15 @@
 import Link from 'next/link';
-import { readJsonFile, readMarkdownFile } from '@/lib/data';
-import { NotYetGenerated } from '@/components/NotYetGenerated';
-import { MarkdownRenderer } from '@/components/MarkdownRenderer';
+import { readJsonFile } from '@/lib/data';
+import { buildBoard } from '@/lib/server/board';
+import { readConfig, readReview } from '@/lib/server/workspace';
+import { ProgressRing } from '@/components/ui/ProgressRing';
+import { StateGlyph } from '@/components/ui/StateGlyph';
+import { SeverityDot } from '@/components/ui/SeverityDot';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { IconArrowRight, IconChevron } from '@/components/ui/Icons';
+import { SEVERITY_ORDER, SOURCE_LABEL, type BoardIssue } from '@/lib/types';
 
-// Read .hex/ at request time, not at build time. Without this, next build
-// prerenders this page with whatever .hex/ data was available in the build
-// environment and ships static HTML — the dashboard then renders that
-// stale (or empty) HTML for every audit project, ignoring the runtime cwd.
 export const dynamic = 'force-dynamic';
-
-
-interface ProjectConfig {
-  project: {
-    name: string;
-    commit: string;
-    chain: string;
-    solidity_version: string;
-    scope: string[];
-    mode?: 'full' | 'diff';
-    diff?: { base_commit: string };
-  };
-}
 
 interface DiffSummary {
   base_commit: string;
@@ -28,281 +17,206 @@ interface DiffSummary {
   summary: { files_changed: number; impacted_entry_points: number; storage_layout_changes: number };
 }
 
-interface Stats {
-  totals: {
-    files: number;
-    contracts: number;
-    interfaces: number;
-    libraries: number;
-    abstract_contracts: number;
-    total_lines: number;
-    nsloc: number;
-    comment_lines: number;
-    blank_lines: number;
-    assembly_lines: number;
-  };
-  per_contract: {
-    external_functions: number;
-  }[];
+function triageNote(c: BoardIssue): string {
+  const moved = c.validation?.auto_moved_to;
+  if (moved) return `An agent moved it to ${moved === 'verified' ? 'Verified' : 'Rejected'}`;
+  return `${SOURCE_LABEL[c.source] ?? c.source} · awaiting validation`;
 }
 
-interface FindingsData {
-  findings: { id: string; severity: string }[];
-}
+/** Today answers one question: what should I do next? */
+export default function TodayPage() {
+  const config = readConfig();
+  const review = readReview(5);
+  const project = config?.project;
+  const diffMode = project?.mode === 'diff';
+  const diff = diffMode ? readJsonFile<DiffSummary>('diff.json') : null;
 
-interface ExternalCallsData {
-  calls: unknown[];
-}
+  const board = buildBoard();
+  const triage = board
+    .filter(
+      (c) =>
+        c.column === 'potential' ||
+        (c.validation?.auto_moved_to && (c.column === 'verified' || c.column === 'invalid')),
+    )
+    .sort(
+      (a, b) =>
+        Number(Boolean(b.validation?.auto_moved_to)) -
+          Number(Boolean(a.validation?.auto_moved_to)) ||
+        (SEVERITY_ORDER[a.severity] ?? 5) - (SEVERITY_ORDER[b.severity] ?? 5),
+    );
 
-const NAV_LINKS = [
-  {
-    href: '/stats',
-    label: 'Stats',
-    description: 'Contract metrics, nSLOC, coverage',
-    icon: (
-      <svg
-        className="h-5 w-5"
-        aria-hidden="true"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        strokeWidth={1.5}
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"
-        />
-      </svg>
-    ),
-  },
-  {
-    href: '/access',
-    label: 'Access Control',
-    description: 'Roles, permissions, visibility',
-    icon: (
-      <svg
-        className="h-5 w-5"
-        aria-hidden="true"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        strokeWidth={1.5}
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z"
-        />
-      </svg>
-    ),
-  },
-  {
-    href: '/calls',
-    label: 'External Calls',
-    description: 'Cross-contract calls, trust levels',
-    icon: (
-      <svg
-        className="h-5 w-5"
-        aria-hidden="true"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        strokeWidth={1.5}
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"
-        />
-      </svg>
-    ),
-  },
-  {
-    href: '/issues',
-    label: 'Issues',
-    description: 'Potential, verified, invalid, and duplicate issues',
-    icon: (
-      <svg
-        className="h-5 w-5"
-        aria-hidden="true"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        strokeWidth={1.5}
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"
-        />
-      </svg>
-    ),
-  },
-  {
-    href: '/diagram',
-    label: 'Diagram',
-    description: 'Contract architecture visualization',
-    icon: (
-      <svg
-        className="h-5 w-5"
-        aria-hidden="true"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        strokeWidth={1.5}
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M7.5 3.75H6A2.25 2.25 0 0 0 3.75 6v1.5M16.5 3.75H18A2.25 2.25 0 0 1 20.25 6v1.5m0 9V18A2.25 2.25 0 0 1 18 20.25h-1.5m-9 0H6A2.25 2.25 0 0 1 3.75 18v-1.5M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
-        />
-      </svg>
-    ),
-  },
-];
+  const meta = [
+    diffMode ? 'Differential audit' : 'Full audit',
+    project?.solidity_version ? `Solidity ${project.solidity_version}` : null,
+    project?.scope
+      ? `${project.scope.length} file${project.scope.length === 1 ? '' : 's'} in scope`
+      : null,
+    project?.commit ? project.commit.slice(0, 8) : null,
+  ].filter(Boolean);
 
-export default function HomePage() {
-  const config = readJsonFile<ProjectConfig>('config.json');
-  const overview = readMarkdownFile('overview.md');
-  const stats = readJsonFile<Stats>('stats.json');
-  const diff = config?.project.mode === 'diff' ? readJsonFile<DiffSummary>('diff.json') : null;
-  const findingsData = readJsonFile<FindingsData>('findings.json');
-  const externalCallsData = readJsonFile<ExternalCallsData>('external-calls.json');
-
-  const totalExternalFunctions = stats
-    ? stats.per_contract.reduce((sum, c) => sum + c.external_functions, 0)
-    : null;
-  const totalFindings = findingsData?.findings?.length ?? null;
-  const totalExternalCalls = externalCallsData?.calls?.length ?? null;
+  const next = review.blind_spots[0];
+  const fnCount = review.rows.length;
+  const left = review.counts.unread + review.counts.read + review.counts.questioned;
 
   return (
-    <div>
-      {/* Project header */}
-      <div className="mb-6">
-        <h1 className="text-title font-semibold text-text-primary">
-          {config?.project.name ?? 'Hex Dashboard'}
-        </h1>
-        {config && (
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <span className="rounded-md bg-accent-subtle px-2.5 py-1 text-caption font-medium text-accent">
-              {config.project.chain}
-            </span>
-            <span className="rounded-md bg-surface-2 px-2.5 py-1 text-caption text-text-tertiary">
-              {config.project.commit.slice(0, 8)}
-            </span>
-            <span className="text-caption text-text-tertiary">
-              Solidity {config.project.solidity_version}
-            </span>
-            <span className="text-caption text-text-tertiary">
-              {config.project.scope.length} file{config.project.scope.length !== 1 ? 's' : ''} in
-              scope
-            </span>
-          </div>
-        )}
-        {config?.project.mode === 'diff' && (
-          <Link
-            href="/changes"
-            className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-border-subtle bg-surface-1 px-4 py-3 text-body text-text-secondary hover:border-border-default hover:bg-surface-2"
-          >
-            <span className="rounded-md bg-accent-subtle px-2.5 py-1 text-caption font-medium text-accent">
-              Differential
-            </span>
-            <code className="font-mono text-caption text-text-primary">
-              {(diff?.base_commit ?? config.project.diff?.base_commit ?? '').slice(0, 8)}
-            </code>
-            <span aria-hidden="true">→</span>
-            <code className="font-mono text-caption text-text-primary">
-              {(diff?.head_commit ?? config.project.commit).slice(0, 8)}
-            </code>
-            {diff ? (
-              <span>
-                · {diff.summary.files_changed} file{diff.summary.files_changed !== 1 ? 's' : ''} changed ·{' '}
-                {diff.summary.impacted_entry_points} impacted entry point
-                {diff.summary.impacted_entry_points !== 1 ? 's' : ''}
-                {diff.summary.storage_layout_changes > 0 && (
-                  <span className="text-[var(--high)]">
-                    {' '}
-                    · {diff.summary.storage_layout_changes} storage layout change
-                    {diff.summary.storage_layout_changes !== 1 ? 's' : ''}
-                  </span>
-                )}
-              </span>
-            ) : (
-              <span>· run hex diff to compute the change set</span>
-            )}
-          </Link>
-        )}
-      </div>
+    <div className="h-full overflow-y-auto">
+      <div className="mx-auto max-w-[720px] px-6 pb-16 pt-14 md:px-8">
+        <header className="rise-in">
+          <h1 className="text-display font-semibold tracking-tight text-text-primary">
+            {project?.name ?? 'Hex'}
+          </h1>
+          <p className="mt-1.5 text-body text-text-tertiary">{meta.join(' · ')}</p>
+        </header>
 
-      {/* KPI cards */}
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 stagger">
-        <KpiCard label="Contracts" value={stats?.totals.contracts} href="/stats" />
-        <KpiCard label="nSLOC" value={stats?.totals.nsloc?.toLocaleString()} href="/stats" />
-        <KpiCard label="Functions" value={totalExternalFunctions} href="/functions" />
-        <KpiCard label="Ext Calls" value={totalExternalCalls} href="/calls" />
-        <KpiCard label="Issues" value={totalFindings} href="/issues" />
-      </div>
-
-      {/* Overview */}
-      <div className="mb-6">
-        {overview ? (
-          <div className="rounded-lg border border-border-subtle bg-surface-1 p-6">
-            <div className="mx-auto max-w-3xl">
-              <MarkdownRenderer content={overview} />
-            </div>
+        {review.facts_source === null ? (
+          <div className="mt-12">
+            <EmptyState
+              sentence="Nothing to review yet: Hex needs the compiler facts for this project."
+              command="hex facts"
+            />
           </div>
         ) : (
-          <NotYetGenerated command="hex overview" />
+          <>
+            <section className="rise-in mt-10 flex flex-col items-start gap-6 sm:flex-row sm:items-center sm:gap-8">
+              <ProgressRing pct={review.pct} />
+              <div className="min-w-0 flex-1">
+                <h2 className="text-heading font-medium text-text-primary">
+                  {review.pct === 100
+                    ? 'Every in-scope function is cleared'
+                    : 'In-scope code cleared'}
+                </h2>
+                <p className="mt-1 text-body text-text-secondary">
+                  {review.cleared_nsloc.toLocaleString()} of {review.total_nsloc.toLocaleString()}{' '}
+                  nSLOC · {left} of {fnCount} function{fnCount === 1 ? '' : 's'} still open
+                  {review.counts.questioned > 0 && ` · ${review.counts.questioned} questioned`}
+                </p>
+                {next && (
+                  <Link
+                    href={`/review?fn=${encodeURIComponent(next.id)}`}
+                    className="mt-4 inline-flex h-8 items-center gap-2 rounded-md bg-accent px-3 text-body font-medium text-accent-contrast shadow-sm hover:bg-accent-secondary"
+                  >
+                    Continue with {next.contract}.{next.name}
+                    <IconArrowRight className="h-4 w-4" />
+                  </Link>
+                )}
+              </div>
+            </section>
+
+            {review.facts_source === 'parser-fallback' && (
+              <p className="mt-6 text-caption text-text-tertiary">
+                <span
+                  className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full align-middle"
+                  style={{ background: 'var(--medium)' }}
+                />
+                Facts come from the parser fallback because the build failed, so call graphs may be
+                incomplete. Fix the build and run <code className="font-mono">hex facts</code>.
+              </p>
+            )}
+          </>
         )}
-      </div>
 
-      {/* Quick nav tiles */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 stagger">
-        {NAV_LINKS.map((item) => (
+        {diffMode && (
           <Link
-            key={item.href}
-            href={item.href}
-            className="group flex items-start gap-3 rounded-lg border border-border-subtle bg-surface-1 p-4 hover:border-border-default hover:bg-surface-2"
+            href="/changes"
+            className="group mt-10 flex items-center gap-4 border-y border-border-subtle py-4 hover:border-border-default"
           >
-            <div className="shrink-0 text-text-tertiary group-hover:text-accent">{item.icon}</div>
-            <div>
-              <h3 className="text-heading font-medium text-text-primary group-hover:text-accent">
-                {item.label}
-              </h3>
-              <p className="mt-0.5 text-caption text-text-secondary">{item.description}</p>
+            <div className="min-w-0 flex-1">
+              <div className="text-body font-medium text-text-primary">
+                Changes since{' '}
+                <span className="font-mono text-caption">
+                  {(diff?.base_commit ?? project?.diff?.base_commit ?? '').slice(0, 8)}
+                </span>
+              </div>
+              <div className="mt-0.5 text-caption text-text-tertiary">
+                {diff
+                  ? [
+                      `${diff.summary.files_changed} file${diff.summary.files_changed === 1 ? '' : 's'} changed`,
+                      `${diff.summary.impacted_entry_points} impacted entry point${diff.summary.impacted_entry_points === 1 ? '' : 's'}`,
+                      diff.summary.storage_layout_changes
+                        ? `${diff.summary.storage_layout_changes} storage layout change${diff.summary.storage_layout_changes === 1 ? '' : 's'}`
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')
+                  : 'Run hex diff to compute the change set'}
+              </div>
             </div>
+            <IconChevron className="h-4 w-4 text-text-tertiary group-hover:text-text-primary" />
           </Link>
-        ))}
-      </div>
-    </div>
-  );
-}
+        )}
 
-function KpiCard({
-  label,
-  value,
-  href,
-}: {
-  label: string;
-  value: string | number | null | undefined;
-  href?: string;
-}) {
-  const isMuted = value == null;
-  const inner = (
-    <div
-      className={`rounded-lg border border-border-subtle bg-surface-1 p-4 ${href ? 'hover:border-border-default hover:bg-surface-2 cursor-pointer' : ''}`}
-    >
-      <div
-        className={`text-display scale-in ${isMuted ? 'text-text-tertiary' : 'text-text-primary'}`}
-      >
-        {value ?? '--'}
+        {review.blind_spots.length > 0 && (
+          <section className="mt-10">
+            <h2 className="mb-2 text-heading font-medium text-text-primary">Next up</h2>
+            <p className="mb-3 text-caption text-text-tertiary">
+              Risky code nobody has looked at closely yet.
+            </p>
+            <ul className="stagger divide-y divide-border-subtle border-y border-border-subtle">
+              {review.blind_spots.map((r) => (
+                <li key={r.id}>
+                  <Link
+                    href={`/review?fn=${encodeURIComponent(r.id)}`}
+                    className="group -mx-2 flex items-center gap-3 rounded-md px-2 py-2.5 hover:bg-surface-1"
+                  >
+                    <StateGlyph state={r.state} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-body text-text-primary">
+                        {r.contract}.<span className="font-medium">{r.name}</span>
+                      </span>
+                      <span className="block truncate text-caption text-text-tertiary">
+                        {r.risk_reasons.slice(0, 3).join(' · ') || `${r.nsloc} nSLOC`}
+                      </span>
+                    </span>
+                    <IconChevron className="h-4 w-4 shrink-0 text-text-tertiary opacity-0 group-hover:opacity-100" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        <section className="mt-10">
+          <h2 className="mb-2 text-heading font-medium text-text-primary">Needs triage</h2>
+          {triage.length === 0 ? (
+            <p className="text-body text-text-tertiary">No cards are waiting for you.</p>
+          ) : (
+            <>
+              <p className="mb-3 text-caption text-text-tertiary">
+                Potential cards, and cards an agent moved on its own that deserve a glance.
+              </p>
+              <ul className="stagger divide-y divide-border-subtle border-y border-border-subtle">
+                {triage.slice(0, 8).map((c) => (
+                  <li key={c.id}>
+                    <Link
+                      href={`/issues?card=${encodeURIComponent(c.id)}`}
+                      className="group -mx-2 flex items-center gap-3 rounded-md px-2 py-2.5 hover:bg-surface-1"
+                    >
+                      <SeverityDot severity={c.severity} label={false} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-body text-text-primary">
+                          {c.title}
+                        </span>
+                        <span className="block truncate text-caption text-text-tertiary">
+                          {c.id} · {triageNote(c)}
+                        </span>
+                      </span>
+                      <IconChevron className="h-4 w-4 shrink-0 text-text-tertiary opacity-0 group-hover:opacity-100" />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+              {triage.length > 8 && (
+                <Link
+                  href="/issues"
+                  className="mt-2 inline-block text-caption text-text-secondary hover:text-text-primary"
+                >
+                  {triage.length - 8} more on the board
+                </Link>
+              )}
+            </>
+          )}
+        </section>
       </div>
-      <div className="mt-1 text-caption text-text-secondary">{label}</div>
     </div>
   );
-  if (href) {
-    return <Link href={href}>{inner}</Link>;
-  }
-  return inner;
 }

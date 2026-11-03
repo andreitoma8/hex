@@ -6,6 +6,7 @@ import {
   type FileModel,
 } from './code-model.js';
 import type {
+  Facts,
   Confidence,
   DiffChange,
   ImpactedFunction,
@@ -745,4 +746,151 @@ export function summarize(
     impacted_entry_points: impacted.filter((i) => i.is_entry_point).length,
     storage_layout_changes: layout.length,
   };
+}
+
+// ─── Compiler-facts adapters ────────────────────────────────────────
+
+/**
+ * Build the impact index from exact compiler facts instead of the parser.
+ * Every call edge is compiler-resolved, so call/modifier edges are `high`;
+ * virtual dispatch comes from the compiler's override graph (also `high`).
+ */
+export function impactIndexFromFacts(facts: Facts): ImpactIndex {
+  const units = new Map<string, CodeUnit>();
+  const unitFile = new Map<string, string>();
+  const contracts = new Map<string, ContractModel>();
+  const lastSeg = (id: string) => id.slice(id.lastIndexOf('.') + 1);
+
+  for (const c of facts.contracts) {
+    contracts.set(c.name, {
+      name: c.name,
+      kind: c.kind,
+      file: c.file,
+      bases: c.bases,
+      lineStart: c.line_start,
+      lineEnd: c.line_end,
+      units: [],
+      stateVars: facts.state_vars
+        .filter((v) => v.contract === c.name)
+        .map((v) => ({
+          name: v.name,
+          type: v.type,
+          mutability: v.mutability,
+          visibility: v.visibility,
+          initial: '',
+          lineStart: v.line,
+        })),
+      events: [],
+      errors: [],
+      structs: [],
+    });
+  }
+  for (const f of facts.functions) {
+    const u: CodeUnit = {
+      contract: f.contract,
+      kind: f.kind === 'modifier' ? 'modifier' : 'function',
+      name: f.name,
+      signature: f.signature,
+      visibility: f.visibility,
+      stateMutability: f.mutability,
+      isConstructor: f.kind === 'constructor',
+      isFallback: f.kind === 'fallback',
+      isReceive: f.kind === 'receive',
+      modifiers: f.modifiers.map((m) => m.slice(m.indexOf('.') + 1, m.indexOf('('))),
+      paramCount: f.signature === `${f.name}()` ? 0 : f.signature.split(',').length,
+      lineStart: f.line_start,
+      lineEnd: f.line_end,
+      raw: '',
+      normalized: '',
+      calls: [],
+      reads: f.reads.map(lastSeg),
+      writes: f.writes.map(lastSeg),
+    };
+    units.set(f.id, u);
+    unitFile.set(f.id, f.file);
+    contracts.get(f.contract)?.units.push(u);
+  }
+
+  const callersOf = new Map<string, Edge[]>();
+  for (const f of facts.functions) {
+    for (const c of f.calls) {
+      if (!units.has(c.to)) continue;
+      const kind: EdgeKind =
+        c.kind === 'modifier' ? 'modifier' : c.kind === 'virtual' ? 'override' : 'calls';
+      const list = callersOf.get(c.to) ?? [];
+      if (!list.some((e) => e.caller === f.id && e.kind === kind)) {
+        list.push({ caller: f.id, callee: c.to, kind, confidence: 'high' });
+      }
+      callersOf.set(c.to, list);
+    }
+  }
+  return { units, contracts, callersOf, unitFile };
+}
+
+/**
+ * Exact storage-layout diff between two compiler layouts (slot, offset, type),
+ * per contract present at both commits. New contracts have nothing to collide with.
+ */
+export function diffCompilerLayouts(base: Facts, head: Facts): StorageLayoutChange[] {
+  const out: StorageLayoutChange[] = [];
+  const fileOf = new Map(head.contracts.map((c) => [c.name, c.file]));
+  for (const [contract, headSlots] of Object.entries(head.storage_layouts)) {
+    const baseSlots = base.storage_layouts[contract];
+    if (!baseSlots) continue;
+    const file = fileOf.get(contract) ?? '';
+    const b = new Map(baseSlots.map((s) => [s.label, s]));
+    const h = new Map(headSlots.map((s) => [s.label, s]));
+    const where = (s: { slot: string; offset: number }) =>
+      `slot ${s.slot}${s.offset ? ` offset ${s.offset}` : ''}`;
+
+    for (const [label, bs] of b) {
+      const hs = h.get(label);
+      if (!hs) {
+        out.push({
+          contract,
+          file,
+          kind: 'variable_removed',
+          detail: `\`${label}\` (${bs.type}, ${where(bs)}) was removed.`,
+        });
+      } else if (hs.type !== bs.type) {
+        out.push({
+          contract,
+          file,
+          kind: 'variable_type_changed',
+          detail: `\`${label}\` changed type from ${bs.type} to ${hs.type} (${where(hs)}).`,
+        });
+      } else if (hs.slot !== bs.slot || hs.offset !== bs.offset) {
+        out.push({
+          contract,
+          file,
+          kind: 'variable_reordered',
+          detail: `\`${label}\` moved from ${where(bs)} to ${where(hs)}.`,
+        });
+      }
+    }
+    const lastBaseSlot = Math.max(-1, ...baseSlots.map((s) => Number(s.slot)));
+    for (const [label, hs] of h) {
+      if (b.has(label)) continue;
+      const appended = Number(hs.slot) > lastBaseSlot;
+      out.push({
+        contract,
+        file,
+        kind: 'variable_added',
+        detail: appended
+          ? `\`${label}\` (${hs.type}) appended at ${where(hs)}.`
+          : `\`${label}\` (${hs.type}) inserted at ${where(hs)}, inside the old layout.`,
+      });
+    }
+    const order = (slots: typeof headSlots) =>
+      [...new Set(slots.map((s) => s.declared_in))].join(' → ');
+    if (order(baseSlots) !== order(headSlots)) {
+      out.push({
+        contract,
+        file,
+        kind: 'inheritance_changed',
+        detail: `Storage order by declaring contract changed: ${order(baseSlots)} ⇒ ${order(headSlots)}.`,
+      });
+    }
+  }
+  return out;
 }

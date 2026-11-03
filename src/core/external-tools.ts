@@ -1,6 +1,4 @@
 import { spawn } from 'node:child_process';
-import fs from 'node:fs';
-import path from 'node:path';
 import { logger } from './logger.js';
 
 export interface ToolInfo {
@@ -33,7 +31,8 @@ function exec(
     const child = spawn(command, args, {
       cwd: options.cwd,
       env,
-      shell: true,
+      // No shell: arguments are passed as-is (never concatenated into a command line).
+      shell: process.platform === 'win32',
       timeout: options.timeout ?? 120_000,
     });
 
@@ -82,8 +81,6 @@ async function checkTool(
  */
 export async function detectTools(): Promise<ToolInfo[]> {
   const checks = await Promise.all([
-    checkTool('solc', 'solc', ['--version']),
-    checkTool('slither', 'slither', ['--version']),
     checkTool('forge', 'forge', ['--version']),
   ]);
   return checks;
@@ -100,56 +97,6 @@ export async function requireTool(name: string): Promise<void> {
       `Required tool '${name}' not found. Please install it and ensure it's in your PATH.`,
     );
   }
-}
-
-/**
- * Run Slither with JSON output.
- */
-export async function runSlither(
-  dir: string,
-  args: string[],
-): Promise<ExecResult> {
-  logger.dim(`Running: slither ${args.join(' ')}`);
-  return exec('slither', args, { cwd: dir, timeout: 300_000 });
-}
-
-/**
- * Get Slither function-summary output with file-based caching.
- * access.ts and state.ts both run the identical `slither . --print function-summary --json -`
- * command. This cache ensures it only runs once per analysis session.
- */
-export async function getSlitherFunctionSummary(
-  projectDir: string,
-  outputDir: string,
-): Promise<ExecResult> {
-  const cacheDir = path.join(outputDir, '.cache');
-  const cachePath = path.join(cacheDir, 'slither-function-summary.json');
-
-  // Use cache if it exists and is less than 5 minutes old
-  try {
-    const stat = fs.statSync(cachePath);
-    if (Date.now() - stat.mtimeMs < 5 * 60 * 1000) {
-      const cached = JSON.parse(fs.readFileSync(cachePath, 'utf-8')) as ExecResult;
-      logger.dim('Using cached Slither function-summary');
-      return cached;
-    }
-  } catch {
-    // Cache miss — run Slither
-  }
-
-  const result = await runSlither(projectDir, ['.', '--print', 'function-summary', '--json', '-']);
-
-  // Cache the result on success
-  if (result.exitCode === 0) {
-    try {
-      fs.mkdirSync(cacheDir, { recursive: true });
-      fs.writeFileSync(cachePath, JSON.stringify(result));
-    } catch {
-      // Non-fatal — caching is best-effort
-    }
-  }
-
-  return result;
 }
 
 /**
@@ -187,15 +134,4 @@ export async function flattenFile(projectDir: string, filePath: string): Promise
     flattenCache.set(key, null);
     return null;
   }
-}
-
-/**
- * Run solc.
- */
-export async function runSolc(
-  dir: string,
-  args: string[],
-): Promise<ExecResult> {
-  logger.dim(`Running: solc ${args.join(' ')}`);
-  return exec('solc', args, { cwd: dir });
 }

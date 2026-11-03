@@ -7,11 +7,8 @@ export interface ErrorHint {
 }
 
 export type ErrorCode =
-  | 'tool.slither.missing'
-  | 'tool.slither.failed'
   | 'tool.forge.missing'
   | 'tool.forge.failed'
-  | 'tool.solc.missing'
   | 'tool.claude.missing'
   | 'tool.node.outdated'
   | 'project.scope.empty'
@@ -30,16 +27,6 @@ export type ErrorCode =
   | 'diff.not-diff-mode';
 
 export const ERROR_HINTS: Record<ErrorCode, ErrorHint> = {
-  'tool.slither.missing': {
-    cause: "Slither isn't installed or isn't on PATH.",
-    fix: 'Install with: pip install slither-analyzer',
-    docs: 'https://github.com/crytic/slither#how-to-install',
-  },
-  'tool.slither.failed': {
-    cause: 'Slither ran but exited with a non-zero code.',
-    fix: 'Re-run `slither <project>` manually to see the underlying compilation error.',
-    docs: 'https://github.com/crytic/slither/wiki/Usage',
-  },
   'tool.forge.missing': {
     cause: 'Foundry (forge/cast) is not installed or not on PATH.',
     fix: 'Install with: curl -L https://foundry.paradigm.xyz | bash && foundryup',
@@ -48,11 +35,6 @@ export const ERROR_HINTS: Record<ErrorCode, ErrorHint> = {
   'tool.forge.failed': {
     cause: 'forge build failed before analysis could finish.',
     fix: 'Run `forge build` directly and fix the compilation errors first.',
-  },
-  'tool.solc.missing': {
-    cause: 'solc was not found on PATH.',
-    fix: 'Install with `solc-select install <version> && solc-select use <version>`, or rely on Foundry.',
-    docs: 'https://github.com/crytic/solc-select#quickstart',
   },
   'tool.claude.missing': {
     cause: 'Claude Code CLI is not installed (hex skills run via Claude Code).',

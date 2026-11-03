@@ -126,7 +126,10 @@ export function typeToString(t: unknown): string {
     case 'ElementaryTypeName':
       return String(t.name ?? 'unknown');
     case 'UserDefinedTypeName':
-      return String(t.namePath ?? 'unknown');
+      // Last segment, so `BaseVault.Position` and `Position` agree with the compiler facts.
+      return String(t.namePath ?? 'unknown')
+        .split('.')
+        .pop()!;
     case 'ArrayTypeName': {
       const len = t.length as AnyNode | null;
       const lenStr = isNode(len) && len.type === 'NumberLiteral' ? String(len.number) : '';

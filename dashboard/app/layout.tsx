@@ -1,10 +1,14 @@
 import type { Metadata } from 'next';
 import { Manrope, JetBrains_Mono } from 'next/font/google';
 import { ThemeProvider } from 'next-themes';
-import { DashboardLayout } from '@/components/DashboardLayout';
+import { Sidebar } from '@/components/ui/Sidebar';
+import { LAYOUT_BOOT } from '@/lib/pane-width';
+import { ToastProvider } from '@/components/ui/Toast';
 import { CommandPalette } from '@/components/CommandPalette';
+import { AutoRefresh } from '@/components/AutoRefresh';
 import pkg from '../../package.json';
 import { readJsonFile } from '@/lib/data';
+import { latestFixReview } from '@/lib/server/workspace';
 import './globals.css';
 
 const manrope = Manrope({
@@ -21,31 +25,42 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: 'Hex',
-  description: 'Local dashboard for Solidity smart contract audits',
+  description: 'A calm review workspace for Solidity audits',
 };
 
-// The sidebar depends on .hex/config.json (diff mode shows Changes), so every
-// route renders at request time — including /diagram and /flows, which would
-// otherwise be prerendered with whatever config existed at build time.
+// The sidebar depends on .hex/ (diff mode or a fix review shows Changes), so every
+// route renders at request time against the audited project's `.hex/`.
 export const dynamic = 'force-dynamic';
 
-function isDiffAudit(): boolean {
-  return readJsonFile<{ project?: { mode?: string } }>('config.json')?.project?.mode === 'diff';
+interface ConfigFile {
+  project?: { name?: string; mode?: string };
 }
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const config = readJsonFile<ConfigFile>('config.json');
+  // Changes covers both "what moved since the base audit" (diff mode) and the
+  // fix review, which follows full audits too.
+  const showChanges =
+    config?.project?.mode === 'diff' || latestFixReview<{ generated_at: string }>() !== null;
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${manrope.variable} ${jetbrainsMono.variable} min-h-screen bg-surface-0 text-text-primary font-sans`}>
+      <body
+        className={`${manrope.variable} ${jetbrainsMono.variable} h-full bg-surface-0 font-sans text-text-primary`}
+      >
+        <script dangerouslySetInnerHTML={{ __html: LAYOUT_BOOT() }} />
         <ThemeProvider attribute="data-theme" defaultTheme="dark" enableSystem={false}>
-          <CommandPalette />
-          <DashboardLayout version={pkg.version} diffMode={isDiffAudit()}>
-            {children}
-          </DashboardLayout>
+          <ToastProvider>
+            <AutoRefresh />
+            <CommandPalette showChanges={showChanges} />
+            <Sidebar
+              projectName={config?.project?.name ?? null}
+              version={pkg.version}
+              showChanges={showChanges}
+            />
+            <main className="h-screen overflow-hidden bg-surface-0 transition-[margin] duration-200 ease-out md:ml-[var(--sidebar-w,220px)]">
+              {children}
+            </main>
+          </ToastProvider>
         </ThemeProvider>
       </body>
     </html>

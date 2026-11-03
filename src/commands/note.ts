@@ -21,6 +21,7 @@ import {
   type ContractNote,
 } from '../core/notes.js';
 import { recomputeReview } from '../core/review.js';
+import { commentsForFile, commentsMarkdown, readComments } from '../core/comments.js';
 
 function resolveOutputDir(opts: { project?: string }): string {
   return loadProjectContext(opts.project ?? process.cwd()).outputDir;
@@ -107,7 +108,10 @@ const showCmd = new Command('show')
   .option('--project <dir>', 'Project directory')
   .action((contract: string, opts: { project?: string }) => {
     try {
-      console.log(JSON.stringify(readContractNote(resolveOutputDir(opts), contract), null, 2));
+      // `Vault` and `Vault.sol` are the same note: resolve like `note lead` does.
+      const outputDir = resolveOutputDir(opts);
+      const note = readContractNote(outputDir, resolveNoteTarget(outputDir, contract));
+      console.log(JSON.stringify(note, null, 2));
     } catch (err) {
       reportError(err);
       process.exit(1);
@@ -115,14 +119,18 @@ const showCmd = new Command('show')
   });
 
 const setCmd = new Command('set')
-  .description("Replace a contract's structured note from a JSON file (Diane's read-merge-write path)")
+  .description(
+    "Replace a contract's structured note from a JSON file (Diane's read-merge-write path)",
+  )
   .argument('<contract>', 'Contract name (e.g. Vault.sol)')
   .requiredOption('--json-file <path>', 'JSON file holding the full ContractNote')
   .option('--project <dir>', 'Project directory')
   .action((contract: string, opts: { jsonFile: string; project?: string }) => {
     try {
       const outputDir = resolveOutputDir(opts);
-      const note = JSON.parse(fs.readFileSync(path.resolve(opts.jsonFile), 'utf-8')) as ContractNote;
+      const note = JSON.parse(
+        fs.readFileSync(path.resolve(opts.jsonFile), 'utf-8'),
+      ) as ContractNote;
       writeContractNote(outputDir, contract, note);
       const reviewed = recomputeReview(outputDir, contract);
       logger.success(`Saved note: ${contract}${reviewed ? ' (reviewed ✓)' : ''}`);
@@ -184,7 +192,9 @@ const leadCmd = new Command('lead')
 // ─── session subcommands ────────────────────────────────────────────
 
 const sessionLatestCmd = new Command('latest')
-  .description('Print the latest unprocessed narration session (with transcript) as JSON, for /diane')
+  .description(
+    'Print the latest unprocessed narration session (with transcript) as JSON, for /diane',
+  )
   .option('--project <dir>', 'Project directory')
   .action((opts: { project?: string }) => {
     try {
@@ -197,7 +207,9 @@ const sessionLatestCmd = new Command('latest')
   });
 
 const sessionAddCmd = new Command('add')
-  .description('Register a session from an existing transcript file (no audio/whisper — useful for testing)')
+  .description(
+    'Register a session from an existing transcript file (no audio/whisper — useful for testing)',
+  )
   .requiredOption('--transcript-file <path>', 'Transcript text file')
   .requiredOption('--contract <name>', 'Contract this session covers')
   .option('--ts <iso>', 'Timestamp (defaults to now)')
@@ -237,9 +249,36 @@ const sessionCmd = new Command('session')
   .addCommand(sessionAddCmd)
   .addCommand(sessionMarkCmd);
 
+// ─── code comments (written in the dashboard's code viewer) ────────
+
+const commentsCmd = new Command('comments')
+  .description("The auditor's code comments from the dashboard, at their current lines")
+  .argument('[file]', 'Only this file (e.g. src/Vault.sol)')
+  .option('--json', 'JSON output')
+  .option('--project <dir>', 'Project directory')
+  .action((file: string | undefined, opts: { json?: boolean; project?: string }) => {
+    try {
+      const outputDir = resolveOutputDir(opts);
+      if (opts.json) {
+        const files = file
+          ? [file]
+          : [...new Set(readComments(outputDir).map((c) => c.file))].sort();
+        const all = files.flatMap((f) => commentsForFile(outputDir, f));
+        console.log(JSON.stringify(all, null, 2));
+        return;
+      }
+      const md = commentsMarkdown(outputDir, file ? [file] : undefined);
+      console.log(md || 'No code comments yet.');
+    } catch (err) {
+      reportError(err);
+      process.exit(1);
+    }
+  });
+
 export const noteCommand = new Command('note')
   .description('Read and write audit notes (show / set / done / lead / list / active / session)')
   .addCommand(showCmd)
+  .addCommand(commentsCmd)
   .addCommand(leadCmd)
   .addCommand(setCmd)
   .addCommand(doneCmd)
