@@ -15,6 +15,8 @@ import {
   type GithubLink,
   type SyncFields,
   COLUMN_TO_STATUS,
+  ISSUE_SOURCES,
+  type IssueSource,
 } from '../core/issues.js';
 
 function readFileTrim(p: string): string {
@@ -150,11 +152,11 @@ const showCmd = new Command('show')
 
 const newCmd = new Command('new')
   .description('Create a new issue with a uniform H-NNN id and print it')
-  .requiredOption('--source <source>', 'manual | conformance | auditagent | github')
+  .requiredOption('--source <source>', ISSUE_SOURCES.join(' | '))
   .requiredOption('--title <title>', 'Issue title')
   .option(
     '--source-ref <ref>',
-    'Origin record id (conformance item id, auditagent id, GitHub issue number)',
+    'Origin record id (conformance item id, auditagent / ai-audit id, GitHub issue number, prior-audit finding id)',
   )
   .option('--severity <severity>', 'Critical | High | Medium | Low | Info')
   .option('--file <path>', 'Affected file path (repeatable; sets the File(s) line)', collect, [])
@@ -169,8 +171,8 @@ const newCmd = new Command('new')
       project?: string;
     }) => {
       try {
-        const source = opts.source as 'manual' | 'conformance' | 'auditagent' | 'github';
-        if (!['manual', 'conformance', 'auditagent', 'github'].includes(source)) {
+        const source = opts.source as IssueSource;
+        if (!ISSUE_SOURCES.includes(source)) {
           logger.error(`Invalid --source: ${opts.source}`);
           process.exit(1);
         }

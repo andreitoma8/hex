@@ -188,6 +188,24 @@ function IconFlows(p: React.SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+function IconChanges(p: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...p}
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"
+      />
+    </svg>
+  );
+}
 function IconRobot(p: React.SVGProps<SVGSVGElement>) {
   return (
     <svg
@@ -321,6 +339,8 @@ const NAV_GROUPS = [
     label: 'Recon',
     items: [
       { href: '/', label: 'Home', icon: IconHome },
+      // Shown only in a differential audit (config.json project.mode === 'diff').
+      { href: '/changes', label: 'Changes', icon: IconChanges, diffOnly: true },
       { href: '/progress', label: 'Progress', icon: IconProgress },
       { href: '/stats', label: 'Stats', icon: IconStats },
     ],
@@ -385,9 +405,12 @@ function ThemeToggle() {
 export function DashboardLayout({
   children,
   version,
+  diffMode = false,
 }: {
   children: React.ReactNode;
   version: string;
+  /** Differential audit: show diff-only nav items (Changes). */
+  diffMode?: boolean;
 }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -439,24 +462,26 @@ export function DashboardLayout({
               <div className="mb-1.5 px-3 text-caption font-medium text-text-tertiary">
                 {group.label}
               </div>
-              {group.items.map((item) => {
-                const isActive = pathname === item.href;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    aria-current={isActive ? 'page' : undefined}
-                    className={`group flex items-center gap-2.5 rounded-md px-3 py-2 text-body ${
-                      isActive
-                        ? 'bg-accent-subtle text-accent font-medium'
-                        : 'text-text-secondary hover:bg-surface-2 hover:text-text-primary'
-                    }`}
-                  >
-                    <item.icon className="h-4 w-4 shrink-0" />
-                    <span>{item.label}</span>
-                  </Link>
-                );
-              })}
+              {group.items
+                .filter((item) => diffMode || !item.diffOnly)
+                .map((item) => {
+                  const isActive = pathname === item.href;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      aria-current={isActive ? 'page' : undefined}
+                      className={`group flex items-center gap-2.5 rounded-md px-3 py-2 text-body ${
+                        isActive
+                          ? 'bg-accent-subtle text-accent font-medium'
+                          : 'text-text-secondary hover:bg-surface-2 hover:text-text-primary'
+                      }`}
+                    >
+                      <item.icon className="h-4 w-4 shrink-0" />
+                      <span>{item.label}</span>
+                    </Link>
+                  );
+                })}
             </div>
           ))}
         </div>

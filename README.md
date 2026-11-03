@@ -95,6 +95,39 @@ Inside `/init-audit`:
 
 All pages support filtering by confidence level so you can focus on entries that need manual verification.
 
+#### Differential audits
+
+For a re-audit, pick **Differential** when `/init-audit` asks for the audit type. You give a **base commit** (what the previous audit covered), the **head commit** (checked out), and optionally the **previous audit**: the old engagement's `.hex/` folder, or its report as PDF or Markdown.
+
+```bash
+# what /init-audit runs for you
+npx hex init --mode diff --base <base-commit> --scope "src/**/*.sol" [--previous-audit ../old-audit/.hex]
+npx hex analyze        # the usual analyses at head, then `hex diff`
+```
+
+`hex diff` is deterministic (AST + git, no model). It writes `.hex/diff.json`:
+
+- **Changed entities**: functions, modifiers, state variables, events, errors, structs and inheritance, each `added` / `modified` / `removed` / `comments_only`. Comment and whitespace edits do not count as code changes, and overloads are told apart by signature.
+- **Storage layout changes**: variables inserted, removed, reordered or retyped, changed storage structs, and every contract that inherits a changed layout.
+- **Impacted flows**: every function the change reaches, with the reason chain. A function is impacted when it calls into changed code, applies a changed modifier, reads state a changed function writes, dispatches to a changed override, or exposes an impacted function by inheritance. Entry points are flagged, and every row carries a confidence.
+
+`/init-audit` then narrows each phase to that change set: a `diff-overview.md` explains what changed and why (from the diff and the commit log), the flow charts cover the impacted flows, and conformance checks only changed and impacted functions. With a previous audit, prior findings are imported to `.hex/previous-audit/` and regression-checked; only **regressions** become board cards (source `prior-audit`), while acknowledged issues stay known issues. The dashboard gains a **Changes** page, and `/generate-report` writes the report as a differential review of base → head.
+
+#### AI audit (`/ai-audit`)
+
+`/ai-audit` runs **12 specialised attacker agents in parallel** over the audit scope, gates their output, and assembles one report. It is a fork of [pashov's `solidity-auditor` skill](https://github.com/pashov/skills/tree/main/solidity-auditor) (v4.1, MIT), adapted for Hex:
+
+- **Scope** comes from `.hex/config.json`. In a differential audit it scans only the changed and impacted files, and every agent gets a brief on the change.
+- **Findings land on the board** as Potential cards (source `ai-audit`, status `unverified`). Each one is rewritten to Hex's finding standard and given a severity, then deduped against every card already on the board. Re-scans never file the same finding twice.
+- **Leads** (trails without a complete proof) go to the contract's **Notes** as open leads, not to the board.
+- Loop mode (`--loop 3`, or pick a pass count when asked) and the cross-scan memory work as upstream. Everything the skill writes lives under `.hex/ai-audit/`.
+
+```
+/ai-audit
+/ai-audit --loop 3
+/ai-audit src/Vault.sol
+```
+
 ### Phase 2 — Manual review
 
 Read the code in your editor. Drop `@audit-issue` comments above anything suspicious:
@@ -123,6 +156,8 @@ Phase 2 is where Hex gets out of your way. You think; the toolkit just gives you
 - Manual `pending_validation` entries from `/write-finding`.
 - Conformance DEVIATES/PARTIAL entries materialized by `/init-audit`.
 - Auditagent `unverified` entries materialized by `/ingest-aa-report`.
+- AI audit `unverified` entries filed by `/ai-audit`.
+- Prior-audit regressions filed by `/init-audit` in a differential audit.
 - GitHub teammate entries materialized by `/sync-issues`.
 
 ```
@@ -204,10 +239,11 @@ Each skill has a recommended model — switch your Claude Code model before invo
 
 | Skill                   | Phase | Recommended Model | What it does                                                                                                                                     |
 | ----------------------- | ----- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `init-audit`            | 1     | Opus              | Dependency-safety → `hex analyze` → overview → diagram → flows → spec conformance → materialize DEVIATES/PARTIAL items as Potential cards        |
+| `init-audit`            | 1     | Opus              | Dependency-safety → `hex analyze` → overview → diagram → flows → spec conformance → materialize DEVIATES/PARTIAL items as Potential cards. Full or differential (base → head, impacted flows, prior-findings regression check) |
+| `ai-audit`              | 1-3   | Opus              | 12 parallel attacker agents (fork of pashov's solidity-auditor v4.1); findings → Potential cards with dedup, leads → contract notes; diff-aware |
 | `write-finding`         | 2     | Sonnet            | Records a manual issue to `findings.json` as a Potential card (`status: pending_validation`, `source: manual`)                                   |
 | `diane`                 | 2     | Sonnet            | Voice pair-auditor: ingests recorded narration into a structured per-contract profile (Leads / Description / Questions), verifies your claims against the code, and surfaces leads                |
-| `validate-finding`        | 3     | Opus              | Validates any Potential card (manual / auditagent / conformance / github); per-issue choice of PoC vs memo-only; promotes to Verified or Invalid |
+| `validate-finding`        | 3     | Opus              | Validates any Potential card (manual / ai-audit / auditagent / conformance / github / prior-audit); per-issue choice of PoC vs memo-only; promotes to Verified or Invalid |
 | `validate-all-findings` | 3     | Opus              | Runs the `/validate-finding` flow over every Potential card, one at a time                                                                         |
 | `generate-poc`          | 3     | Opus              | Generates and runs a PoC test (invoked by `/validate-finding`)                                                                                     |
 | `ingest-aa-report`      | 3     | Sonnet            | Ingests a completed Nethermind AuditAgent scan by ID; materializes findings + inline dedup                                                       |
@@ -220,7 +256,9 @@ Skills use Claude Code's native skill format, stored in `.claude/skills/<name>/S
 
 ```
 .claude/skills/
+├── .hex-skills.json         # which skills Hex installed (cleanup never touches your own skills)
 ├── init-audit/SKILL.md
+├── ai-audit/                # directory skill: SKILL.md + references/ (agents, assembler, LICENSE)
 ├── write-finding/SKILL.md
 ├── diane/SKILL.md
 ├── validate-finding/SKILL.md
@@ -233,7 +271,7 @@ Skills use Claude Code's native skill format, stored in `.claude/skills/<name>/S
 
 **How Claude Code finds them:** Claude Code auto-discovers skills in `.claude/skills/`. They appear as native slash commands — type `/` in Claude Code to see them.
 
-**Customising skills:** Edit any `SKILL.md` file in place.
+**Customising skills:** Edit any `SKILL.md` file in place. `hex claude` and `hex update-skills` only remove skills Hex installed itself (tracked in `.hex-skills.json`), so a project's own skills, such as a separate `solidity-auditor` install, are left alone.
 
 **Upgrading Hex:**
 
@@ -272,7 +310,8 @@ The dashboard runs locally at `http://localhost:3000` and auto-refreshes when ou
 
 | Page             | URL            | What you see                                                                                                                                                                                                                                                                                                                                                                               |
 | ---------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Home             | `/`            | Project info, AI overview, key stats                                                                                                                                                                                                                                                                                                                                                       |
+| Home             | `/`            | Project info, AI overview, key stats. In a differential audit, a base → head banner linking to Changes                                                                                                                                                                                                                                                                                    |
+| **Changes**      | `/changes`     | **Differential audits only.** Base → head summary, `diff-overview.md`, storage-layout changes, a filterable table of changed entities, the impacted flows with their reason chain and confidence, and the prior-findings regression check                                                                                                                                                  |
 | Progress         | `/progress`    | Weighted progress bar (70% nSLOC reviewed, 20% audit steps, 10% findings triage), contract review checklist (auto-ticks a contract once its Diane notes are done — see Notes)                                                                                                                                                                                                               |
 | **Notes**        | `/notes`       | **Diane's workspace.** Record voice narration (local Whisper), then `/diane` builds a structured per-contract profile — **Leads** (open only), **Description** (Purpose / Inheritance / Storage / Roles / Functions, collapsible), **Questions** (collapsible). Per-contract section nav; close leads; "mark done reading."                                                                  |
 | Statistics       | `/stats`       | Per-contract metrics, test coverage, dependencies, ERCs                                                                                                                                                                                                                                                                                                                                    |
@@ -328,10 +367,21 @@ All Hex outputs live in a single directory inside the project (default: `.hex/`,
 ├── progress.json            # Audit progress tracking (contract review state)
 ├── findings.json            # Canonical finding data (incl. resolution, update_from_client)
 ├── tracking.json            # Board state (status, source, duplicate_of)
-├── comparison.json          # Dedup match_signals (written by /ingest-aa-report and /sync-issues)
+├── comparison.json          # Dedup match_signals (written by /ingest-aa-report, /ai-audit and /sync-issues)
+├── diff.json                # Differential mode: changed entities, storage-layout changes, impacted flows
+├── diff/changes.patch       # Differential mode: in-scope unified diff, base → head
+├── diff-overview.md         # Differential mode: what changed and why (written by /init-audit)
+├── previous-audit/          # Differential mode with a prior audit
+│   ├── findings.json        # Prior findings, normalized
+│   └── review.json          # Regression check per prior finding
+├── ai-audit/                # /ai-audit scans
+│   ├── runs/<stamp>/        # Run files, assembled full-report.md, winners.tsv, hex-digest.md
+│   └── memory.tsv           # Cross-scan ledger (when memory is on)
 ├── validations/             # Issue validation memos
 │   ├── F001_memo.md
 │   └── SC-003_memo.md
+├── ai-results/ai-audit/     # /ai-audit records behind the board cards
+│   └── findings.json
 ├── ai-results/auditagent/   # AuditAgent ingest output
 │   ├── raw-output.md
 │   ├── findings.json
@@ -379,7 +429,9 @@ All commands run from within the project directory (or with `--project /path/to/
 | `hex doctor`                      | Preflight check: node, forge, slither, solc, Claude Code, output-dir writability, project config                   |
 | `hex claude`                      | Copy skills to `.claude/skills/` for Claude Code discovery                                                         |
 | `hex init`                        | Initialise audit config — scope, commit, chain, docs URL, `--github-repo` (called by `/init-audit`)                |
-| `hex analyze`                     | Run all analysis commands in parallel (stats, deps, access, state, calls, patterns, constraints), then surface     |
+| `hex init --mode diff --base <c>` | Differential audit against base commit `<c>`; `--previous-audit <path>` records the prior `.hex/` or report       |
+| `hex diff`                        | Differential mode: changed entities, storage-layout changes and impacted flows → `diff.json` (run by `analyze`)   |
+| `hex analyze`                     | Run all analysis commands in parallel (stats, deps, access, state, calls, patterns, constraints), then surface; then `diff` in differential mode |
 | `hex stats`                       | Generate codebase statistics and test coverage                                                                     |
 | `hex deps`                        | Build contract dependency graph                                                                                    |
 | `hex access`                      | Extract access control mapping (roles → functions, including inherited)                                            |
@@ -398,6 +450,8 @@ All commands run from within the project directory (or with `--project /path/to/
 | `hex update --yes`                | Update and re-sync skills without the post-install prompt                                                          |
 | `hex update-skills`               | Re-copy skill files from package, removing orphans (overwrites by default)                                         |
 | `hex update-skills --keep-custom` | Skip existing skill files instead of overwriting                                                                   |
+| `hex issue new\|move\|patch\|show`  | Create and mutate board cards (sources: manual, conformance, auditagent, ai-audit, github, prior-audit)              |
+| `hex note lead <Contract>`        | Add an open lead to a contract note; idempotent with `--source` + `--source-ref` (used by `/ai-audit`)             |
 | `hex ai-status`                   | Show the latest status for AuditAgent scans                                                                        |
 | `hex ai-status --watch`           | Poll every 5 minutes until pending scans resolve (typical scan: 30-60 min)                                         |
 | `hex issue new --source <s> ...`  | Allocate a uniform `H-NNN` id and create a board card (used by the skills)                                         |

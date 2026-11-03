@@ -1,5 +1,5 @@
 ---
-description: "Validate any potential finding on the board (manual / auditagent / conformance / github): check both correctness and security relevance, then route to Verified, Rejected, or leave Uncertain"
+description: "Validate any potential finding on the board (manual / ai-audit / auditagent / conformance / github / prior-audit): check both correctness and security relevance, then route to Verified, Rejected, or leave Uncertain"
 ---
 
 # Skill: Validate Finding
@@ -12,6 +12,8 @@ Takes a single potential issue from the dashboard's Issues board and runs an ind
 
 - **Manual** (`/write-finding`) — `source: "manual"`, `status: "pending_validation"`.
 - **Auditagent** (`/ingest-aa-report`) — `source: "auditagent"`, `status: "unverified"`.
+- **AI audit** (`/ai-audit`) — `source: "ai-audit"`, `status: "unverified"`.
+- **Prior audit** (regressions found by `/init-audit` in a differential audit) — `source: "prior-audit"`, `status: "pending_validation"`.
 - **Conformance** (materialized by `/init-audit`) — `source: "conformance"`, `status: "pending_validation"`.
 - **GitHub** (teammate findings via `/sync-issues`) — `source: "github"`, `status: "pending_validation"`.
 
@@ -40,6 +42,8 @@ Once the issue is resolved, read:
 - Source-specific raw data:
   - `manual` → `<output_dir>/findings.json` (the full finding record).
   - `auditagent` → `<output_dir>/ai-results/auditagent/findings.json` (the matching `findings[*]` entry).
+  - `ai-audit` → `<output_dir>/ai-results/ai-audit/findings.json` (the matching `findings[*]` entry; the scan's own write-up is in `<output_dir>/ai-audit/runs/<scan_stamp>/full-report.md`).
+  - `prior-audit` → `<output_dir>/previous-audit/findings.json` (the prior finding) and `previous-audit/review.json` (why it was judged a regression).
   - `conformance` → `<output_dir>/spec-conformance.json` (the matching `items[*]` entry).
   - `github` → `<output_dir>/external/github/findings.json` (the matching entry).
 - `<output_dir>/state-vars.json`, `<output_dir>/access-control.json`, `<output_dir>/external-calls.json` for cross-referenced facts.
@@ -67,7 +71,7 @@ For conformance items, the "claim" is `spec_text` + the finding paragraph — i.
 
 ### 2.5 Reality gate — is it security-relevant?
 
-Correctness is not enough. AI scanners (and sometimes teammates) surface claims that are **factually true but not security issues** — by-design behavior, missing features, defense-in-depth nice-to-haves, or risks only the deployer can inflict on themselves. This is the precision pass. **Run it for every finding; treat it as mandatory for `source: auditagent | github`** (those skew recall-over-precision). `manual` / `conformance` items already passed an auditor's eye, so they can lean lighter.
+Correctness is not enough. AI scanners (and sometimes teammates) surface claims that are **factually true but not security issues** — by-design behavior, missing features, defense-in-depth nice-to-haves, or risks only the deployer can inflict on themselves. This is the precision pass. **Run it for every finding; treat it as mandatory for `source: auditagent | ai-audit | github`** (those skew recall-over-precision). `manual` / `conformance` items already passed an auditor's eye, so they can lean lighter.
 
 For a claim you found **true**, run these five checks — each one pushes toward *not-security-relevant*:
 
@@ -106,7 +110,7 @@ Combine the two axes — correctness (Step 2) and security relevance (Step 2.5):
 
 4. **Calibrate severity — don't inherit it.** The source's severity (especially AuditAgent's) is a *hypothesis*, not authoritative. Re-derive it from realistic impact × likelihood; many technically-true findings collapse to Info. A finding whose worst case is self-inflicted or chain-conditional must say so and re-rate accordingly.
 
-5. **Persist via the CLI — do not hand-edit `findings.json` or `tracking.json`.** The `hex issue` command is the single source of truth for board mutations; it materializes a `findings.json` entry from the source record (conformance / auditagent / github) when one does not exist yet, and routes fields correctly. Write the validation memo and the recommendation to temp files, then:
+5. **Persist via the CLI — do not hand-edit `findings.json` or `tracking.json`.** The `hex issue` command is the single source of truth for board mutations; it materializes a `findings.json` entry from the source record (conformance / auditagent / ai-audit / github / prior-audit) when one does not exist yet, and routes fields correctly. Write the validation memo and the recommendation to temp files, then:
 
    ```bash
    # Land the editable fields (materializes a finding for conformance/auditagent/github ids):
@@ -175,7 +179,7 @@ Write `<output_dir>/validations/<id>_memo.md` (always — for valid, invalid, an
 ```markdown
 # Finding Validation: <ID> — <Title>
 
-**Source:** <manual | auditagent | conformance | github>
+**Source:** <manual | ai-audit | auditagent | conformance | github | prior-audit>
 **Original record:** <pointer to the specific record being validated — e.g., findings.json#F003, ai-results/auditagent/findings.json#AA-014>
 **Correctness:** True / False / Uncertain
 **Security relevance:** security-relevant / not-security-relevant / n/a

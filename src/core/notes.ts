@@ -243,6 +243,10 @@ export interface Lead {
   status: LeadStatus;
   /** Issue id (e.g. H-007) when promoted to a finding. */
   ref?: string;
+  /** Who raised it when not the auditor/Diane (e.g. `ai-audit`). */
+  source?: string;
+  /** Origin record key, used to keep machine-added leads idempotent. */
+  source_ref?: string;
 }
 
 export interface ContractDescription {
@@ -353,12 +357,52 @@ export function setMarkedDone(outputDir: string, contract: string, done: boolean
   return note;
 }
 
-export function addLead(outputDir: string, contract: string, text: string): Lead {
+export function addLead(
+  outputDir: string,
+  contract: string,
+  text: string,
+  meta: { source?: string; source_ref?: string } = {},
+): Lead {
+  return addLeadIdempotent(outputDir, contract, text, meta).lead;
+}
+
+/**
+ * Add a lead unless one with the same `source` + `source_ref` already exists on
+ * the contract (in any status — a dismissed lead stays dismissed on re-scan).
+ */
+export function addLeadIdempotent(
+  outputDir: string,
+  contract: string,
+  text: string,
+  meta: { source?: string; source_ref?: string } = {},
+): { lead: Lead; created: boolean } {
   const note = readContractNote(outputDir, contract);
+  if (meta.source_ref) {
+    const existing = note.leads.find(
+      (l) => l.source_ref === meta.source_ref && (l.source ?? '') === (meta.source ?? ''),
+    );
+    if (existing) return { lead: existing, created: false };
+  }
   const lead: Lead = { id: nextNumId('L', note.leads), text, status: 'open' };
+  if (meta.source) lead.source = meta.source;
+  if (meta.source_ref) lead.source_ref = meta.source_ref;
   note.leads.push(lead);
   writeContractNote(outputDir, contract, note);
-  return lead;
+  return { lead, created: true };
+}
+
+/**
+ * Resolve a contract name to the note target already in use for it: Diane may
+ * have recorded `Vault.sol` while machine callers pass `Vault`. Falls back to
+ * the bare contract name (what the Notes page's picker uses).
+ */
+export function resolveNoteTarget(outputDir: string, contract: string): string {
+  const bare = contract.replace(/\.sol$/i, '');
+  const known = readNotesIndex(outputDir).contracts;
+  if (known.includes(contract)) return contract;
+  if (known.includes(bare)) return bare;
+  if (known.includes(`${bare}.sol`)) return `${bare}.sol`;
+  return bare;
 }
 
 /** Close a lead as promoted-to-finding (`logged`, with ref) or `dismissed`. */

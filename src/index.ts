@@ -21,6 +21,7 @@ import { aiStatusCommand } from './commands/ai-status.js';
 import { updateCommand } from './commands/update.js';
 import { issueCommand } from './commands/issue.js';
 import { noteCommand } from './commands/note.js';
+import { diffCommand } from './commands/diff.js';
 
 // Single source of truth for the version: package.json (always shipped at the
 // package root, one dir up from dist/index.js). Avoids drift between the npm
@@ -55,5 +56,6 @@ program.addCommand(aiStatusCommand);
 program.addCommand(updateCommand);
 program.addCommand(issueCommand);
 program.addCommand(noteCommand);
+program.addCommand(diffCommand);
 
 program.parse();

@@ -6,7 +6,8 @@
  * server runtime (resolves outputDir via process.cwd()).
  *
  * The single source of truth for: materializing a findings.json entry from a
- * source-specific record (conformance / auditagent / github), routing edits
+ * source-specific record (conformance / auditagent / ai-audit / github /
+ * prior-audit), routing edits
  * between findings.json and tracking.json, and column→status mapping.
  *
  * Deliberately NOT imported across the src/ <-> dashboard/ tree boundary as a
@@ -202,18 +203,48 @@ function findingFromConformance(
   return f;
 }
 
+export type IssueSource =
+  | 'manual'
+  | 'conformance'
+  | 'auditagent'
+  | 'ai-audit'
+  | 'github'
+  | 'prior-audit';
+
+export const ISSUE_SOURCES: readonly IssueSource[] = [
+  'manual',
+  'conformance',
+  'auditagent',
+  'ai-audit',
+  'github',
+  'prior-audit',
+];
+
+/** Sources whose cards start `unverified` (machine-generated, not yet triaged). */
+const UNVERIFIED_SOURCES = new Set<IssueSource>(['auditagent', 'ai-audit']);
+
+type RecordSource = 'auditagent' | 'ai-audit' | 'github';
+
+function recordFileFor(outputDir: string, kind: RecordSource): string {
+  switch (kind) {
+    case 'auditagent':
+      return path.join(outputDir, 'ai-results', 'auditagent', 'findings.json');
+    case 'ai-audit':
+      return path.join(outputDir, 'ai-results', 'ai-audit', 'findings.json');
+    case 'github':
+      return path.join(outputDir, 'external', 'github', 'findings.json');
+  }
+}
+
 /** Build a findings.json record from an ai-results or external/github record, keyed by source_ref. */
 function findingFromAiOrGithub(
   outputDir: string,
   id: string,
-  kind: 'auditagent' | 'github',
+  kind: RecordSource,
   ref: string,
   tracking?: TrackingEntry,
 ): Finding | null {
-  const nested =
-    kind === 'auditagent'
-      ? path.join(outputDir, 'ai-results', 'auditagent', 'findings.json')
-      : path.join(outputDir, 'external', 'github', 'findings.json');
+  const nested = recordFileFor(outputDir, kind);
   const file = readJson<{ findings?: Array<Record<string, unknown>> }>(nested);
   const rec = file?.findings?.find(
     (r) => r.id === ref || String(r.issue_number ?? '') === ref || r.id === `github-${ref}`,
@@ -223,10 +254,60 @@ function findingFromAiOrGithub(
   f.title = String(rec.title ?? tracking?.title ?? id);
   f.category = String(rec.category ?? '');
   f.description = String(rec.description ?? '');
+  if (typeof rec.recommendation === 'string') f.recommendation = rec.recommendation;
   const affected = (rec.affected_code as Array<{ file: string; snippet?: string }>) ?? [];
   f.root_cause.locations = affected.map((a) => ({ file: a.file, snippet: a.snippet }));
   f.source_ref = ref;
   return f;
+}
+
+/**
+ * Build a findings.json record from a prior-audit finding (differential mode):
+ * a regression of an earlier finding, keyed by the prior report's id.
+ */
+function findingFromPriorAudit(
+  outputDir: string,
+  id: string,
+  ref: string,
+  tracking?: TrackingEntry,
+): Finding | null {
+  const file = readJson<{ findings?: Array<Record<string, unknown>> }>(
+    path.join(outputDir, 'previous-audit', 'findings.json'),
+  );
+  const rec = file?.findings?.find((r) => r.id === ref);
+  if (!rec) return null;
+  const f = newEmptyFinding(id, (rec.severity as Severity) ?? tracking?.severity ?? 'Info');
+  f.title = String(tracking?.title ?? rec.title ?? id);
+  f.category = 'Regression';
+  f.description = String(rec.description ?? '');
+  if (typeof rec.recommendation === 'string') f.recommendation = rec.recommendation;
+  const locs = (rec.locations as Array<{ file: string; snippet?: string }>) ?? [];
+  f.root_cause.locations = locs.map((l) => ({ file: l.file, snippet: l.snippet }));
+  f.source_ref = ref;
+  return f;
+}
+
+/** Dispatch to the source-specific materializer. */
+function materialize(
+  outputDir: string,
+  id: string,
+  source: string | undefined,
+  ref: string,
+  tracking?: TrackingEntry,
+): Finding | null {
+  if (!ref) return null;
+  switch (source) {
+    case 'conformance':
+      return findingFromConformance(outputDir, id, ref, tracking);
+    case 'auditagent':
+    case 'ai-audit':
+    case 'github':
+      return findingFromAiOrGithub(outputDir, id, source, ref, tracking);
+    case 'prior-audit':
+      return findingFromPriorAudit(outputDir, id, ref, tracking);
+    default:
+      return null;
+  }
 }
 
 /**
@@ -243,14 +324,7 @@ export function ensureFindingExists(outputDir: string, id: string): Finding {
   const tracking = loadTracking(outputDir).findings.find((t) => t.id === id);
   const ref = tracking?.source_ref ?? '';
 
-  let materialized: Finding | null = null;
-  if (tracking?.source === 'conformance' && ref) {
-    materialized = findingFromConformance(outputDir, id, ref, tracking);
-  } else if (tracking?.source === 'auditagent' && ref) {
-    materialized = findingFromAiOrGithub(outputDir, id, 'auditagent', ref, tracking);
-  } else if (tracking?.source === 'github' && ref) {
-    materialized = findingFromAiOrGithub(outputDir, id, 'github', ref, tracking);
-  }
+  let materialized = materialize(outputDir, id, tracking?.source, ref, tracking);
 
   // Fallback: synthesize a minimal record from the tracking entry (manual
   // findings, or any source record we couldn't read).
@@ -403,7 +477,7 @@ export function patchIssue(
 // ─── Creation ───────────────────────────────────────────────────────
 
 export interface CreateIssueInput {
-  source: 'manual' | 'conformance' | 'auditagent' | 'github';
+  source: IssueSource;
   source_ref?: string | null;
   title: string;
   severity?: Severity;
@@ -414,25 +488,17 @@ export interface CreateIssueInput {
 /**
  * Allocate a uniform `H-NNN` id and write a tracking entry + findings.json
  * skeleton. Returns the new id. Conformance/manual start in the Potential
- * column (`pending_validation`); auditagent starts `unverified`. Skills call
+ * column (`pending_validation`); auditagent / ai-audit start `unverified`. Skills call
  * this (via `hex issue new`) instead of hand-writing JSON.
  */
 export function createIssue(outputDir: string, input: CreateIssueInput): string {
   const id = allocateId(outputDir);
-  const status = input.source === 'auditagent' ? 'unverified' : 'pending_validation';
+  const status = UNVERIFIED_SOURCES.has(input.source) ? 'unverified' : 'pending_validation';
 
   // Materialize the full finding from the source record when source_ref
-  // resolves (conformance / auditagent / github), so the board shows the real
+  // resolves (conformance / auditagent / ai-audit / github / prior-audit), so the board shows the real
   // description immediately. Fall back to a titled skeleton otherwise.
-  const ref = input.source_ref ?? '';
-  let f: Finding | null = null;
-  if (input.source === 'conformance' && ref) {
-    f = findingFromConformance(outputDir, id, ref);
-  } else if (input.source === 'auditagent' && ref) {
-    f = findingFromAiOrGithub(outputDir, id, 'auditagent', ref);
-  } else if (input.source === 'github' && ref) {
-    f = findingFromAiOrGithub(outputDir, id, 'github', ref);
-  }
+  let f = materialize(outputDir, id, input.source, input.source_ref ?? '');
   if (!f) {
     f = newEmptyFinding(id, input.severity ?? 'Info');
     f.title = input.title;

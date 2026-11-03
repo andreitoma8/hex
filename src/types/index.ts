@@ -27,6 +27,12 @@ import {
   TrackingSourceSchema,
   ResolutionSchema,
   SpecItemSchema,
+  DiffSchema,
+  DiffChangeSchema,
+  ImpactedFunctionSchema,
+  StorageLayoutChangeSchema,
+  PriorFindingsSchema,
+  PriorReviewSchema,
 } from '../core/schema.js';
 
 export type Config = z.infer<typeof ConfigSchema>;
@@ -57,3 +63,9 @@ export type TrackingEntry = z.infer<typeof TrackingEntrySchema>;
 export type TrackingSource = z.infer<typeof TrackingSourceSchema>;
 export type Resolution = z.infer<typeof ResolutionSchema>;
 export type SpecItem = z.infer<typeof SpecItemSchema>;
+export type Diff = z.infer<typeof DiffSchema>;
+export type DiffChange = z.infer<typeof DiffChangeSchema>;
+export type ImpactedFunction = z.infer<typeof ImpactedFunctionSchema>;
+export type StorageLayoutChange = z.infer<typeof StorageLayoutChangeSchema>;
+export type PriorFindings = z.infer<typeof PriorFindingsSchema>;
+export type PriorReview = z.infer<typeof PriorReviewSchema>;

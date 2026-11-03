@@ -16,6 +16,8 @@ import {
   readContractNote,
   writeContractNote,
   setMarkedDone,
+  addLeadIdempotent,
+  resolveNoteTarget,
   type ContractNote,
 } from '../core/notes.js';
 import { recomputeReview } from '../core/review.js';
@@ -149,6 +151,36 @@ const doneCmd = new Command('done')
     }
   });
 
+const leadCmd = new Command('lead')
+  .description('Add an open lead to a contract note (idempotent on --source + --source-ref)')
+  .argument('<contract>', 'Contract name (e.g. Vault); matched to an existing note target if any')
+  .requiredOption('--text <text>', 'Lead text (inline markdown)')
+  .option('--source <source>', 'Who raised it, e.g. ai-audit')
+  .option('--source-ref <ref>', 'Origin key; a second call with the same key is a no-op')
+  .option('--project <dir>', 'Project directory')
+  .action(
+    (
+      contract: string,
+      opts: { text: string; source?: string; sourceRef?: string; project?: string },
+    ) => {
+      try {
+        const outputDir = resolveOutputDir(opts);
+        const target = resolveNoteTarget(outputDir, contract);
+        const { lead, created } = addLeadIdempotent(outputDir, target, opts.text, {
+          source: opts.source,
+          source_ref: opts.sourceRef,
+        });
+        if (created) recomputeReview(outputDir, target);
+        // Bare id on stdout so skills can capture it.
+        console.log(lead.id);
+        if (!created) process.stderr.write(`(exists on ${target}; not added again)\n`);
+      } catch (err) {
+        reportError(err);
+        process.exit(1);
+      }
+    },
+  );
+
 // ─── session subcommands ────────────────────────────────────────────
 
 const sessionLatestCmd = new Command('latest')
@@ -206,8 +238,9 @@ const sessionCmd = new Command('session')
   .addCommand(sessionMarkCmd);
 
 export const noteCommand = new Command('note')
-  .description('Read and write Diane audit notes (show / set / done / list / active / session)')
+  .description('Read and write audit notes (show / set / done / lead / list / active / session)')
   .addCommand(showCmd)
+  .addCommand(leadCmd)
   .addCommand(setCmd)
   .addCommand(doneCmd)
   .addCommand(readCmd)

@@ -23,7 +23,13 @@ export type IssueStatus =
   | 'synced'
   | 'rejected'
   | 'duplicate';
-export type IssueSource = 'manual' | 'auditagent' | 'conformance' | 'github';
+export type IssueSource =
+  | 'manual'
+  | 'auditagent'
+  | 'ai-audit'
+  | 'conformance'
+  | 'github'
+  | 'prior-audit';
 export type PocStatus = 'passing' | 'failing' | 'not_started';
 
 export interface BoardIssue {
@@ -263,9 +269,11 @@ function SourceFilter({
   const options: Array<{ id: IssueSource | 'all'; label: string }> = [
     { id: 'all', label: 'All sources' },
     { id: 'manual', label: 'Manual' },
+    { id: 'ai-audit', label: 'AI audit' },
     { id: 'auditagent', label: 'AuditAgent' },
     { id: 'conformance', label: 'Conformance' },
     { id: 'github', label: 'GitHub' },
+    { id: 'prior-audit', label: 'Prior audit' },
   ];
   return (
     <div className="flex flex-wrap gap-1.5">
@@ -437,8 +445,10 @@ function SourceChip({ source }: { source: IssueSource }) {
   const labels: Record<IssueSource, string> = {
     manual: 'Manual',
     auditagent: 'AuditAgent',
+    'ai-audit': 'AI audit',
     conformance: 'Conformance',
     github: 'GitHub',
+    'prior-audit': 'Prior audit',
   };
   return (
     <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-text-tertiary">

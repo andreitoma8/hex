@@ -1,0 +1,3 @@
+# Vendored from pashov/skills (see src/skills/ai-audit/UPSTREAM.md). assemble.sh parses the
+# templates in these files at fixed line offsets, so they must never be reformatted.
+src/skills/ai-audit/

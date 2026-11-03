@@ -23,7 +23,11 @@ export type ErrorCode =
   | 'output.file.unparseable'
   | 'ai-tool.missing-scan-id'
   | 'ai-tool.scan-failed'
-  | 'analysis.no-data';
+  | 'analysis.no-data'
+  | 'diff.base-required'
+  | 'diff.base-missing'
+  | 'diff.not-git'
+  | 'diff.not-diff-mode';
 
 export const ERROR_HINTS: Record<ErrorCode, ErrorHint> = {
   'tool.slither.missing': {
@@ -98,6 +102,22 @@ export const ERROR_HINTS: Record<ErrorCode, ErrorHint> = {
   'analysis.no-data': {
     cause: 'An analysis command was invoked but a required upstream output is missing.',
     fix: 'Run `hex analyze` first, or generate the missing file explicitly (e.g. `hex stats`).',
+  },
+  'diff.base-required': {
+    cause: 'A differential audit needs the base commit (the previously audited code).',
+    fix: 'Pass --base <commit>, e.g. `hex init --mode diff --base abc1234 --scope "src/**/*.sol"`.',
+  },
+  'diff.base-missing': {
+    cause: 'The base or head commit does not exist in this git repository.',
+    fix: 'Fetch the missing history (`git fetch --all --tags`, or unshallow a shallow clone with `git fetch --unshallow`), then re-run.',
+  },
+  'diff.not-git': {
+    cause: 'The project directory is not inside a git repository, so changes cannot be computed.',
+    fix: 'Run Hex from a git checkout of the client repository that contains both commits.',
+  },
+  'diff.not-diff-mode': {
+    cause: 'No base commit is configured; this project was initialized as a full audit.',
+    fix: 'Pass --base <commit> to `hex diff`, or re-run `hex init --mode diff --base <commit> ...`.',
   },
 };
 

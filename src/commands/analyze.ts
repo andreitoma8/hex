@@ -9,6 +9,8 @@ import { callsCommand } from './calls.js';
 import { patternsCommand } from './patterns.js';
 import { constraintsCommand } from './constraints.js';
 import { surfaceCommand } from './surface.js';
+import { diffCommand } from './diff.js';
+import { loadProjectContext } from '../core/config.js';
 
 interface StepResult {
   name: string;
@@ -55,7 +57,9 @@ function truncate(message: string, max: number): string {
 }
 
 export const analyzeCommand = new Command('analyze')
-  .description('Run all deterministic analysis commands (stats, deps, access, state, calls, patterns, constraints, surface)')
+  .description(
+    'Run all deterministic analysis commands (stats, deps, access, state, calls, patterns, constraints, surface; plus diff in differential mode)',
+  )
   .option('--project <dir>', 'Project directory')
   .option('--no-coverage', 'Skip test coverage (passed to stats)')
   .action(async (opts) => {
@@ -83,7 +87,18 @@ export const analyzeCommand = new Command('analyze')
       { name: 'surface', command: surfaceCommand, args: baseArgs },
     ];
 
-    const tracker = new ProgressTracker(phase1Steps.map((s) => s.name));
+    // Differential mode adds `diff` after surface.
+    let diffMode = false;
+    try {
+      diffMode = loadProjectContext(opts.project ?? process.cwd()).config.project.mode === 'diff';
+    } catch {
+      /* no config — every step reports it individually */
+    }
+
+    const tracker = new ProgressTracker([
+      ...phase1Steps.map((s) => s.name),
+      ...(diffMode ? ['diff'] : []),
+    ]);
     tracker.start();
 
     const parallelSteps = phase1Steps.slice(0, -1);
@@ -101,6 +116,10 @@ export const analyzeCommand = new Command('analyze')
     const surfaceStep = phase1Steps[phase1Steps.length - 1];
     const surfaceResult = await runStep(surfaceStep.name, surfaceStep.command, surfaceStep.args, tracker);
     results.push(surfaceResult);
+
+    if (diffMode) {
+      results.push(await runStep('diff', diffCommand, baseArgs, tracker));
+    }
 
     tracker.finish();
 

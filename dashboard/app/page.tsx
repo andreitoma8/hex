@@ -17,7 +17,15 @@ interface ProjectConfig {
     chain: string;
     solidity_version: string;
     scope: string[];
+    mode?: 'full' | 'diff';
+    diff?: { base_commit: string };
   };
+}
+
+interface DiffSummary {
+  base_commit: string;
+  head_commit: string;
+  summary: { files_changed: number; impacted_entry_points: number; storage_layout_changes: number };
 }
 
 interface Stats {
@@ -158,6 +166,7 @@ export default function HomePage() {
   const config = readJsonFile<ProjectConfig>('config.json');
   const overview = readMarkdownFile('overview.md');
   const stats = readJsonFile<Stats>('stats.json');
+  const diff = config?.project.mode === 'diff' ? readJsonFile<DiffSummary>('diff.json') : null;
   const findingsData = readJsonFile<FindingsData>('findings.json');
   const externalCallsData = readJsonFile<ExternalCallsData>('external-calls.json');
 
@@ -190,6 +199,39 @@ export default function HomePage() {
               scope
             </span>
           </div>
+        )}
+        {config?.project.mode === 'diff' && (
+          <Link
+            href="/changes"
+            className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-border-subtle bg-surface-1 px-4 py-3 text-body text-text-secondary hover:border-border-default hover:bg-surface-2"
+          >
+            <span className="rounded-md bg-accent-subtle px-2.5 py-1 text-caption font-medium text-accent">
+              Differential
+            </span>
+            <code className="font-mono text-caption text-text-primary">
+              {(diff?.base_commit ?? config.project.diff?.base_commit ?? '').slice(0, 8)}
+            </code>
+            <span aria-hidden="true">→</span>
+            <code className="font-mono text-caption text-text-primary">
+              {(diff?.head_commit ?? config.project.commit).slice(0, 8)}
+            </code>
+            {diff ? (
+              <span>
+                · {diff.summary.files_changed} file{diff.summary.files_changed !== 1 ? 's' : ''} changed ·{' '}
+                {diff.summary.impacted_entry_points} impacted entry point
+                {diff.summary.impacted_entry_points !== 1 ? 's' : ''}
+                {diff.summary.storage_layout_changes > 0 && (
+                  <span className="text-[var(--high)]">
+                    {' '}
+                    · {diff.summary.storage_layout_changes} storage layout change
+                    {diff.summary.storage_layout_changes !== 1 ? 's' : ''}
+                  </span>
+                )}
+              </span>
+            ) : (
+              <span>· run hex diff to compute the change set</span>
+            )}
+          </Link>
         )}
       </div>
 

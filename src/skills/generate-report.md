@@ -56,8 +56,8 @@ Each section has a defined **input signature** — the exact set of data it deri
 
 | Section | Input signature (hash over) |
 |---|---|
-| `executive_summary` | severity + resolution histograms, `stats.totals.nsloc`, all `settings.report.*` fields, and the `overview.md` bytes (the synopsis derives from it) |
-| `audited_files` | the per-file LoC results for every `project.scope` file, `repository_url`, `initial_commit` |
+| `executive_summary` | severity + resolution histograms, `stats.totals.nsloc`, all `settings.report.*` fields, and the `overview.md` bytes (the synopsis derives from it); differential: also `diff.json` `base_commit` / `head_commit` / `summary` |
+| `audited_files` | the per-file LoC results for every `project.scope` file (differential: every changed file, with its +/- counts), `repository_url`, `initial_commit` |
 | `summary_of_findings` | the ordered synced-findings list: `(id, title, severity, resolution)` each |
 | `system_overview` | `overview.md`, `access-control.json`, `deps.json` bytes |
 | `findings` | the synced-findings full content: `(title, severity, description, code blocks, recommendation, resolution, update_from_client, root_cause.locations)` each |
@@ -85,7 +85,7 @@ Read `<output_dir>/config.json`. Look under `settings.report.*` for:
 - `final_commit` — commit hash after fixes (defaults to `initial_commit` if no remediation cycle).
 - `initial_report_date` — date the initial report was delivered (e.g. `May 22, 2026`).
 - `final_report_date` — date the final report was delivered (defaults to `initial_report_date`).
-- `audit_type` — defaults to `Security Review`.
+- `audit_type` — defaults to `Security Review`. A differential audit (`project.mode: "diff"`) is initialized with `Differential Review`.
 - `doc_assessment` — `High` / `Medium` / `Low`.
 - `test_assessment` — `High` / `Medium` / `Low`.
 - `kickoff_call` — optional focus note for the §7 kick-off sentence (e.g. "with a focus on the upgrade changes"). Empty means omit the kick-off sentence.
@@ -137,6 +137,8 @@ Style hints:
 ## Phase 4 — Write the Executive Summary (§1)
 
 Write to `executive_summary.txt` **and** `01-executive-summary.tex`.
+
+**Differential audit** (`config.json` → `project.mode` is `diff`): the review covers the changes between two commits, and the first paragraph must say so. Use `<SCOPE_DESCRIPTION>` = `changes to <scope description> between commit \href{<REPOSITORY_URL>/commit/<BASE_COMMIT>}{\texttt{<BASE_SHORT>}} and commit \href{<REPOSITORY_URL>/commit/<HEAD_COMMIT>}{\texttt{<HEAD_SHORT>}}` (commits from `.hex/diff.json`, short = first 7 characters). Replace the `<TOTAL_NSLOC>` sentence with the size of the change: `\textbf{The audit comprises} <ADDITIONS> added and <DELETIONS> removed lines of Solidity code across <FILES_CHANGED> files` (from `diff.json` `summary`). Everything else in the section is unchanged.
 
 ```latex
 \pagebreak \vspace*{0cm}
@@ -221,6 +223,8 @@ Substitutions:
 ## Phase 5 — Write the Audited Files table (§2)
 
 Write to `audited_files.txt` **and** `02-audited-files.tex`.
+
+**Differential audit:** the rows are the files in `.hex/diff.json` `files` with status `added`, `modified` or `renamed` (not `deleted`), counted at the head commit, instead of every `project.scope` file. Keep the same columns; the table still describes the audited files at head. `<INITIAL_COMMIT>` in the links is the head commit.
 
 Compute per-file line counts from each scope file. For each in-scope file in `config.json.project.scope`:
 

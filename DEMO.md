@@ -42,6 +42,8 @@ It asks for scope, commit, chain, and docs URL. For solmate something like `--sc
 6. **Spec conformance** — cross-references docs, NatSpec, interfaces, and ERC/EIPs (fetches canonical specs from `eips.ethereum.org`). Writes `spec-conformance.json`.
 7. **Materialize conformance items to the board** — every DEVIATES/PARTIAL spec item becomes a Potential card in `tracking.json` (source `conformance`).
 
+**Differential variant.** Answer *Differential* when asked for the audit type, and give a base commit (plus, optionally, the previous audit's `.hex/` folder or report). `hex analyze` then also runs `hex diff`, which writes `diff.json` with the changed entities, storage-layout changes and impacted flows. The overview, flows and conformance phases focus on the change, prior findings get a regression check, and the dashboard shows a **Changes** page. To demo it on a single repo, audit `HEAD~5` → `HEAD`: `hex init --mode diff --base HEAD~5 --scope "src/**/*.sol"`.
+
 If anything fails, `hex doctor` prints a labelled preflight table (node, forge, slither, solc, Claude Code, output dir, `.hex/config.json`) with one-line install hints.
 
 ### Dashboard opens automatically
@@ -58,6 +60,7 @@ Key pages:
 - `/functions` — Aggregated function view.
 - `/diagram` and `/flows` — Full-bleed Mermaid canvas with auto-fit zoom and legend overlay.
 - `/conformance` — Conformance check results, deviations first, clickable spec links.
+- `/changes` — Differential audits only: base → head, changed entities, storage layout, impacted flows with reasons, prior-findings regression check.
 - `/issues` — **The board.** Five columns: Potential / Verified / Synced / Invalid / Duplicate. Uniform `H-NNN` ids with a source badge. Drag cards between the editable columns; click to edit, or copy as HackMD. The **Synced** column is reached only via `/sync-issues` and is read-only (edit on GitHub).
 - `/report` — The seven LaTeX report sections from `/generate-report`, each with a copy button. Only populated after you run the skill.
 
@@ -87,6 +90,14 @@ When you have something concrete, point Claude at it:
 To validate the whole Potential backlog in one interactive pass, run `/validate-all-findings`.
 
 Claude traces the attack path in the code, writes a validation memo (always), and asks per-issue whether you want a PoC or memo-only. On valid → tracking entry promotes to `verified` and the card moves to Verified on the board. On invalid → tracking entry becomes `rejected` and the card moves to Invalid.
+
+#### `/ai-audit` — 12 parallel attacker agents
+
+```
+/ai-audit
+```
+
+Asks which model the agents use and how many passes to run (1, 3 or 5), then spawns 12 specialised agents over the Hex scope. In a differential audit it scans only the changed and impacted files and briefs the agents on the change. It prints the assembled report, then publishes it: each finding becomes a Potential card (`source: "ai-audit"`) rewritten to Hex's finding standard and deduped against the board, and each lead becomes an open lead on the contract's Notes. Run it again later and it files only what is new. Based on pashov's `solidity-auditor` (MIT).
 
 #### `/ingest-aa-report` — Nethermind AuditAgent only
 
@@ -140,6 +151,8 @@ Only `synced` findings make the cut. Duplicates, rejected, and pending entries a
 - `/init-audit` is now a single skill that runs everything pre-manual-review.
 - The board (`/issues`) is the only findings page. Cards are interactive: drag to change column, click to edit.
 - `/write-finding` records Potential issues (uniform `H-NNN` ids, no in-code comments) — promote via `/validate-finding`, `/validate-all-findings`, or by dragging on the board.
+- `/init-audit` runs full or differential audits; a differential audit focuses every phase on the change and the flows it reaches.
+- `/ai-audit` puts AI findings on the board and leads in Notes, idempotently across re-scans.
 - `/ingest-aa-report` takes a scan ID, never starts a scan.
 - `/sync-issues` treats GitHub as the source of truth — synced issues are read-only in Hex and identified by issue number; `/generate-report` reports only from synced issues.
 - `/generate-report` is the final handoff to the LaTeX report.

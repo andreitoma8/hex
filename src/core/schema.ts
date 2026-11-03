@@ -36,6 +36,21 @@ export const ConfigSchema = z.object({
     docs_url: z.string().optional(),
     scope: z.array(z.string()),
     exclude: z.array(z.string()).default([]),
+    /** Raw --scope globs as typed (lets deleted/renamed files be tested for scope). */
+    scope_globs: z.array(z.string()).optional(),
+    /** `full` = audit the whole scope at `commit`; `diff` = audit `diff.base_commit` → `commit`. */
+    mode: z.enum(['full', 'diff']).default('full'),
+    diff: z
+      .object({
+        base_commit: z.string(),
+        previous_audit: z
+          .object({
+            kind: z.enum(['hex', 'report']),
+            path: z.string(),
+          })
+          .optional(),
+      })
+      .optional(),
   }),
   settings: z.object({
     output_dir: z.string().default('.hex'),
@@ -338,7 +353,14 @@ export const FindingsSchema = z.object({
 
 // ─── Tracking ───────────────────────────────────────────────────────
 
-export const TrackingSourceSchema = z.enum(['manual', 'auditagent', 'conformance', 'github']);
+export const TrackingSourceSchema = z.enum([
+  'manual',
+  'auditagent',
+  'conformance',
+  'github',
+  'ai-audit',
+  'prior-audit',
+]);
 
 export const TrackingEntrySchema = z.object({
   id: z.string(),
@@ -456,6 +478,10 @@ export const AiResultFindingSchema = z.object({
   category: z.string().optional(),
   raw_category: z.string().optional(),
   ai_consensus: z.number().int().optional(),
+  recommendation: z.string().optional(),
+  /** /ai-audit only: the scan's `Contract|function|bug-class` key and run stamp. */
+  scan_key: z.string().optional(),
+  scan_stamp: z.string().optional(),
 });
 
 export const AiResultFileSchema = z.object({
@@ -464,6 +490,149 @@ export const AiResultFileSchema = z.object({
   duration_seconds: z.number().optional(),
   total_findings: z.number(),
   findings: z.array(AiResultFindingSchema),
+});
+
+// ─── Differential audit ─────────────────────────────────────────────
+
+export const DiffFileStatusSchema = z.enum(['added', 'modified', 'deleted', 'renamed']);
+
+export const DiffFileSchema = z.object({
+  path: z.string(),
+  status: DiffFileStatusSchema,
+  old_path: z.string().optional(),
+  additions: z.number().int(),
+  deletions: z.number().int(),
+});
+
+export const DiffEntityKindSchema = z.enum([
+  'contract',
+  'function',
+  'modifier',
+  'state_variable',
+  'event',
+  'error',
+  'struct',
+  'inheritance',
+]);
+
+export const DiffChangeKindSchema = z.enum(['added', 'removed', 'modified', 'comments_only']);
+
+export const DiffChangeSchema = z.object({
+  contract: z.string(),
+  /** Entity name; functions carry their signature, e.g. `deposit(uint256,address)`. */
+  entity: z.string(),
+  kind: DiffEntityKindSchema,
+  file: z.string(),
+  change: DiffChangeKindSchema,
+  line_start: z.number().int().optional(),
+  line_end: z.number().int().optional(),
+  visibility: z.string().optional(),
+});
+
+export const StorageLayoutChangeSchema = z.object({
+  contract: z.string(),
+  file: z.string(),
+  kind: z.enum([
+    'variable_added',
+    'variable_removed',
+    'variable_reordered',
+    'variable_type_changed',
+    'inheritance_changed',
+    'struct_changed',
+  ]),
+  detail: z.string(),
+});
+
+export const ImpactReasonSchema = z.object({
+  kind: z.enum(['changed', 'calls', 'modifier', 'reads_state', 'override', 'inherits']),
+  /** The changed or impacted entity this hop goes through, e.g. `Vault._accrue()`. */
+  via: z.string(),
+});
+
+export const ImpactedFunctionSchema = z.object({
+  contract: z.string(),
+  function: z.string(),
+  file: z.string(),
+  visibility: z.string(),
+  is_entry_point: z.boolean(),
+  /** 0 = the function itself changed; n = n hops from the nearest change. */
+  depth: z.number().int(),
+  reasons: z.array(ImpactReasonSchema),
+  confidence: ConfidenceSchema,
+  derived_from: DerivedFromSchema,
+  line_start: z.number().int().optional(),
+});
+
+export const DiffSchema = z.object({
+  generated_at: z.string(),
+  base_commit: z.string(),
+  head_commit: z.string(),
+  /** Set when the working tree HEAD is not head_commit (analyses read the working tree). */
+  warnings: z.array(z.string()).default([]),
+  files: z.array(DiffFileSchema),
+  changes: z.array(DiffChangeSchema),
+  storage_layout_changes: z.array(StorageLayoutChangeSchema),
+  impacted: z.array(ImpactedFunctionSchema),
+  summary: z.object({
+    files_changed: z.number().int(),
+    additions: z.number().int(),
+    deletions: z.number().int(),
+    functions_added: z.number().int(),
+    functions_modified: z.number().int(),
+    functions_removed: z.number().int(),
+    impacted_functions: z.number().int(),
+    impacted_entry_points: z.number().int(),
+    storage_layout_changes: z.number().int(),
+  }),
+});
+
+// ─── Prior audit (differential mode) ────────────────────────────────
+
+export const PriorFindingSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  severity: SeveritySchema,
+  /** The prior report's resolution (Fixed / Acknowledged / ...), when known. */
+  resolution: z.string().optional(),
+  status: z.string().optional(),
+  description: z.string().default(''),
+  recommendation: z.string().optional(),
+  locations: z.array(
+    z.object({
+      file: z.string(),
+      function: z.string().optional(),
+      snippet: z.string().optional(),
+    }),
+  ),
+  source: z.enum(['hex', 'report']),
+});
+
+export const PriorFindingsSchema = z.object({
+  imported_at: z.string(),
+  base_commit: z.string().optional(),
+  source_path: z.string(),
+  findings: z.array(PriorFindingSchema),
+});
+
+export const PriorReviewItemSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  severity: SeveritySchema,
+  status: z.enum([
+    'fixed_unchanged',
+    'fix_touched_ok',
+    'regressed',
+    'acknowledged_still_present',
+    'code_removed',
+  ]),
+  reasoning: z.string(),
+  /** Board card id when a regression was materialized. */
+  issue_id: z.string().optional(),
+});
+
+export const PriorReviewSchema = z.object({
+  reviewed_at: z.string(),
+  items: z.array(PriorReviewItemSchema),
 });
 
 // ─── AI Run Status ─────────────────────────────────────────────────

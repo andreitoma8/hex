@@ -10,6 +10,7 @@ import { parseSolidity, extractSolidityVersion } from '../parsers/solidity-parse
 import { copySkillsToClaudeFormat, getClaudeSkillsDir } from '../core/skills.js';
 import { ProgressTracker } from '../core/progress.js';
 import { HexError, reportError } from '../core/errors.js';
+import { headCommit, isGitRepo, resolveCommit } from '../core/git.js';
 
 export const initCommand = new Command('init')
   .description('Initialize a new audit project')
@@ -22,6 +23,12 @@ export const initCommand = new Command('init')
   .option('--output-dir <dir>', 'Output directory', '.hex')
   .option('--exclude <globs>', 'Comma-separated exclude globs')
   .option('--github-repo <owner/repo>', 'GitHub repo for issue syncing (sets settings.github.repo)')
+  .option('--mode <mode>', 'Audit mode: full | diff (differential audit against --base)', 'full')
+  .option('--base <commit>', 'Differential mode: the previously audited commit')
+  .option(
+    '--previous-audit <path>',
+    "Differential mode: the previous engagement's .hex/ folder or its report (PDF/MD)",
+  )
   .option('--no-verify', 'Skip build verification')
   .action(async (opts) => {
     const STEPS = [
@@ -77,6 +84,16 @@ export const initCommand = new Command('init')
       }
       if (!tools.find((t) => t.name === 'solc')?.available) {
         logger.warn('solc not found — storage layout extraction will be unavailable');
+      }
+
+      // Audit mode
+      const mode: 'full' | 'diff' = opts.mode === 'diff' ? 'diff' : 'full';
+      if (opts.mode !== 'full' && opts.mode !== 'diff') {
+        throw new Error(`Invalid --mode: ${opts.mode}. Use full or diff.`);
+      }
+      if (mode === 'diff' && !opts.base) {
+        tracker.update('resolve scope', 'failed', '--base missing');
+        throw new HexError('diff.base-required');
       }
 
       // Resolve scope globs
@@ -157,6 +174,35 @@ export const initCommand = new Command('init')
         }
       }
 
+      // Differential mode: pin the base commit and record the previous audit.
+      let baseCommit: string | undefined;
+      let previousAudit: { kind: 'hex' | 'report'; path: string } | undefined;
+      if (mode === 'diff') {
+        if (!isGitRepo(projectDir)) throw new HexError('diff.not-git', `path: ${projectDir}`);
+        baseCommit = resolveCommit(projectDir, opts.base);
+        if (commit && commit !== 'unknown') {
+          const resolvedHead = resolveCommit(projectDir, commit);
+          const wt = headCommit(projectDir);
+          if (wt && wt !== resolvedHead) {
+            logger.warn(
+              `Working tree is at ${wt.slice(0, 8)} but --commit is ${resolvedHead.slice(0, 8)}. ` +
+                'Analyses read the working tree: check out the head commit before `hex analyze`.',
+            );
+          }
+        }
+        if (opts.previousAudit) {
+          const prev = path.resolve(opts.previousAudit);
+          if (!fs.existsSync(prev)) {
+            throw new Error(`--previous-audit path not found: ${prev}`);
+          }
+          const isHexDir =
+            fs.statSync(prev).isDirectory() &&
+            (fs.existsSync(path.join(prev, 'config.json')) ||
+              fs.existsSync(path.join(prev, '.hex', 'config.json')));
+          previousAudit = { kind: isHexDir ? 'hex' : 'report', path: prev };
+        }
+      }
+
       // Determine project name
       const name = opts.name ?? path.basename(projectDir);
 
@@ -173,6 +219,10 @@ export const initCommand = new Command('init')
         exclude: excludeGlobs,
         outputDir: opts.outputDir,
         githubRepo: opts.githubRepo,
+        scopeGlobs: scopeGlobs,
+        mode,
+        baseCommit,
+        previousAudit,
       });
 
       const outputDir = getOutputDir(projectDir, config.settings.output_dir);
@@ -226,7 +276,24 @@ This project is being audited with Hex.
 - **Chain:** ${config.project.chain}
 - **Solidity:** ${config.project.solidity_version}
 - **Commit:** \`${config.project.commit}\`${config.project.docs_url ? `\n- **Docs:** ${config.project.docs_url}` : ''}
-- **Config:** \`${config.settings.output_dir}/config.json\` — source of truth for all project metadata
+- **Config:** \`${config.settings.output_dir}/config.json\` — source of truth for all project metadata${
+          mode === 'diff' && baseCommit
+            ? `
+
+## Differential audit
+
+This is a **differential audit** of \`${baseCommit.slice(0, 8)}\` → \`${String(config.project.commit).slice(0, 8)}\`. Review effort goes to the changed code and the flows it reaches, not the whole scope.
+
+- \`${config.settings.output_dir}/diff.json\` — changed files and entities, storage-layout changes, and every impacted function with the reason chain (from \`hex diff\`)
+- \`${config.settings.output_dir}/diff/changes.patch\` — the in-scope unified diff
+- \`${config.settings.output_dir}/diff-overview.md\` — what changed and why (written by /init-audit)${
+                previousAudit
+                  ? `
+- \`${config.settings.output_dir}/previous-audit/\` — prior findings (\`findings.json\`) and their regression check (\`review.json\`)`
+                  : ''
+              }`
+            : ''
+        }
 
 ## Scope
 
@@ -249,7 +316,9 @@ All analysis outputs live here. Key files and what they answer:
 | \`spec-conformance.json\` | Spec vs code deviations | spec compliance, ERC conformance |
 | \`findings.json\` | Audit findings (canonical), wrapped as \`{ "findings": [...] }\` | reported issues, vulnerabilities |
 | \`tracking.json\` | Board state per issue (status, source, duplicate_of), wrapped as \`{ "findings": [...] }\` | finding triage, board columns |
-| \`comparison.json\` | Dedup match_signals (auditagent / github) | duplicate detection |
+| \`comparison.json\` | Dedup match_signals (auditagent / ai-audit / github) | duplicate detection |
+| \`ai-results/ai-audit/\` | /ai-audit findings (raw records behind the board cards) | AI audit results |
+| \`ai-audit/runs/\` | /ai-audit scan runs and assembled markdown reports | AI audit reports |
 | \`progress.json\` | Audit progress tracking | what has been reviewed |
 | \`diagrams/\` | Mermaid architecture and flow diagrams | system diagrams, flows |
 | \`report/\` | LaTeX report sections (executive summary, audited files, summary of issues, system overview, issues, documentation eval, test suite) as \`.txt\` + \`.tex\` | final report export |
@@ -264,11 +333,12 @@ Skills are in \`.claude/skills/\` and auto-discovered by Claude Code. Type \`/\`
 
 1. \`/init-audit\` — Initialize, dependency safety, full analysis pipeline, overview, diagrams, flows, spec conformance, board materialization (all in one)
 2. \`/write-finding\` — Record a manual issue as a Potential card on the board
-3. \`/validate-finding\` — Validate any Potential card (manual / auditagent / conformance / github); per-issue PoC or memo-only
+3. \`/validate-finding\` — Validate any Potential card (manual / ai-audit / auditagent / conformance / github / prior-audit); per-issue PoC or memo-only
 4. \`/generate-poc\` — Generate and run a proof-of-concept test (invoked by /validate-finding)
-5. \`/ingest-aa-report\` — Ingest a completed Nethermind AuditAgent scan by ID, with inline dedup
-6. \`/sync-issues\` — Two-way GitHub Issues sync (GitHub canonical)
-7. \`/generate-report\` — Emit the LaTeX report sections into \`${config.settings.output_dir}/report/\`
+5. \`/ai-audit\` — Parallel 12-agent AI audit (fork of pashov's solidity-auditor); findings land on the board, leads in notes
+6. \`/ingest-aa-report\` — Ingest a completed Nethermind AuditAgent scan by ID, with inline dedup
+7. \`/sync-issues\` — Two-way GitHub Issues sync (GitHub canonical)
+8. \`/generate-report\` — Emit the LaTeX report sections into \`${config.settings.output_dir}/report/\`
 
 Each skill builds on previous outputs.
 
@@ -277,6 +347,7 @@ Each skill builds on previous outputs.
 - \`npx hex analyze\` — Run all deterministic analysis (stats, deps, access, state, calls, patterns, constraints, surface)
 - \`npx hex context\` — Assemble full codebase context for AI prompts
 - \`npx hex context --target <Contract>\` — Focused context for a single contract
+- \`npx hex diff\` — Differential mode: recompute \`diff.json\` (changed entities + impacted flows)
 - \`npx hex dashboard\` — Open browser dashboard at http://localhost:3000
 - \`npx hex issue move <id> --to <column>\` — Move an issue between board columns
 - \`npx hex issue patch <id> [--severity ...] [--resolution ...]\` — Edit issue fields

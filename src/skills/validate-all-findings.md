@@ -8,7 +8,7 @@ description: "Walk every Potential issue on the board and validate them one by o
 
 Runs `/validate-finding` over every issue currently in the **Potential** column, one at a time, so the auditor can clear the backlog in a single pass without naming each id.
 
-Each issue gets `/validate-finding`'s full two-axis verdict — correctness **and** the Step-2.5 security-relevance gate. **`auditagent` / `github` findings skew recall-over-precision, so the realism gate is mandatory for them**; `manual` / `conformance` items already passed an auditor's eye and can lean lighter.
+Each issue gets `/validate-finding`'s full two-axis verdict — correctness **and** the Step-2.5 security-relevance gate. **`auditagent` / `ai-audit` / `github` findings skew recall-over-precision, so the realism gate is mandatory for them**; `manual` / `conformance` items already passed an auditor's eye and can lean lighter.
 
 ## Step 1 — Build the work list
 

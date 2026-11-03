@@ -9,6 +9,8 @@ import {
   StateVarsSchema,
   GithubLinkSchema,
   GithubSyncStatusSchema,
+  TrackingSourceSchema,
+  PriorFindingsSchema,
 } from './schema.js';
 
 describe('ConfigSchema', () => {
@@ -336,3 +338,58 @@ describe('GithubSyncStatusSchema', () => {
   });
 });
 
+
+describe('ConfigSchema differential mode', () => {
+  const base = {
+    version: '1.0',
+    project: {
+      name: 'P',
+      project_dir: '/p',
+      commit: 'head',
+      solidity_version: '0.8.20',
+      scope: ['src/Vault.sol'],
+    },
+    settings: {},
+  };
+
+  it('defaults mode to full for configs written before 0.7.0', () => {
+    const r = ConfigSchema.parse(base);
+    expect(r.project.mode).toBe('full');
+    expect(r.project.diff).toBeUndefined();
+  });
+
+  it('accepts a diff config with a previous audit', () => {
+    const r = ConfigSchema.parse({
+      ...base,
+      project: {
+        ...base.project,
+        mode: 'diff',
+        scope_globs: ['src/**/*.sol'],
+        diff: { base_commit: 'abc', previous_audit: { kind: 'hex', path: '/old/.hex' } },
+      },
+    });
+    expect(r.project.diff?.previous_audit?.kind).toBe('hex');
+  });
+
+  it('rejects an unknown mode', () => {
+    expect(ConfigSchema.safeParse({ ...base, project: { ...base.project, mode: 'partial' } }).success).toBe(false);
+  });
+});
+
+describe('TrackingSourceSchema', () => {
+  it('knows the ai-audit and prior-audit sources', () => {
+    expect(TrackingSourceSchema.parse('ai-audit')).toBe('ai-audit');
+    expect(TrackingSourceSchema.parse('prior-audit')).toBe('prior-audit');
+  });
+});
+
+describe('PriorFindingsSchema', () => {
+  it('parses an imported prior audit', () => {
+    const r = PriorFindingsSchema.parse({
+      imported_at: '2026-11-03T00:00:00Z',
+      source_path: '/old/report.pdf',
+      findings: [{ id: 'M-01', title: 't', severity: 'Medium', locations: [{ file: 'src/Vault.sol' }], source: 'report' }],
+    });
+    expect(r.findings[0].description).toBe('');
+  });
+});

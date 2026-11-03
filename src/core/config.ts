@@ -79,6 +79,12 @@ export interface CreateConfigOptions {
   exclude?: string[];
   outputDir?: string;
   githubRepo?: string;
+  /** Raw --scope globs, kept so `hex diff` can test deleted/renamed paths. */
+  scopeGlobs?: string[];
+  mode?: 'full' | 'diff';
+  /** Differential mode: the previous audit's commit. */
+  baseCommit?: string;
+  previousAudit?: { kind: 'hex' | 'report'; path: string };
 }
 
 /**
@@ -96,6 +102,23 @@ export function createConfig(options: CreateConfigOptions): Config {
       docs_url: options.docsUrl,
       scope: options.scope.map(normalizePath),
       exclude: (options.exclude ?? []).map(normalizePath),
+      ...(options.scopeGlobs ? { scope_globs: options.scopeGlobs } : {}),
+      mode: options.mode ?? 'full',
+      ...(options.mode === 'diff' && options.baseCommit
+        ? {
+            diff: {
+              base_commit: options.baseCommit,
+              ...(options.previousAudit
+                ? {
+                    previous_audit: {
+                      kind: options.previousAudit.kind,
+                      path: normalizePath(options.previousAudit.path),
+                    },
+                  }
+                : {}),
+            },
+          }
+        : {}),
     },
     settings: {
       output_dir: options.outputDir ?? '.hex',
@@ -111,6 +134,7 @@ export function createConfig(options: CreateConfigOptions): Config {
             },
           }
         : {}),
+      ...(options.mode === 'diff' ? { report: { audit_type: 'Differential Review' } } : {}),
     },
   };
 

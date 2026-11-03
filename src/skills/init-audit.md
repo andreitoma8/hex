@@ -8,6 +8,11 @@ description: 'Initialize a Solidity audit project: deterministic analysis + prot
 
 You are setting up a new Solidity audit project with Hex. This single skill replaces the old chain of `/init-audit` → `/generate-overview` → `/generate-diagram` → `/generate-flows` → `/check-spec-conformance`. By the time it finishes, every analysis page on the dashboard has data and every DEVIATES/PARTIAL spec item has been materialized as a Potential card on the issue board.
 
+It runs in one of two modes, chosen in Phase 1:
+
+- **Full** — audit the whole scope at one commit (the default).
+- **Differential** — audit what changed between a previously audited **base** commit and the **head** commit, plus the flows those changes reach. Hex computes the change set and the impact deterministically (`hex diff` → `.hex/diff.json`); every phase below then narrows to it. Sections marked **(differential)** run only in this mode.
+
 ## Prerequisites
 
 - The auditor has cloned or received the client project.
@@ -20,12 +25,21 @@ You are setting up a new Solidity audit project with Hex. This single skill repl
 
 Ask the auditor for:
 
+- **Audit type** — *Full* or *Differential*. Ask this first; the rest branches on it.
 - **Project directory path** — where the client project lives (default: current directory).
 - **Scope** — glob or explicit list of files in audit scope (e.g., `src/core/**/*.sol`).
 - **Commit hash** — the specific commit being audited (default: HEAD).
 - **Chain** — target chain (default: ethereum).
 - **Documentation URL** — if available.
 - **GitHub repo** (optional) — the `owner/repo` the audit's findings sync to (e.g. `nethermind/audit-vaultx`). Pass it to `hex init --github-repo` so `/sync-issues` and `/generate-report` work later. Leave blank if the engagement isn't using GitHub.
+
+**(differential)** Also ask for:
+
+- **Base commit** (required) — the commit the previous audit covered.
+- **Head commit** — the commit audited now (default: `HEAD`). It must be **checked out**: Hex's analyses read the working tree, while `hex diff` reads both commits from git. If the clone is shallow, `git fetch --unshallow` first.
+- **Previous audit** (optional) — the earlier engagement's `.hex/` folder, or its report (PDF or Markdown). Its findings become known issues, and the ones the change touches get a regression check (Phase 5b).
+
+When a previous `.hex/` folder is given, propose its `config.json` → `project.scope_globs` (or `project.scope`) as the scope and its `project.commit` as the base commit, and confirm both with the auditor.
 
 ### 1.2 Audit dependencies (BEFORE compiling)
 
@@ -56,13 +70,51 @@ After build safety passes, evaluate Solidity dependencies:
 Run:
 
 ```bash
-npx hex init --project "<path>" --scope "<scope>" --commit <hash> --chain <chain> --docs "<url>" [--github-repo <owner/repo>]
+npx hex init --project "<path>" --scope "<scope>" --commit <hash> --chain <chain> --docs "<url>" [--github-repo <owner/repo>] \
+  [--mode diff --base <base-commit> [--previous-audit "<path>"]]
 npx hex analyze
 ```
 
-Include `--github-repo` only if the auditor gave one.
+Include `--github-repo` only if the auditor gave one. Include the `--mode diff ...` part only for a differential audit.
 
 `hex analyze` runs stats → deps → access → state → calls → patterns → constraints in parallel, then `surface` last. If a tool is missing (Slither, forge), the corresponding analysis is skipped — note the limitation and move on.
+
+**(differential)** `hex analyze` then runs `diff`, which writes:
+
+- `.hex/diff.json` — changed files; changed entities (functions, modifiers, state variables, events, errors, structs, inheritance) as `added` / `modified` / `removed` / `comments_only`; `storage_layout_changes`; and `impacted` — every function the change reaches, with `depth`, `is_entry_point`, a `reasons` chain (`changed`, `calls`, `modifier`, `reads_state`, `override`, `inherits`) and a confidence.
+- `.hex/diff/changes.patch` — the in-scope unified diff.
+
+The analyses (stats, access, state, ...) still cover the whole scope at head: impacted flows run through unchanged code, and you need it as context. If `diff` failed (usually a commit missing from a shallow clone), stop and tell the auditor how to fetch it. A differential audit without the diff is a full audit under the wrong label.
+
+### 1.4 Import prior findings (differential, previous audit given)
+
+Normalize the previous audit's findings into `.hex/previous-audit/findings.json`:
+
+```json
+{
+  "imported_at": "<ISO-8601>",
+  "base_commit": "<base commit>",
+  "source_path": "<the path the auditor gave>",
+  "findings": [
+    {
+      "id": "<the prior report's own id, e.g. M-02 or H-007>",
+      "title": "...",
+      "severity": "Critical | High | Medium | Low | Info",
+      "resolution": "Fixed | Mitigated | Acknowledged | Not Fixed | Unresolved (as the prior report states it)",
+      "status": "<prior board status, when known>",
+      "description": "...",
+      "recommendation": "...",
+      "locations": [{ "file": "src/Vault.sol", "function": "withdraw", "snippet": "<the vulnerable code as the prior report showed it>" }],
+      "source": "hex | report"
+    }
+  ]
+}
+```
+
+- **From a `.hex/` folder:** read its `findings.json` and `tracking.json`. Import every finding whose tracking status is `verified` or `synced`; skip `rejected`, `duplicate` and still-Potential cards. Keep `id`, `title`, `severity`, `resolution`, `description`, `recommendation` and `root_cause.locations` (file + snippet). Add the function name when the snippet makes it clear.
+- **From a report (PDF / Markdown):** read it (PDFs in page ranges) and extract every finding: id, title, severity, the status or resolution the report gives, the description, and the affected code. Keep the snippet verbatim; it drives the regression check.
+
+Do not create board cards here. Prior findings are context; only regressions become cards (Phase 5b).
 
 ## Phase 2 — Protocol overview
 
@@ -82,6 +134,15 @@ Write a 2–3 paragraph overview to `.hex/overview.md` covering:
 4. **Notable design patterns** — upgradeability, access control, external dependencies, oracle usage.
 
 Write for an experienced Solidity auditor. Be precise and technical. Reference specific contract names and functions where relevant.
+
+**(differential)** The overview still describes the protocol as it stands at head. Write a second file, `.hex/diff-overview.md`, which the dashboard's Changes page shows above the change tables. Read `diff.json`, `diff/changes.patch` and `git log --oneline <base>..<head> -- <scope>` (commit messages carry the intent), then cover:
+
+1. **What changed and why** — the features, fixes and refactors in this change set, in plain terms, with the contracts and functions involved.
+2. **Removed or replaced behavior** — anything the base had that head no longer does.
+3. **Storage layout** — every entry in `storage_layout_changes`, and whether the contract is deployed behind a proxy (from `patterns.json`). A shifted slot in an upgradeable contract is the first thing an auditor must see.
+4. **Impacted flows** — the entry points in `impacted` (`is_entry_point: true`) grouped into user-level flows (deposit, withdraw, liquidation, ...), and how the change reaches each.
+
+Format: `# Changes: <base short sha> → <head short sha>`, then `##` sections in that order. Same rules as the overview: descriptive, no findings, no speculation.
 
 **Do NOT:**
 
@@ -138,9 +199,13 @@ Write a Mermaid `graph TD` diagram to `.hex/diagrams/diagram.mmd`. Constraints:
 - Edge labels: type the interaction — `-->|external call|`, `-.->|delegatecall|`, `==>|access-controlled|`, `-.->|reads|`.
 - Include a short overview header comment (`%% System architecture for <Project>`) and a visual legend at the bottom showing each classDef with one-line meaning.
 
+**(differential)** Add a `changed` classDef (`classDef changed stroke:#e8590c,stroke-width:3px`) and apply it to every contract with an entry in `diff.json` `changes` (other than `comments_only`). List it in the legend.
+
 ## Phase 4 — Flow charts
 
 Same context as Phase 3, plus `.hex/external-calls.json`.
+
+**(differential)** Do not draw the archetype flows below. Draw the **impacted flows** instead: group the impacted entry points in `diff.json` (`is_entry_point: true`) into user-level flows, and draw one chart per flow, from the entry point through the changed code. Mark changed steps with the `changed` classDef, and show storage-layout changes as a note on the affected state node. Same file names, shapes and limits as below.
 
 For each archetype, generate at minimum:
 
@@ -174,6 +239,8 @@ Write each flow to `.hex/diagrams/flow-<name>.mmd` (e.g., `flow-deposit.mmd`). C
 ## Phase 5 — Spec conformance
 
 Read `.hex/config.json` (docs URL, scope, ERCs), `.hex/stats.json` (ERC/EIP usage), `.hex/attack-surface.json` (token interactions).
+
+**(differential)** Check only what the change can affect: NatSpec, interface and ERC requirements of the changed and impacted functions in `diff.json`, plus any documentation claim about new or changed behavior. Unchanged functions were checked by the previous audit.
 
 Cross-reference four sources:
 
@@ -253,6 +320,39 @@ npx hex issue new --source conformance --source-ref "<spec-item-id, e.g. SC-001>
 
 **Idempotency:** before creating, check whether a tracking entry already has this `source_ref` (re-running `/init-audit` shouldn't double-create). Skip items whose `source_ref` is already present.
 
+## Phase 5b — Regression check of prior findings (differential, previous audit given)
+
+For each finding in `.hex/previous-audit/findings.json`, decide what the change did to it:
+
+| Status | Meaning |
+|---|---|
+| `fixed_unchanged` | The prior finding was fixed and the change does not touch that code. |
+| `fix_touched_ok` | The change touches the fixed code, and the fix still holds. |
+| `regressed` | The prior finding was fixed (or mitigated), and the change re-introduces it or undoes the fix. |
+| `acknowledged_still_present` | The prior finding was left open (acknowledged / not fixed) and is still present. A known issue. |
+| `code_removed` | The affected code no longer exists. |
+
+Do a deterministic first pass, then judge: a prior `snippet` that appears verbatim again in the head file is a strong regression signal for a finding marked Fixed; a finding whose file and function do not appear in `diff.json` `changes` is `fixed_unchanged` (or `acknowledged_still_present`) without further reading. Read the code for everything else.
+
+Write `.hex/previous-audit/review.json`:
+
+```json
+{
+  "reviewed_at": "<ISO-8601>",
+  "items": [
+    { "id": "M-02", "title": "...", "severity": "Medium", "status": "regressed", "reasoning": "<one or two sentences>", "issue_id": "H-012" }
+  ]
+}
+```
+
+Put **only `regressed` findings** on the board, through the CLI, which materializes the card from the prior record:
+
+```bash
+npx hex issue new --source prior-audit --source-ref "<prior id>" --title "<title>" --severity <Severity>
+```
+
+Store the printed `H-NNN` as that item's `issue_id`. Before creating, skip any prior id that already has a tracking entry with `source: prior-audit` (re-running this skill must not double-create). Then rewrite the card's description for this code with `npx hex issue patch <id> --description-file ...`: the prior text describes the base commit, and the report needs the bug as it exists at head. Acknowledged findings are **not** carded: the client already knows about them, and `/ai-audit` skips matches to them.
+
 ## Phase 7 — Report and auto-launch the dashboard
 
 Summarize:
@@ -261,6 +361,7 @@ Summarize:
 - Number of external/public functions, state variables.
 - Number of conformance DEVIATES/PARTIAL items materialized to the board.
 - Any warnings or limitations (missing tools, failed coverage, etc.).
+- **(differential)** Base → head, files changed (+/- lines), functions added / modified / removed, impacted entry points, storage-layout changes, and the prior-findings tally from `review.json` (regressed / still present / fixed). Suggest `/ai-audit` next: in a differential audit it scans only the changed and impacted files and briefs its agents on the change.
 
 Then launch the dashboard in the background so the auditor's browser opens automatically. Pass `--project` with the **absolute** project directory (so the dashboard reads the right `.hex/` regardless of the current working directory), and run with `run_in_background: true` so the skill returns control while Next.js keeps serving:
 
@@ -282,3 +383,4 @@ After this skill finishes, the following exist in `.hex/`:
 - `diagrams/flow-*.mmd`
 - `spec-conformance.json`, `spec-conformance.md`
 - `tracking.json` — populated with conformance DEVIATES/PARTIAL items as Potential issues
+- **(differential)** `diff.json`, `diff/changes.patch`, `diff-overview.md`, and with a previous audit `previous-audit/findings.json` and `previous-audit/review.json` (regressions carded with `source: prior-audit`)

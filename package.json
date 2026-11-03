@@ -1,6 +1,6 @@
 {
   "name": "hex-audit",
-  "version": "0.6.3",
+  "version": "0.7.0",
   "type": "module",
   "description": "CLI toolkit for Solidity smart contract auditors",
   "bin": {
@@ -58,6 +58,7 @@
     "commander": "^12.1.0",
     "glob": "^10.3.10",
     "mermaid": "^11.4.0",
+    "minimatch": "^9.0.4",
     "next": "14.2.5",
     "next-themes": "^0.4.6",
     "ora": "^8.0.1",
