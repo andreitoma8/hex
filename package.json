@@ -1,6 +1,6 @@
 {
   "name": "hex-audit",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "type": "module",
   "description": "AI-enhanced manual review for Solidity audits: exact compiler facts, a verified protocol model, attacker agents that must prove their findings, and a review workspace next to Claude Code",
   "bin": {

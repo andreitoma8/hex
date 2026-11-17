@@ -11,7 +11,8 @@ The dashboard is a calm review workspace that sits next to the auditor's Claude 
 design decision follows from these:
 - **One question, one action.** Every screen answers one question and has one obvious next action
   (Today: "what next?" → Continue; Review: "is this function safe?" → Clear; Model: "how does it
-  hold value and power?" → Use in report). Only that action uses the accent fill.
+  hold value and power?" → the overview's Start with the first diagram, then Use in report). Only
+  that action uses the accent fill.
 - **Content first, chrome last.** No decoration, no nested cards, no badge clutter, no wide
   multi-column tables by default.
 - **Progressive disclosure.** Lists show only what's needed to choose; everything else lives in the
@@ -97,7 +98,7 @@ resize, double-click to reset, arrow keys nudge; the hairline shows `border-emph
 Widths are CSS variables (`--w-<page>-list`, `--w-<page>-inspector`, `--w-sidebar`) remembered
 per viewer and restored before first paint (`lib/pane-width.ts`).
 
-### Document pages (Today, Changes overview)
+### Document pages (Today, Changes overview, Model overview)
 One centered column, max 720-780px, generous top padding (56px), sections separated by whitespace
 and hairline-bordered lists.
 

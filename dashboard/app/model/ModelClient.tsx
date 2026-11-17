@@ -15,7 +15,9 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { useToast } from '@/components/ui/Toast';
 import { IconCheck } from '@/components/ui/Icons';
 import { CodeReference } from '@/components/CodeReference';
-import { InlineMarkdown } from '@/components/MarkdownRenderer';
+import { InlineMarkdown, MarkdownRenderer } from '@/components/MarkdownRenderer';
+import { Kbd } from '@/components/ui/Kbd';
+import { splitOverview } from '@/lib/overview';
 import type { CanvasHandle, CanvasSelection } from '@/components/DiagramCanvas';
 import { useHotkeys } from '@/lib/hotkeys';
 import { setFocus } from '@/lib/focus';
@@ -88,7 +90,15 @@ type SectionId =
   | 'invariants'
   | 'spec';
 
-type View = { kind: 'diagram'; name: string } | { kind: 'section'; id: SectionId };
+type View =
+  | { kind: 'overview' }
+  | { kind: 'diagram'; name: string }
+  | { kind: 'section'; id: SectionId };
+
+const viewKeyOf = (v: View) =>
+  v.kind === 'overview' ? 'o' : v.kind === 'diagram' ? `d:${v.name}` : `s:${v.id}`;
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 interface Evidence {
   file: string;
@@ -160,6 +170,8 @@ function ClaimStatus({ status }: { status?: string }) {
 
 export function ModelClient({
   model,
+  overview,
+  projectName,
   invariants,
   spec,
   diagrams,
@@ -170,6 +182,8 @@ export function ModelClient({
   cardsByFn,
 }: {
   model: ProtocolModel | null;
+  overview: string | null;
+  projectName: string;
   invariants: Invariant[];
   spec: SpecItem[] | null;
   diagrams: DiagramEntry[];
@@ -202,14 +216,24 @@ export function ModelClient({
     return out;
   }, [model, invariants, spec]);
 
+  // The overview is where a newly initialized audit starts: what the protocol does, then the
+  // diagrams and sections.
+  const intro = useMemo(
+    () => (overview?.trim() ? splitOverview(overview, projectName) : null),
+    [overview, projectName],
+  );
+  const hasOverview = Boolean(intro || model?.summary?.trim());
+
   const viewFromParams = useCallback((): View => {
     const d = params.get('d');
     if (d && diagrams.some((x) => x.name === d)) return { kind: 'diagram', name: d };
-    const s = params.get('s') as SectionId | null;
-    if (s && sections.some((x) => x.id === s)) return { kind: 'section', id: s };
+    const s = params.get('s');
+    if (s === 'overview' && hasOverview) return { kind: 'overview' };
+    if (s && sections.some((x) => x.id === s)) return { kind: 'section', id: s as SectionId };
+    if (hasOverview) return { kind: 'overview' };
     if (diagrams[0]) return { kind: 'diagram', name: diagrams[0].name };
     return { kind: 'section', id: sections[0]?.id ?? 'invariants' };
-  }, [params, diagrams, sections]);
+  }, [params, diagrams, sections, hasOverview]);
 
   const [view, setView] = useState<View>(viewFromParams);
   const [item, setItem] = useState<string | null>(() => params.get('id'));
@@ -222,9 +246,10 @@ export function ModelClient({
     }
   }, [params]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const viewKey = view.kind === 'diagram' ? `d:${view.name}` : `s:${view.id}`;
+  const viewKey = viewKeyOf(view);
   useEffect(() => {
-    if (view.kind === 'diagram') replaceQuery({ d: view.name, s: null, id: null });
+    if (view.kind === 'overview') replaceQuery({ s: 'overview', d: null, id: null });
+    else if (view.kind === 'diagram') replaceQuery({ d: view.name, s: null, id: null });
     else replaceQuery({ s: view.id, d: null, id: item });
   }, [viewKey, item]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -237,23 +262,20 @@ export function ModelClient({
   // ── Ordered list for j/k ──
   const order: View[] = useMemo(
     () => [
+      ...(hasOverview ? [{ kind: 'overview' as const }] : []),
       ...diagrams.map((d) => ({ kind: 'diagram' as const, name: d.name })),
       ...sections.map((s) => ({ kind: 'section' as const, id: s.id })),
     ],
-    [diagrams, sections],
+    [diagrams, sections, hasOverview],
   );
   useHotkeys({
     j: () => {
-      const i = order.findIndex(
-        (v) => (v.kind === 'diagram' ? `d:${v.name}` : `s:${v.id}`) === viewKey,
-      );
+      const i = order.findIndex((v) => viewKeyOf(v) === viewKey);
       const next = order[Math.min(order.length - 1, i + 1)];
       if (next) open(next);
     },
     k: () => {
-      const i = order.findIndex(
-        (v) => (v.kind === 'diagram' ? `d:${v.name}` : `s:${v.id}`) === viewKey,
-      );
+      const i = order.findIndex((v) => viewKeyOf(v) === viewKey);
       const next = order[Math.max(0, i - 1)];
       if (next) open(next);
     },
@@ -360,6 +382,15 @@ export function ModelClient({
 
   const list = (
     <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-6 pt-1">
+      {hasOverview && (
+        <ListRow
+          dense
+          className="mt-2"
+          selected={view.kind === 'overview'}
+          onClick={() => open({ kind: 'overview' })}
+          title="Overview"
+        />
+      )}
       {diagrams.length > 0 && <ListGroupLabel>Diagrams</ListGroupLabel>}
       {diagrams.map((d) => (
         <ListRow
@@ -401,9 +432,11 @@ export function ModelClient({
       toolbar={
         <Toolbar
           title="Model"
-          meta={
-            model?.summary ? <span className="hidden lg:inline">{model.summary}</span> : undefined
-          }
+          meta={[
+            projectName,
+            plural(diagrams.length, 'diagram'),
+            plural(invariants.length, 'invariant'),
+          ].join(' · ')}
         />
       }
       list={list}
@@ -411,7 +444,27 @@ export function ModelClient({
       inspector={inspector}
       inspectorFloating={view.kind === 'diagram'}
     >
-      {view.kind === 'diagram' ? (
+      {view.kind === 'overview' ? (
+        <OverviewView
+          title={intro?.title ?? projectName}
+          body={intro?.body ?? null}
+          summary={model?.summary ?? ''}
+          start={
+            diagrams[0]
+              ? {
+                  label: `Start with ${diagrams[0].title}`,
+                  view: { kind: 'diagram', name: diagrams[0].name },
+                }
+              : sections[0]
+                ? {
+                    label: `Start with ${SECTION_LABEL[sections[0].id]}`,
+                    view: { kind: 'section', id: sections[0].id },
+                  }
+                : null
+          }
+          onOpen={open}
+        />
+      ) : view.kind === 'diagram' ? (
         diagram ? (
           <DiagramView key={diagram.name} entry={diagram} theme={theme} onSelect={setCanvasSel} />
         ) : (
@@ -430,6 +483,55 @@ export function ModelClient({
         />
       )}
     </SplitView>
+  );
+}
+
+// ─── Overview ───────────────────────────────────────────────────────
+
+/** What the protocol is, in prose, before the pictures and the parts list. */
+function OverviewView({
+  title,
+  body,
+  summary,
+  start,
+  onOpen,
+}: {
+  title: string;
+  body: string | null;
+  summary: string;
+  start: { label: string; view: View } | null;
+  onOpen: (v: View) => void;
+}) {
+  return (
+    <ScrollArea>
+      <article className="rise-in mx-auto max-w-[760px] px-8 pb-20 pt-14">
+        <p className="text-caption text-text-tertiary">Protocol overview</p>
+        <h2 className="mt-1 text-display text-text-primary">{title}</h2>
+        {body ? (
+          <MarkdownRenderer content={body} className="mt-6" />
+        ) : (
+          <>
+            <p className="mt-6 text-body leading-relaxed text-text-secondary">
+              <InlineMarkdown>{summary}</InlineMarkdown>
+            </p>
+            <p className="mt-4 text-caption text-text-tertiary">
+              The full overview (architecture, key contracts, dependencies) is written to
+              .hex/overview.md by <span className="font-mono">/init-audit</span>.
+            </p>
+          </>
+        )}
+        {start && (
+          <div className="mt-10 flex items-center gap-4 border-t border-border-subtle pt-6">
+            <Button variant="primary" onClick={() => onOpen(start.view)}>
+              {start.label}
+            </Button>
+            <span className="flex items-center gap-1.5 text-caption text-text-tertiary">
+              <Kbd>j</Kbd> <Kbd>k</Kbd> move through the rest
+            </span>
+          </div>
+        )}
+      </article>
+    </ScrollArea>
   );
 }
 

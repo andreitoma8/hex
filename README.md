@@ -196,7 +196,7 @@ Six destinations, one question each:
 | Page | What it answers |
 |---|---|
 | **Today** | What should I do next? Progress, the top blind spots, cards that need triage, recent changes |
-| **Model** | How does the system work? Excalidraw diagrams with takeaways (editable, exportable to the report), actors, assets, privileges, trust, dependencies, accounting, invariants, spec conformance; verified vs contested claims |
+| **Model** | How does the system work? Opens on the protocol overview (what it does, key contracts, dependencies, architecture), then Excalidraw diagrams in reading order (custody, privileges, accounting, flows, state machines) with takeaways (editable, exportable to the report), actors, assets, privileges, trust, dependencies, accounting, invariants, spec conformance; verified vs contested claims |
 | **Review** | What have I read? Contracts → functions with review state and risk; full code viewer; inspector with facts, notes, cards and Diane's recorder |
 | **Changes** | (differential audits, or after `/fix-review`) What changed, what it reaches, storage layout; fix review results |
 | **Board** | Potential / Verified / Synced / Rejected / Duplicate, with validation verdicts, PoCs and auto-move reverts |

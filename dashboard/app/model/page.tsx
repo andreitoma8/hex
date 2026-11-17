@@ -1,4 +1,4 @@
-import { readJsonFile } from '@/lib/data';
+import { readJsonFile, readMarkdownFile } from '@/lib/data';
 import { buildBoard, cardRefs } from '@/lib/server/board';
 import { readIndex, sceneMtime } from '@/lib/server/diagrams';
 import { outDir, readFacts, readReview } from '@/lib/server/workspace';
@@ -15,6 +15,12 @@ import {
 
 export const dynamic = 'force-dynamic';
 
+const READING_ORDER = ['custody', 'privilege', 'accounting', 'sequence', 'state-machine'];
+const readingRank = (type: string) => {
+  const i = READING_ORDER.indexOf(type);
+  return i < 0 ? READING_ORDER.length : i;
+};
+
 interface SpecFile {
   items?: SpecItem[];
 }
@@ -25,9 +31,23 @@ export default function ModelPage() {
   const model = readProtocolModel(dir);
   const invariants = readInvariants(dir).invariants;
   const spec = readJsonFile<SpecFile>('spec-conformance.json');
-  const diagrams: DiagramEntry[] = readIndex().map((d) => ({ ...d, mtime: sceneMtime(d.name) }));
+  // Reading order for someone new to the protocol: where the value sits, who controls it, how
+  // it is accounted, how it moves, how it changes state. Stable: index order within a kind.
+  const diagrams: DiagramEntry[] = readIndex()
+    .map((d) => ({ ...d, mtime: sceneMtime(d.name) }))
+    .sort((a, b) => readingRank(a.type) - readingRank(b.type));
+  // Written by /init-audit's synthesizer: what the protocol does, key contracts, architecture.
+  const overview = readMarkdownFile('overview.md');
+  const projectName =
+    readJsonFile<{ project?: { name?: string } }>('config.json')?.project?.name ?? 'Protocol';
 
-  if (!model && diagrams.length === 0 && invariants.length === 0 && !spec?.items?.length) {
+  if (
+    !model &&
+    !overview &&
+    diagrams.length === 0 &&
+    invariants.length === 0 &&
+    !spec?.items?.length
+  ) {
     return (
       <div className="flex h-full flex-col">
         <Toolbar title="Model" />
@@ -85,6 +105,8 @@ export default function ModelPage() {
   return (
     <ModelClient
       model={model}
+      overview={overview}
+      projectName={projectName}
       invariants={invariants}
       spec={spec?.items ?? null}
       diagrams={diagrams}
