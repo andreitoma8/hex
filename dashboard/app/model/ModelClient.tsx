@@ -635,7 +635,9 @@ function DiagramView({
                       : ''}
             </span>
           </div>
-          <p className="mt-1 max-w-3xl text-body text-text-secondary">{entry.takeaway}</p>
+          <p className="mt-1 max-w-3xl text-body text-text-secondary">
+            <InlineMarkdown>{entry.takeaway}</InlineMarkdown>
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <Button

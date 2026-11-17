@@ -95,9 +95,17 @@ const PAD_X = 18;
 const PAD_Y = 12;
 const LINE_H = 1.25;
 
+/**
+ * Specs are written in the model's markdown (`code`, **bold**), but an Excalidraw text element
+ * has a single font: drop the marks and keep the words. A lone `*` (multiplication) stays.
+ */
+export function plainText(text: string): string {
+  return text.replace(/`([^`\n]*)`/g, '$1').replace(/\*\*([^*\n]+)\*\*/g, '$1');
+}
+
 export function wrap(text: string, maxChars: number): string[] {
   const out: string[] = [];
-  for (const para of text.split('\n')) {
+  for (const para of plainText(text).split('\n')) {
     let line = '';
     for (const word of para.split(/\s+/).filter(Boolean)) {
       if (line && (line + ' ' + word).length > maxChars) {

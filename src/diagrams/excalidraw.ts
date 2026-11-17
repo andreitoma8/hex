@@ -5,7 +5,14 @@
  * `customData.hexRef` so the dashboard can link it to code, notes and cards.
  */
 import crypto from 'node:crypto';
-import type { Arrow, Scene, Shape, ShapeStyle, ArrowStyle } from './layout.js';
+import {
+  plainText,
+  type Arrow,
+  type Scene,
+  type Shape,
+  type ShapeStyle,
+  type ArrowStyle,
+} from './layout.js';
 
 /** Excalifont: the hand-drawn default font in Excalidraw 0.18. */
 const FONT = 5;
@@ -105,6 +112,7 @@ function textEl(
   color: string,
   containerId: string | null,
 ): El {
+  text = plainText(text);
   return {
     ...base(id, 'text', s.x, s.y, s.w, s.h),
     strokeColor: color,

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { DiagramSpecSchema } from '../core/schema.js';
-import { layoutDiagram, type Shape } from './layout.js';
+import { layoutDiagram, plainText, wrap, type Shape } from './layout.js';
 import { toExcalidraw } from './excalidraw.js';
 import { buildDiagrams } from './build.js';
 import type { DiagramSpec } from '../types/index.js';
@@ -305,5 +305,36 @@ describe('buildDiagrams', () => {
     );
     const o = buildDiagrams(out, { names: ['bad'] });
     expect(o[0].status).toBe('invalid');
+  });
+});
+
+describe('diagram text', () => {
+  it('drops inline markdown marks but keeps the words and a lone *', () => {
+    expect(plainText('`depositUnderlying` and **sweep** move `balanceOf`')).toBe(
+      'depositUnderlying and sweep move balanceOf',
+    );
+    expect(plainText('assets = shares * balance / totalShares')).toBe(
+      'assets = shares * balance / totalShares',
+    );
+    expect(wrap('only `withdraw` and `sweep(...)` move it', 80)).toEqual([
+      'only withdraw and sweep(...) move it',
+    ]);
+  });
+
+  it('writes no backticks into the scene, from takeaways, labels or arrows', () => {
+    const base = parsed.find((x) => x.type === 'custody')!;
+    const spec = JSON.parse(
+      JSON.stringify(base)
+        .replace('All deposits sit in Vault', 'All deposits sit in `Vault`')
+        .replace('"via":"withdraw"', '"via":"`withdraw(...)`"')
+        .replace('"label":"Owner"', '"label":"`owner`"'),
+    ) as DiagramSpec;
+    const texts = toExcalidraw(layoutDiagram(spec), { name: 'x', type: spec.type, spec_hash: 'x' })
+      .elements.filter((e) => e.type === 'text')
+      .map((e) => (e as { text: string }).text);
+    expect(texts.join('\n')).not.toContain('`');
+    expect(texts.join(' ').replace(/\s+/g, ' ')).toContain('All deposits sit in Vault');
+    expect(texts.some((t) => t.includes('withdraw(...)'))).toBe(true);
+    expect(texts.some((t) => t.includes('owner'))).toBe(true);
   });
 });
